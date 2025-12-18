@@ -1,0 +1,24 @@
+# Core dependencies
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# ML & Training (optional)
+torch>=2.0.0
+transformers>=4.35.0
+peft>=0.7.0
+bitsandbytes>=0.41.0
+
+# Vector databases (optional)
+faiss-cpu>=1.7.4
+chromadb>=0.4.0
+psycopg2-binary>=2.9.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+flake8>=6.1.0
+
+# Frontend (see ui/frontend/package.json)
+# npm install in ui/frontend/

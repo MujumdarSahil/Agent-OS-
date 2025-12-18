@@ -1,0 +1,18 @@
+[
+  {
+    "instruction": "Analyze this firewall rule for security issues",
+    "input": "Firewall rule: allow 0.0.0.0/0 to port 22",
+    "output": "This firewall rule is insecure because it allows SSH access from any IP address (0.0.0.0/0). Recommendation: Restrict source IPs to specific trusted networks."
+  },
+  {
+    "instruction": "Evaluate this password policy",
+    "input": "Password policy: min_length=6, require_digits=false",
+    "output": "This password policy is weak. Minimum length should be at least 8 characters, and digits should be required for better security."
+  },
+  {
+    "instruction": "Analyze this log entry",
+    "input": "Log: Failed login attempt from 192.168.1.100",
+    "output": "This log entry indicates a failed login attempt. If this pattern repeats, it may indicate a brute force attack. Recommendation: Monitor for multiple failed attempts from the same IP."
+  }
+]
+

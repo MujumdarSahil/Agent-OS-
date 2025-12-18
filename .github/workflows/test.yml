@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+    
+    - name: Run tests
+      run: |
+        pytest agentos/tests/ -v --tb=short
+    
+    - name: Check linting
+      run: |
+        pip install flake8
+        flake8 agentos/ --max-line-length=120 --ignore=E501,W503
+
