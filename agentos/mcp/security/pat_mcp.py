@@ -339,15 +339,15 @@ class PasswordAuditToolMCP(BaseMCPConnector):
                 password_samples = params.get("password_samples", [])
                 if not password_samples:
                     return {"success": False, "error": "Password samples list required"}
-            result = self._detect_weak_patterns(password_samples)
-            # Add safety_metadata to all results
-            result["safety_metadata"] = {
-                "operation": "read_only",
-                "password_cracking": False,
-                "brute_force": False,
-                "compliance": "defensive_analysis_only",
-            }
-            return {"success": True, **result}
+                result = self._detect_weak_patterns(password_samples)
+                # Add safety_metadata to all results
+                result["safety_metadata"] = {
+                    "operation": "read_only",
+                    "password_cracking": False,
+                    "brute_force": False,
+                    "compliance": "defensive_analysis_only",
+                }
+                return {"success": True, **result}
             
             else:
                 return {"success": False, "error": f"Unknown skill: {skill_name}"}

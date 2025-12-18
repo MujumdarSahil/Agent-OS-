@@ -197,6 +197,54 @@ pytest agentos/tests/
 
 ## Architecture Overview
 
+## Additional Examples
+
+- **Agent with Tools Demo**:
+
+  ```bash
+  python agentos/examples/agent_with_tools_demo.py
+  ```
+
+- **Squad Planning Demo**:
+
+  ```bash
+  python agentos/examples/squad_planning_demo.py
+  ```
+
+- **RAG Demo (Retrieval-Augmented Generation)**:
+
+  ```bash
+  python agentos/examples/rag_demo.py
+  ```
+
+- **CAG Demo (Context-Augmented Generation)**:
+
+  ```bash
+  python agentos/examples/cag_demo.py
+  ```
+
+- **Advanced Agent Flow Demo**:
+
+  ```bash
+  python agentos/examples/advanced_agent_flow_demo.py
+  ```
+
+- **Agentic Chunking Demo**:
+
+  ```bash
+  python agentos/examples/agentic_chunking_demo.py
+  ```
+
+## Python-Only UI (Streamlit)
+
+To use the web UI without any Node/React stack, run the Streamlit app:
+
+```bash
+streamlit run agentos/ui/streamlit_app.py
+```
+
+This lets you create agents, register tools, and create/execute simple tasks directly from the browser, using only Python.
+
 ```
 AgentOS
 ├── Core: Agents, Squads, Governance, Planning, Routing
@@ -217,3 +265,4 @@ AgentOS
 - **DMSG**: Distributed MCP Skill Graph for skill discovery
 - **Governance**: Policy engine for safety and resource control
 
+- to switch account ctrl shift P
