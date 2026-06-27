@@ -757,5 +757,95 @@ def build_crew(
         console.print("[yellow]Cancelled configuration write.[/yellow]")
 
 
+# =====================================================================
+# PACKAGING COMMANDS (Phase 3)
+# =====================================================================
+
+pack_app = typer.Typer(help="Build, sign, verify, and install .agentpack bundles")
+app.add_typer(pack_app, name="pack")
+
+
+@app.command("keygen")
+def keygen(
+    keys_dir: Optional[str] = typer.Option(None, help="Directory to write keys (default: ~/.agentos/keys/)"),
+):
+    """Generate an Ed25519 keypair for signing .agentpack files."""
+    from agentos.packaging.signer import generate_keypair
+    priv, pub = generate_keypair(keys_dir=keys_dir)
+    console.print(f"[green]OK[/green] Private key: {priv}")
+    console.print(f"[green]OK[/green] Public key:  {pub}")
+    console.print("[bold yellow]WARNING: Never commit private.pem to version control.[/bold yellow]")
+
+
+@pack_app.command("build")
+def pack_build(
+    project_path: str = typer.Argument(".", help="AgentOS project directory to pack"),
+    agents: str = typer.Option("", help="Comma-separated agent names to include"),
+    tools: str = typer.Option("", help="Comma-separated tool names to include"),
+    crews: str = typer.Option("", help="Comma-separated crew names to include"),
+    output: str = typer.Option("bundle.agentpack", help="Output .agentpack file path"),
+):
+    """Build a .agentpack file from a project directory."""
+    from agentos.packaging.pack_format import build_pack
+    include = {
+        "agents": [s.strip() for s in agents.split(",") if s.strip()],
+        "tools": [s.strip() for s in tools.split(",") if s.strip()],
+        "crews": [s.strip() for s in crews.split(",") if s.strip()],
+    }
+    result = build_pack(project_path=os.path.abspath(project_path), include=include, output_path=output)
+    console.print(f"[green]OK[/green] Pack built: {result}")
+
+
+@pack_app.command("sign")
+def pack_sign(
+    pack_path: str = typer.Argument(..., help="Path to .agentpack file"),
+    key: str = typer.Option(None, help="Path to private.pem (default: ~/.agentos/keys/private.pem)"),
+):
+    """Sign a .agentpack file with your Ed25519 private key."""
+    from agentos.packaging.signer import sign_pack
+    from pathlib import Path
+    key_path = key or str(Path.home() / ".agentos" / "keys" / "private.pem")
+    sign_pack(pack_path=pack_path, private_key_path=key_path)
+    console.print(f"[green]OK[/green] Pack signed: {pack_path}")
+
+
+@pack_app.command("verify")
+def pack_verify(
+    pack_path: str = typer.Argument(..., help="Path to .agentpack file"),
+):
+    """Verify the Ed25519 signature of a .agentpack file."""
+    from agentos.packaging.signer import verify_pack, get_signer_fingerprint
+    valid = verify_pack(pack_path)
+    if valid:
+        fp = get_signer_fingerprint(pack_path)
+        console.print(f"[green]VALID[/green] Signature verified. Signer fingerprint: {fp}")
+    else:
+        console.print("[bold red]INVALID[/bold red] Signature verification failed or pack is unsigned.")
+        raise typer.Exit(code=1)
+
+
+@pack_app.command("install")
+def pack_install(
+    pack_path: str = typer.Argument(..., help="Path to .agentpack file"),
+    target: str = typer.Argument(..., help="Target AgentOS project directory"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing files"),
+    license_key: Optional[str] = typer.Option(None, "--license-key", help="License key for commercial packs"),
+):
+    """Install a .agentpack into an AgentOS project directory."""
+    from agentos.packaging.pack_format import install_pack
+    try:
+        result = install_pack(pack_path=pack_path, target_project=target, force=force, license_key=license_key)
+        console.print(f"[green]OK[/green] Installed pack '{result['pack']}' v{result['version']}")
+        for category, items in result["installed"].items():
+            if items:
+                console.print(f"  {category}: {', '.join(str(i) for i in items)}")
+    except PermissionError as e:
+        console.print(f"[bold red]LICENSE ERROR:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    except FileExistsError as e:
+        console.print(f"[bold red]CONFLICT:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

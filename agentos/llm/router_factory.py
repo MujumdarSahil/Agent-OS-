@@ -47,10 +47,20 @@ def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
 
     # If completely empty, raise clear error
     if not available_providers:
-        raise RuntimeError(
-            "No LLM providers are available. Please configure at least one API key in "
-            "your environment (.env) or ensure Ollama is running locally."
-        )
+        if os.environ.get("AGENTOS_MOCK_LLM") == "1":
+            available_providers = [{
+                "name": "mock-provider",
+                "litellm_model": "openai/mock-model",
+                "api_key_env": None,
+                "api_base_env": None,
+                "priority": 100,
+                "tags": ["fast"]
+            }]
+        else:
+            raise RuntimeError(
+                "No LLM providers are available. Please configure at least one API key in "
+                "your environment (.env) or ensure Ollama is running locally."
+            )
 
     # Sort/Reorder based on preferred tags and priority
     # Providers matching preferred tags should run first
