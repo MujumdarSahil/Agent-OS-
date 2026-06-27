@@ -10,6 +10,14 @@ from agentos.core.governance import GovernanceEngine, PolicyDecision
 from agentos.core.router import TaskRouter
 from agentos.core.planner import Planner, TaskGraph
 from agentos.core.umb_adapter import UMBAdapter, MemoryEntry
+from agentos.core.base import (
+    BaseAgent,
+    BaseTool,
+    BaseMemory,
+    BaseMCPPlugin,
+    AgentRegistry,
+    ToolRegistry,
+)
 
 # Cybersecurity extension (optional imports)
 try:
@@ -45,6 +53,12 @@ __all__ = [
     "TaskGraph",
     "UMBAdapter",
     "MemoryEntry",
+    "BaseAgent",
+    "BaseTool",
+    "BaseMemory",
+    "BaseMCPPlugin",
+    "AgentRegistry",
+    "ToolRegistry",
     "CYBERSECURITY_AVAILABLE",
 ]
 

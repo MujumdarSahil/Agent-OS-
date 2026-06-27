@@ -1,14 +1,15 @@
 """
-Agent - Core agent class with identity, skills, memory, and execution capabilities
+Agent - Core Agent implementation inheriting from BaseAgent
 """
 
-from typing import List, Dict, Any, Optional, Callable
-from dataclasses import dataclass, field
-from enum import Enum
 import uuid
-import asyncio
-from datetime import datetime
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional, Callable
+import crewai
 
+from agentos.core.base import BaseAgent, BaseTool, BaseMemory
+from agentos.llm.llm_client import LLMClient, AgentOSCrewAILLM
 
 class AgentStatus(Enum):
     """Agent execution status"""
@@ -44,40 +45,38 @@ class ResourceQuota:
     wall_time_limit: float = 3600.0  # seconds
 
 
-class Agent:
+class Agent(BaseAgent):
     """
     Core Agent class representing an autonomous agent with skills, memory, and execution capabilities.
+    Wraps a CrewAI Agent.
     """
     
     def __init__(
         self,
-        id: Optional[str] = None,
         name: str = "Agent",
-        roles: List[str] = None,
-        skills: List[str] = None,
-        personality_vector: List[float] = None,
-        memory_ref: Optional[Any] = None,
-        resource_quota: Optional[ResourceQuota] = None,
+        role: str = "General Assistant",
+        goal: str = "Assist the user",
+        backstory: str = "A helpful AI assistant",
+        llm_client: Optional[LLMClient] = None,
+        tools: Optional[List[BaseTool]] = None,
+        memory: Optional[BaseMemory] = None,
+        **kwargs: Any
     ):
-        self.id = id or str(uuid.uuid4())
-        self.name = name
-        self.roles = roles or []
-        self.skills = skills or []
-        self.skill_vector = self._build_skill_vector(skills or [])
-        self.status = AgentStatus.IDLE
-        
-        # Identity
-        self.identity = AgentIdentity(
-            public_id=self.id,
+        super().__init__(
             name=name,
-            personality_vector=personality_vector or [],
+            role=role,
+            goal=goal,
+            backstory=backstory,
+            llm_client=llm_client,
+            tools=tools,
+            memory=memory,
+            **kwargs
         )
-        
-        # Memory reference (will be UMB adapter)
-        self.memory_ref = memory_ref
-        
-        # Resources
-        self.resource_quota = resource_quota or ResourceQuota()
+        self.id = kwargs.get("id") or str(uuid.uuid4())
+        self.status = AgentStatus.IDLE
+        self.roles = [role]
+        self.skills = kwargs.get("skills") or []
+        self.execution_history = []
         self.resource_metrics = {
             "token_usage": 0,
             "api_calls": 0,
@@ -86,96 +85,36 @@ class Agent:
             "wall_time": 0.0,
         }
         
-        # Execution context
-        self.current_task = None
-        self.execution_history = []
-        
-        # Tool registry
-        self.tools: Dict[str, Callable] = {}
-        
-        # Security tools registry (for security MCPs)
-        self.security_tools: Dict[str, Any] = {}
-    
-    def load_security_tools(self, security_mcps: Optional[Dict[str, Any]] = None):
+    def to_crewai_agent(self) -> crewai.Agent:
         """
-        Load security tools into skill registry from security MCP servers.
-        
-        Args:
-            security_mcps: Dictionary mapping MCP names to MCP connector instances
+        Translates this agent to a CrewAI Agent.
         """
-        if not security_mcps:
-            return
+        # Convert all tools
+        crewai_tools = [t.to_crewai_tool() for t in self.tools] if self.tools else []
         
-        for mcp_name, mcp_connector in security_mcps.items():
-            if hasattr(mcp_connector, 'get_skills'):
-                skills = mcp_connector.get_skills()
-                for skill in skills:
-                    skill_name = skill.get("name", "")
-                    if skill_name:
-                        # Register skill as callable that routes to MCP
-                        async def make_mcp_call(mcp=mcp_connector, skill=skill_name):
-                            return lambda params: mcp.call_skill(skill, params)
-                        
-                        # Store MCP reference for async calls
-                        self.security_tools[skill_name] = {
-                            "mcp": mcp_connector,
-                            "skill_name": skill_name,
-                            "skill_metadata": skill,
-                        }
-                        
-                        # Register as tool
-                        async def tool_wrapper(params: Dict[str, Any], mcp=mcp_connector, skill=skill_name):
-                            return await mcp.call_skill(skill, params)
-                        
-                        self.tools[skill_name] = tool_wrapper
-        
-    def _build_skill_vector(self, skills: List[str]) -> Dict[str, float]:
-        """Build a skill vector from skill list"""
-        return {skill: 1.0 for skill in skills}
-    
-    async def plan(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Plan execution for a task. Can call planner/MAGP or propose decomposition.
-        
-        Args:
-            task: Task description with goal, constraints, etc.
+        # Instantiate CrewAI LLM wrapper
+        llm = None
+        if self.llm_client:
+            llm = AgentOSCrewAILLM(llm_client=self.llm_client)
             
-        Returns:
-            Plan dictionary with subtasks and execution strategy
-        """
-        self.status = AgentStatus.PLANNING
-        
-        # Simple planning logic - can be extended with LLM calls
-        plan = {
-            "agent_id": self.id,
-            "task_id": task.get("id", str(uuid.uuid4())),
-            "subtasks": [task],  # Default: single task
-            "strategy": "sequential",
-            "estimated_cost": self._estimate_cost(task),
-            "created_at": datetime.now().isoformat(),
-        }
-        
-        self.status = AgentStatus.IDLE
-        return plan
-    
+        return crewai.Agent(
+            role=self.role,
+            goal=self.goal,
+            backstory=self.backstory,
+            tools=crewai_tools,
+            llm=llm,
+            verbose=True
+        )
+
     async def execute(self, task_node: Dict[str, Any], context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Execute a task node. Checks policies, calls tools, updates memory, emits events.
-        
-        Args:
-            task_node: Task node from planning graph
-            context: Execution context (governance, squad info, etc.)
-            
-        Returns:
-            Execution result with outputs and metadata
+        Runs the agent against a task description using a single CrewAI agent execution wrapper.
         """
         self.status = AgentStatus.EXECUTING
-        self.current_task = task_node
-        
         context = context or {}
         governance = context.get("governance")
         
-        # Policy check (if governance provided)
+        # Run governance policy check if provided
         if governance:
             decision = await governance.check(
                 agent_id=self.id,
@@ -189,28 +128,32 @@ class Agent:
                     "error": f"Policy violation: {decision.reason}",
                     "task_id": task_node.get("id"),
                 }
-        
-        # Execute task
+                
+        # Run execution using CrewAI
         try:
-            result = await self._execute_task(task_node)
+            crew_agent = self.to_crewai_agent()
+            crew_task = crewai.Task(
+                description=task_node.get("description", ""),
+                expected_output="Detailed result of: " + task_node.get("description", ""),
+                agent=crew_agent
+            )
+            crew = crewai.Crew(
+                agents=[crew_agent],
+                tasks=[crew_task],
+                verbose=False
+            )
+            output = crew.kickoff()
             
-            # Update memory if available
-            if self.memory_ref and result.get("outputs"):
-                await self._update_memory(task_node, result)
-            
-            # Update resource metrics
-            self._update_resource_metrics(result)
-            
-            # Record execution
-            self.execution_history.append({
+            # Simple result structure
+            res = {
+                "success": True,
+                "outputs": {"result": str(output)},
                 "task_id": task_node.get("id"),
-                "result": result,
-                "timestamp": datetime.now().isoformat(),
-            })
-            
+                "agent_id": self.id,
+            }
+            self.execution_history.append(res)
             self.status = AgentStatus.IDLE
-            return result
-            
+            return res
         except Exception as e:
             self.status = AgentStatus.ERROR
             return {
@@ -218,165 +161,21 @@ class Agent:
                 "error": str(e),
                 "task_id": task_node.get("id"),
             }
-    
-    async def _execute_task(self, task_node: Dict[str, Any]) -> Dict[str, Any]:
-        """Internal task execution logic"""
-        task_type = task_node.get("type", "generic")
-        description = task_node.get("description", "")
-        
-        # Check if we have a tool for this task
-        if task_type in self.tools:
-            tool_func = self.tools[task_type]
-            return await tool_func(task_node)
-        
-        # Default execution
-        return {
-            "success": True,
-            "outputs": {"result": f"Executed: {description}"},
-            "task_id": task_node.get("id"),
-            "agent_id": self.id,
-        }
-    
-    async def _update_memory(self, task_node: Dict[str, Any], result: Dict[str, Any]):
-        """Update memory with task execution results"""
-        if not self.memory_ref:
-            return
-        
-        memory_entry = {
-            "id": str(uuid.uuid4()),
-            "text": f"Task: {task_node.get('description')}\nResult: {result.get('outputs', {})}",
-            "vector": [],  # Will be computed by UMB
-            "metadata": {
-                "author_agent": self.id,
-                "timestamp": datetime.now().isoformat(),
-                "permission_level": "agent_private",
-                "task_id": task_node.get("id"),
-            }
-        }
-        
-        await self.memory_ref.upsert(memory_entry)
-    
-    def _estimate_cost(self, task: Dict[str, Any]) -> Dict[str, float]:
-        """Estimate resource cost for a task"""
-        return {
-            "tokens": 1000,  # Default estimate
-            "api_calls": 1,
-            "cpu_time": 0.1,
-            "wall_time": 5.0,
-        }
-    
-    def _update_resource_metrics(self, result: Dict[str, Any]):
-        """Update resource usage metrics"""
-        cost = result.get("cost", {})
-        self.resource_metrics["token_usage"] += cost.get("tokens", 0)
-        self.resource_metrics["api_calls"] += cost.get("api_calls", 0)
-        self.resource_metrics["cpu_estimate"] += cost.get("cpu_time", 0)
-        self.resource_metrics["wall_time"] += cost.get("wall_time", 0)
-    
-    async def debate(self, proposal: Dict[str, Any], other_agents: List['Agent']) -> Dict[str, Any]:
-        """
-        Participate in a debate with other agents about a proposal.
-        
-        Args:
-            proposal: Proposal to debate
-            other_agents: Other agents in the debate
-            
-        Returns:
-            Debate response (vote, counter-proposal, etc.)
-        """
-        # Simple debate logic - can be extended with LLM reasoning
-        return {
-            "agent_id": self.id,
-            "proposal_id": proposal.get("id"),
-            "vote": "approve",  # Default
-            "reasoning": f"{self.name} approves based on skills: {self.skills}",
-            "confidence": 0.8,
-        }
-    
-    def request_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Request a tool execution (delegated to tool registry or MCP).
-        
-        Args:
-            tool_name: Name of the tool
-            params: Tool parameters
-            
-        Returns:
-            Tool execution result
-        """
-        if tool_name in self.tools:
-            return asyncio.run(self.tools[tool_name](params))
-        
-        return {
-            "success": False,
-            "error": f"Tool '{tool_name}' not available",
-        }
-    
-    def register_tool(self, name: str, tool_func: Callable):
-        """Register a tool function"""
-        self.tools[name] = tool_func
-    
-    def merge_with(
-        self,
-        other_agents: List['Agent'],
-        merge_policy: str = "union",
-        temporary: bool = True,
-        mission_id: Optional[str] = None
-    ) -> Any:  # Returns CompositeAgent, but using Any to avoid circular import
-        """
-        Merge with other agents to create a composite agent.
-        
-        Args:
-            other_agents: List of agents to merge with
-            merge_policy: "union", "intersection", or "weighted"
-            temporary: Whether merge is temporary (mission-scoped)
-            mission_id: Mission ID if temporary
-            
-        Returns:
-            CompositeAgent instance
-        """
-        # Import here to avoid circular dependency
-        from agentos.core.composite_agent import CompositeAgent
-        
-        return CompositeAgent.create(
-            agents=[self] + other_agents,
-            merge_policy=merge_policy,
-            temporary=temporary,
-            mission_id=mission_id,
-        )
-    
-    def adapt_strategy(self, metrics: Dict[str, Any]):
-        """
-        Adapt execution strategy based on resource metrics.
-        
-        Args:
-            metrics: Current resource metrics
-        """
-        # Check if approaching limits
-        quota = self.resource_quota
-        
-        if metrics.get("token_usage", 0) > quota.token_limit * 0.8:
-            # Switch to cost-saving mode
-            self.resource_metrics["strategy"] = "cost_saving"
-        elif metrics.get("wall_time", 0) > quota.wall_time_limit * 0.7:
-            # Switch to fast mode
-            self.resource_metrics["strategy"] = "fast_mode"
-        else:
-            # Default thorough mode
-            self.resource_metrics["strategy"] = "thorough_mode"
-    
+
+    def register_tool(self, tool: BaseTool) -> None:
+        """Register a tool to the agent."""
+        if not self.tools:
+            self.tools = []
+        self.tools.append(tool)
+
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize agent to dictionary"""
+        """Serialize agent state to dictionary."""
         return {
             "id": self.id,
             "name": self.name,
-            "roles": self.roles,
-            "skills": self.skills,
+            "role": self.role,
+            "goal": self.goal,
+            "backstory": self.backstory,
             "status": self.status.value,
-            "identity": {
-                "public_id": self.identity.public_id,
-                "reputation_score": self.identity.reputation_score,
-            },
-            "resource_metrics": self.resource_metrics,
+            "skills": self.skills,
         }
-
