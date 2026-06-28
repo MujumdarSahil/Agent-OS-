@@ -66,8 +66,10 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     # App state — shared between all requests
     # -----------------------------------------------------------------------
     app.state.project_path = project_path
-    app.state.run_manager = RunManager()
-    app.state.governance = GovernanceEngine()
+    gov = GovernanceEngine()
+    gov.initialize_security_policies()
+    app.state.governance = gov
+    app.state.run_manager = RunManager(governance=gov)
 
     # -----------------------------------------------------------------------
     # Register API routes
@@ -83,6 +85,8 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     from agentos.server.routes.mcp_plugins import router as mcp_router
     from agentos.server.routes.governance import router as governance_router
     from agentos.server.routes.packaging import router as packaging_router
+    from agentos.server.routes.templates import router as templates_router
+    from agentos.server.routes.federation import router as federation_router
 
     app.include_router(health_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
@@ -95,6 +99,8 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app.include_router(mcp_router, prefix="/api")
     app.include_router(governance_router, prefix="/api")
     app.include_router(packaging_router, prefix="/api")
+    app.include_router(templates_router, prefix="/api")
+    app.include_router(federation_router, prefix="/api")
 
     # -----------------------------------------------------------------------
     # Serve built frontend in production mode

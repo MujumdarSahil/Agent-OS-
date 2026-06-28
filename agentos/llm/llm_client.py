@@ -17,12 +17,10 @@ from langchain_core.callbacks import CallbackManagerForLLMRun, AsyncCallbackMana
 from crewai.llms.base_llm import BaseLLM as CrewAIBaseLLM
 
 from agentos.llm.router_factory import build_router
+from agentos.llm.provider_registry import AgentOSLLMError
 
 logger = logging.getLogger(__name__)
 
-class AgentOSLLMError(Exception):
-    """Raised when all configured LLM providers in the fallback chain fail."""
-    pass
 
 class AgentOSFallbackLogger(CustomLogger):
     """
@@ -303,3 +301,23 @@ class AgentOSCrewAILLM(CrewAIBaseLLM):
         res = self._llm_client.complete(messages=dict_messages)
         content = res.get("choices", [{}])[0].get("message", {}).get("content", "")
         return content
+
+    async def acall(
+        self,
+        messages: Any,
+        tools: Any = None,
+        callbacks: Any = None,
+        available_functions: Any = None,
+        from_task: Any = None,
+        from_agent: Any = None,
+        response_model: Any = None,
+    ) -> str:
+        return self.call(
+            messages=messages,
+            tools=tools,
+            callbacks=callbacks,
+            available_functions=available_functions,
+            from_task=from_task,
+            from_agent=from_agent,
+            response_model=response_model,
+        )

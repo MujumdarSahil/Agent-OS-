@@ -1,0 +1,5 @@
+name: content_repurposing_crew
+agents:
+  - ContentAnalyzer
+  - SocialWriter
+process: sequential

@@ -159,8 +159,9 @@ class Squad:
         self.active_mission_id = mission_id
         
         try:
-            # Run the mission using our synchronous-to-async execution
-            result = self.run_mission(mission, resume=resume)
+            # Run the mission using a thread executor to avoid blocking the main event loop
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, self.run_mission, mission, resume)
             return {
                 "success": True,
                 "mission_id": mission_id,
@@ -219,20 +220,35 @@ class Squad:
                 except RuntimeError:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    
-                for task in crewai_tasks:
-                    task_node = {"description": task.description, "id": str(uuid.uuid4())}
-                    for agent_id, agent in self.agents.items():
-                        decision = loop.run_until_complete(
-                            self.governance.check(
+                
+                async def run_checks():
+                    for task in crewai_tasks:
+                        task_node = {"description": task.description, "id": str(uuid.uuid4())}
+                        for agent_id, agent in self.agents.items():
+                            decision = await self.governance.check(
                                 agent_id=agent_id,
                                 action="execute",
                                 context={"task": task_node, "agent": agent}
                             )
-                        )
-                        if not decision.allowed:
-                            raise ValueError(f"Task execution blocked by policy: {decision.reason}")
+                            if not decision.allowed:
+                                raise ValueError(f"Task execution blocked by policy: {decision.reason}")
+                
+                if loop.is_running():
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        def run_in_thread():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                return new_loop.run_until_complete(run_checks())
+                            finally:
+                                new_loop.close()
+                        future = executor.submit(run_in_thread)
+                        future.result()
+                else:
+                    loop.run_until_complete(run_checks())
             return inputs
+
 
         # Check for Commander for hierarchical process
         commander = None
@@ -401,3 +417,7 @@ class Squad:
             "agent_count": len(self.agents),
             "agent_ids": list(self.agents.keys()),
         }
+
+
+
+

@@ -105,6 +105,12 @@ def load_plugin(manifest: MCPPluginManifest, manifest_path: str, tool_registry: 
         if "network" not in manifest.permissions:
             raise ValueError(f"Plugin '{manifest.name}' attempts remote MCP connection but does not declare 'network' permission.")
             
+        logger.warning(
+            f"WARNING: Plugin '{manifest.name}' requires 'network' permission. "
+            "Note that AgentOS permissions are declarative-only and do not enforce "
+            "network-level or system-level sandboxing at runtime."
+        )
+            
         try:
             resolver = MCPToolResolver()
             server_config = MCPServerHTTP(url=manifest.mcp_server_url)

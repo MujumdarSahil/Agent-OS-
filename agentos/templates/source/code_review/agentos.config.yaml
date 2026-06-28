@@ -1,0 +1,4 @@
+preferred_tags:
+  - fast
+governance:
+  llm_judge_enabled: false

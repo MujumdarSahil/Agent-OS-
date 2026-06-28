@@ -1,0 +1,5 @@
+name: task_planner_crew
+agents:
+  - TaskPlanner
+  - TaskExecutor
+process: sequential

@@ -1,0 +1,5 @@
+name: research_assistant_crew
+agents:
+  - Researcher
+  - Writer
+process: sequential

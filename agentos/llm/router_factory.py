@@ -9,10 +9,13 @@ import logging
 import litellm
 from litellm import Router
 
-from agentos.llm.provider_registry import get_available_providers, PROVIDER_REGISTRY
+from agentos.llm.provider_registry import get_available_providers, PROVIDER_REGISTRY, AgentOSLLMError
 
 logger = logging.getLogger(__name__)
 
+import functools
+
+@functools.lru_cache(maxsize=1)
 def check_ollama_reachable() -> bool:
     """
     Lightweight connectivity probe to check if Ollama is reachable.
@@ -57,7 +60,7 @@ def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
                 "tags": ["fast"]
             }]
         else:
-            raise RuntimeError(
+            raise AgentOSLLMError(
                 "No LLM providers are available. Please configure at least one API key in "
                 "your environment (.env) or ensure Ollama is running locally."
             )

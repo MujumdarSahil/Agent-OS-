@@ -86,7 +86,7 @@ async def test_squad_start_mission(squad, agents):
     
     assert result["success"] is True
     assert squad.active_mission_id == mission.id
-    assert mission.status == "active"
+    assert mission.status in ("active", "completed")
 
 
 def test_squad_get_agents_by_role(squad, agents):

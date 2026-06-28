@@ -421,160 +421,15 @@ def run_project(
     """
     Executes a project mission, loading config, resolving tools/plugins, and checkpointing.
     """
-    # 1. Load project configurations
-    config_file = os.path.join(project_path, "agentos.config.yaml")
-    preferred_tags = ["fast"]
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                p_cfg = yaml.safe_load(f)
-                preferred_tags = p_cfg.get("preferred_tags", ["fast"])
-        except:
-            pass
-            
-    # Load dotenv from project directory if exists
-    dotenv_path = os.path.join(project_path, ".env")
-    if os.path.exists(dotenv_path):
-        from dotenv import load_dotenv
-        load_dotenv(dotenv_path)
-
-    # 2. Build registries
-    tool_registry = ToolRegistry()
-    agent_registry = AgentRegistry()
-    
-    # 3. Discover and load MCP plugins
-    discovered_plugins = discover_plugins(project_path)
-    for manifest, m_path in discovered_plugins:
-        try:
-            load_plugin(manifest, m_path, tool_registry)
-        except Exception as e:
-            console.print(f"[bold yellow]Warning:[/bold yellow] Failed to load MCP plugin '{manifest.name}': {e}")
-            
-    # 4. Load custom python tools from tools/
-    tools_dir = os.path.join(project_path, "tools")
-    if os.path.exists(tools_dir):
-        for py_file in glob.glob(os.path.join(tools_dir, "*.py")):
-            try:
-                spec = importlib.util.spec_from_file_location("dynamic_tool", py_file)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, BaseTool) and attr is not BaseTool:
-                        tool_registry.register(attr)
-            except Exception as e:
-                console.print(f"[bold yellow]Warning:[/bold yellow] Failed to load python tool from {py_file}: {e}")
-
-    # 5. Initialize LLMClient
-    llm_client = LLMClient(preferred_tags=preferred_tags)
-    
-    # 6. Load agent definitions from agents/
-    agents_map = {}
-    agents_dir = os.path.join(project_path, "agents")
-    if os.path.exists(agents_dir):
-        for fpath in glob.glob(os.path.join(agents_dir, "*.yaml")):
-            try:
-                with open(fpath, "r", encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                agent_cfg = AgentYAMLConfig(**data)
-                
-                # Resolve tools for this agent
-                agent_tools = []
-                for ref in agent_cfg.tool_refs:
-                    try:
-                        t_inst = tool_registry.create(ref)
-                        agent_tools.append(t_inst)
-                    except Exception as e:
-                        # Fallback try camel case class names
-                        camel_ref = to_camel_case(ref)
-                        try:
-                            t_inst = tool_registry.create(camel_ref)
-                            agent_tools.append(t_inst)
-                        except:
-                            console.print(f"[bold yellow]Warning:[/bold yellow] Tool '{ref}' not found in registry for agent '{agent_cfg.name}'")
-                
-                # Create agent
-                agent = Agent(
-                    name=agent_cfg.name,
-                    role=agent_cfg.role,
-                    goal=agent_cfg.goal,
-                    backstory=agent_cfg.backstory,
-                    llm_client=llm_client,
-                    tools=agent_tools
-                )
-                agents_map[agent_cfg.name] = agent
-            except Exception as e:
-                console.print(f"[bold red]Error loading agent configuration {fpath}:[/bold red] {e}")
-                raise typer.Exit(code=1)
-
-    # 7. Load Mission config
-    mission_file = os.path.join(project_path, "missions", f"{mission_name}.yaml")
-    if not os.path.exists(mission_file):
-        # Try without lowercase/underscores conversion
-        mission_file = os.path.join(project_path, "missions", f"{mission_name.lower().replace(' ', '_')}.yaml")
-        if not os.path.exists(mission_file):
-            console.print(f"[bold red]Error:[/bold red] Mission config '{mission_name}' not found under missions/.")
-            raise typer.Exit(code=1)
-            
-    with open(mission_file, "r", encoding="utf-8") as f:
-        m_data = yaml.safe_load(f)
-    mission_cfg = MissionYAMLConfig(**m_data)
-
-    # 8. Load Crew config
-    crew_file = os.path.join(project_path, "crews", f"{mission_cfg.crew.lower().replace(' ', '_')}.yaml")
-    if not os.path.exists(crew_file):
-        console.print(f"[bold red]Error:[/bold red] Crew config '{mission_cfg.crew}' not found under crews/.")
+    from agentos.core.project_ops import build_squad_from_project
+    try:
+        squad, mission = build_squad_from_project(project_path, mission_name)
+    except Exception as e:
+        console.print(f"[bold red]Error loading project/mission configuration:[/bold red] {e}")
         raise typer.Exit(code=1)
-        
-    with open(crew_file, "r", encoding="utf-8") as f:
-        c_data = yaml.safe_load(f)
-    crew_cfg = CrewYAMLConfig(**c_data)
-
-    # 9. Instantiate checkpoint store and Governance
-    checkpoint_db = os.path.join(project_path, "checkpoints", "run_history.db")
-    checkpoint_store = SQLiteCheckpointStore(db_path=checkpoint_db)
-    
-    governance = GovernanceEngine()
-    squad = Squad(name=crew_cfg.name, checkpoint_store=checkpoint_store, governance=governance)
-    
-    # Add agents to squad matching the roles
-    for a_name in crew_cfg.agents:
-        if a_name not in agents_map:
-            console.print(f"[bold red]Error:[/bold red] Agent '{a_name}' defined in Crew is missing from agents/ definitions.")
-            raise typer.Exit(code=1)
-        # Check if agent should be commander (hierarchical)
-        role = SquadRole.WORKER
-        if crew_cfg.process == "hierarchical" and a_name == crew_cfg.agents[0]:
-            role = SquadRole.COMMANDER
-        squad.add_agent(agents_map[a_name], role)
-        
-    # Build task graph
-    task_nodes = []
-    for idx, t in enumerate(mission_cfg.tasks):
-        # Match assigned agent name
-        assigned_id = None
-        if t.assigned_agent:
-            agent_inst = agents_map.get(t.assigned_agent)
-            if agent_inst:
-                assigned_id = agent_inst.id
-                
-        task_nodes.append(TaskNode(
-            id=f"t_{idx}",
-            description=t.description,
-            assigned_agent=assigned_id
-        ))
-    task_graph = TaskGraph(id=f"tg_{mission_name}", goal=mission_cfg.goal, nodes=task_nodes)
-    
-    mission = Mission(
-        id=mission_cfg.name,
-        goal=mission_cfg.goal,
-        description=mission_cfg.description,
-        task_graph=task_graph
-    )
     
     # 10. Run mission
-    console.print(f"[bold blue]Running mission:[/bold blue] {mission_cfg.name} (resume={resume})...")
+    console.print(f"[bold blue]Running mission:[/bold blue] {mission.id} (resume={resume})...")
     try:
         result = squad.run_mission(mission, resume=resume)
         console.print("\n[bold green]Mission executed successfully! Output:[/bold green]")
@@ -844,6 +699,172 @@ def pack_install(
         raise typer.Exit(code=1)
     except FileExistsError as e:
         console.print(f"[bold red]CONFLICT:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+
+
+# =====================================================================
+# PHASE 4 — WORKSTREAM B: Templates CLI
+# =====================================================================
+
+templates_app = typer.Typer(help="Manage bundled AgentOS templates")
+app.add_typer(templates_app, name="templates")
+
+
+@templates_app.command("list")
+def templates_list():
+    """List all bundled AgentOS templates."""
+    from agentos.templates import list_templates
+    templates = list_templates()
+    table = Table("Name", "Display Name", "Description", "Tags", "Pack Ready")
+    for t in templates:
+        table.add_row(
+            t["name"],
+            t["display_name"],
+            t["description"][:60] + ("…" if len(t["description"]) > 60 else ""),
+            ", ".join(t["tags"]),
+            "[green]✓[/green]" if t["pack_available"] else "[yellow]Build needed[/yellow]",
+        )
+    console.print(table)
+
+
+@templates_app.command("install")
+def templates_install(
+    name: str = typer.Argument(..., help="Template name (e.g. research_assistant)"),
+    project: str = typer.Argument(".", help="Target AgentOS project directory"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing files"),
+):
+    """Install a bundled template into an AgentOS project."""
+    from agentos.templates import install_template
+    project_path = os.path.abspath(project)
+    try:
+        result = install_template(template_name=name, target_project=project_path, force=force)
+        console.print(f"[green]OK[/green] Installed template '{name}' into {project_path}")
+        for category, items in result.get("installed", {}).items():
+            if items:
+                console.print(f"  {category}: {', '.join(str(i) for i in items)}")
+        console.print("\n[dim]Run 'agentos validate' to verify the project setup.[/dim]")
+    except FileExistsError as e:
+        console.print(f"[bold red]CONFLICT:[/bold red] {e}")
+        console.print("[dim]Use --force to overwrite.[/dim]")
+        raise typer.Exit(code=1)
+    except (ValueError, FileNotFoundError) as e:
+        console.print(f"[bold red]ERROR:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+# =====================================================================
+# PHASE 4 — WORKSTREAM C: Federation CLI
+# =====================================================================
+
+fed_app = typer.Typer(help="Multi-Squad Federation commands")
+app.add_typer(fed_app, name="federation")
+
+
+@fed_app.command("new")
+def new_federated_mission(
+    name: str = typer.Argument(..., help="Name for the federated mission"),
+    squads: str = typer.Option(..., "--squads", help="Comma-separated crew names for each stage (e.g. crew_a,crew_b)"),
+    missions: str = typer.Option(..., "--missions", help="Comma-separated mission names for each stage (must match squads count)"),
+    project: str = typer.Argument(".", help="AgentOS project directory"),
+):
+    """
+    Create a new federated mission config linking multiple squads in sequence.
+
+    Example:
+        agentos federation new my-research-write --squads research_crew,writing_crew --missions research,write_report
+    """
+    project_path = os.path.abspath(project)
+    squad_list = [s.strip() for s in squads.split(",") if s.strip()]
+    mission_list = [m.strip() for m in missions.split(",") if m.strip()]
+
+    if len(squad_list) != len(mission_list):
+        console.print(f"[bold red]ERROR:[/bold red] --squads and --missions must have the same count. "
+                      f"Got {len(squad_list)} squads and {len(mission_list)} missions.")
+        raise typer.Exit(code=1)
+
+    if len(squad_list) < 2:
+        console.print("[bold red]ERROR:[/bold red] A federated mission requires at least 2 stages.")
+        raise typer.Exit(code=1)
+
+    stages = [{"squad_crew": s, "mission": m} for s, m in zip(squad_list, mission_list)]
+    config = {"name": name, "stages": stages}
+
+    fed_dir = os.path.join(project_path, "federated_missions")
+    os.makedirs(fed_dir, exist_ok=True)
+    config_path = os.path.join(fed_dir, f"{name}.yaml")
+
+    if os.path.exists(config_path):
+        console.print(f"[bold red]ERROR:[/bold red] Federated mission '{name}' already exists at {config_path}.")
+        raise typer.Exit(code=1)
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(config, f)
+
+    console.print(f"[green]OK[/green] Created federated mission '{name}' with {len(stages)} stages:")
+    for idx, stage in enumerate(stages):
+        console.print(f"  Stage {idx}: {stage['squad_crew']} / {stage['mission']}")
+    console.print(f"\nRun with: [bold]agentos federation run {name} {project}[/bold]")
+
+
+@fed_app.command("run")
+def run_federated_mission(
+    name: str = typer.Argument(..., help="Federated mission name"),
+    project: str = typer.Argument(".", help="AgentOS project directory"),
+    resume: bool = typer.Option(False, "--resume", help="Resume from last checkpoint (skip completed stages)"),
+):
+    """
+    Run a federated mission: execute multiple squads sequentially with context handoff.
+    """
+    import asyncio
+    project_path = os.path.abspath(project)
+
+    # Load config
+    config_path = os.path.join(project_path, "federated_missions", f"{name}.yaml")
+    if not os.path.exists(config_path):
+        console.print(f"[bold red]ERROR:[/bold red] Federated mission '{name}' not found at {config_path}")
+        raise typer.Exit(code=1)
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    stages_cfg = config.get("stages", [])
+    console.print(f"\n[bold]Running federated mission '[cyan]{name}[/cyan]'[/bold] ({len(stages_cfg)} stages)\n")
+
+    from agentos.core.federation import FederatedMission, FederationStage
+    from agentos.core.project_ops import build_squad_from_project
+    from agentos.core.checkpoint import SQLiteCheckpointStore
+
+    checkpoint_db = os.path.join(project_path, "checkpoints", "run_history.db")
+    store = SQLiteCheckpointStore(db_path=checkpoint_db)
+
+    try:
+        stages = []
+        for idx, stage_cfg in enumerate(stages_cfg):
+            mission_name = stage_cfg["mission"]
+            console.print(f"  Building stage {idx}: {stage_cfg['squad_crew']} / {mission_name}")
+            squad, mission = build_squad_from_project(project_path, mission_name)
+            stages.append(FederationStage(
+                squad=squad,
+                mission=mission,
+                stage_index=idx,
+                name=f"{stage_cfg['squad_crew']}/{mission_name}",
+            ))
+
+        fed = FederatedMission(federation_id=name, stages=stages, checkpoint_store=store)
+        result = asyncio.run(fed.run())
+
+        console.print(f"\n[green]✓ Federation complete![/green] {result['stages_completed']}/{result['total_stages']} stages ran.")
+        console.print(f"\n[bold]Final output:[/bold]")
+        console.print(result.get("final_output", "(no output)"))
+
+    except RuntimeError as e:
+        console.print(f"\n[bold red]Federation failed:[/bold red] {e}")
+        console.print("[dim]Completed stages are checkpointed. Re-run with the same name to resume.[/dim]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"\n[bold red]Unexpected error:[/bold red] {e}")
         raise typer.Exit(code=1)
 
 

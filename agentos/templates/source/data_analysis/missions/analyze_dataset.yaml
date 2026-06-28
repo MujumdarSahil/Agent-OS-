@@ -1,0 +1,9 @@
+name: analyze_dataset
+goal: Analyze a dataset and produce actionable business insights
+description: The DataExplorer identifies patterns and statistical insights, then the InsightSummarizer translates these into business recommendations.
+crew: data_analysis_crew
+tasks:
+  - description: Analyze the following data. Identify key statistics (mean, median, range), distribution patterns, notable trends over time, correlations between variables, anomalies or outliers, and top/bottom performers. Data:\n\n{{data}}
+    assigned_agent: DataExplorer
+  - description: Based on the data analysis findings, produce a business intelligence report with an executive summary, 5 key insights with business implications, 3-5 prioritized recommendations, and suggested next steps for deeper investigation. Use clear business language, not statistical jargon.
+    assigned_agent: InsightSummarizer

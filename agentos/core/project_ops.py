@@ -244,6 +244,7 @@ def build_squad_from_project(
     project_path: str,
     mission_name: str,
     preferred_tags: Optional[List[str]] = None,
+    governance: Optional[Any] = None,
 ) -> Tuple[Any, Any]:
     """
     Build a Squad and Mission object from project YAML configs.
@@ -323,6 +324,16 @@ def build_squad_from_project(
     checkpoint_db = os.path.join(project_path, "checkpoints", "run_history.db")
     checkpoint_store = SQLiteCheckpointStore(db_path=checkpoint_db)
     governance = GovernanceEngine()
+
+    # Phase 4: Wire LLM judge layer if project config enables it
+    if cfg.governance.llm_judge_enabled:
+        governance.configure_llm_judge(enabled=True, llm_client=llm_client)
+        logger.info(
+            "GovernanceEngine: LLM judge layer ENABLED for this project "
+            "(governance.llm_judge_enabled=true in agentos.config.yaml). "
+            "This adds ~1 LLM call per task governance check."
+        )
+
     squad = Squad(
         name=crew_cfg.name,
         checkpoint_store=checkpoint_store,

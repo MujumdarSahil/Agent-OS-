@@ -6,7 +6,7 @@ A production-grade, research-worthy, and startup-ready multi-agent framework tha
 
 ### Core Components
 
-- **Hierarchical Governance Model** (Commander → Squad Leader → Worker → Reviewer) for authority and policies
+- **Two-Layer Hierarchical Governance Model** (fast keyword check + optional semantic LLM-judge) for fine-grained safety policy enforcement
 - **Squad Memory Sharing Network** with layered, permissioned memories: Squad, Mission, Private, Episodic, and Autobiographical
 - **Real-Time Collaboration** using WebSockets for low-latency multi-agent interactions
 - **Multi-Agent Planning Graph (MAGP)** that models tasks/subtasks as graphs and supports negotiation and parallelization
@@ -15,6 +15,9 @@ A production-grade, research-worthy, and startup-ready multi-agent framework tha
 - **Distributed MCP Skill Graph (DMSG)**: MCP servers as nodes, skills as edges, path-finding for skills
 - **Unified Memory Bus (UMB)**: semantic, pluggable memory layer across agents and squads
 - **Task Router (DMARP)**: Dynamic Multi-Agent Routing Protocol for intelligent task assignment
+- **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
+- **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
+- **Expanded Fallback Chain**: Multi-provider registry including OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together AI, Fireworks, DeepSeek, and Ollama
 
 ## Installation
 
@@ -111,9 +114,11 @@ agentos/
 │   ├── agent.py       # Agent class
 │   ├── squad.py       # Squad class
 │   ├── governance.py  # Policy engine
+│   ├── federation.py  # Multi-squad federation
 │   ├── router.py      # Task router (DMARP)
 │   ├── planner.py     # Planner (MAGP)
 │   └── umb_adapter.py # Unified Memory Bus
+├── templates/         # Pre-built crew templates (.agentpack formats)
 ├── dmsg/              # Distributed MCP Skill Graph
 │   ├── registry.py    # MCP registry
 │   └── pathfinder.py  # Skill pathfinder
@@ -234,21 +239,36 @@ AgentOS includes comprehensive cybersecurity capabilities:
 
 ## Running Examples
 
+### Running the Full Platform (Backend + Frontend)
+
+AgentOS includes a unified launcher that starts both the FastAPI backend and the React frontend in a single command, auto-installing frontend dependencies:
+
 ```bash
-# Run cybersecurity squad example
-python agentos/examples/sample_cybersecurity_squad_run.py
+# Start the platform in development mode
+python main.py
 
-# Start FastAPI backend
-cd agentos/ui/backend
-uvicorn main:app --reload
-
-# Start React frontend
-cd agentos/ui/frontend
-npm install
-npm run dev
+# Or start in production mode (single process serving both API and static frontend)
+python main.py --prod
 ```
 
-See [SECURITY.md](SECURITY.md) and [ETHICS.md](ETHICS.md) for safety and ethics policies.
+### Manual Execution
+
+If you prefer to run the components in separate terminals:
+
+```bash
+# Start the FastAPI backend
+python -m uvicorn agentos.server.app:create_app --factory --reload --port 8000
+
+# Start the React frontend
+cd agentos/frontend
+npm install
+npm run dev -- --port 5173
+```
+
+# Run cybersecurity squad example CLI script
+python agentos/examples/sample_cybersecurity_squad_run.py
+
+See [SECURITY.md](SECURITY.md), [ETHICS.md](ETHICS.md), and [PHASE3_LIMITATIONS.md](PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
 
 ## License
 

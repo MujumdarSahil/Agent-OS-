@@ -1,0 +1,9 @@
+name: research_report
+goal: Research a topic thoroughly and produce a well-written report
+description: The Researcher gathers comprehensive information on the topic, then the Writer transforms those findings into a polished, readable report.
+crew: research_assistant_crew
+tasks:
+  - description: Research the topic '{{topic}}' thoroughly. Gather key facts, statistics, different perspectives, recent developments, and expert opinions. Organize findings into clear categories.
+    assigned_agent: Researcher
+  - description: Using the research findings provided, write a comprehensive, well-structured report on '{{topic}}'. Include an executive summary, main findings, analysis, and conclusions. Make it engaging and suitable for a professional audience.
+    assigned_agent: Writer

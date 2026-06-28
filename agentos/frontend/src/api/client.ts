@@ -85,6 +85,25 @@ export interface HealthStatus {
   missions: number
 }
 
+export interface TemplateInfo {
+  name: string
+  display_name: string
+  description: string
+  agents: string[]
+  crews: string[]
+  missions: string[]
+  license_type: string
+  tags: string[]
+  pack_available: boolean
+}
+
+export interface TemplateInstallResult {
+  installed: Record<string, string[]>
+  pack: string | null
+  version: string | null
+  template_name: string
+}
+
 // ---- Health ----
 export const getHealth = () => api.get<HealthStatus>('/health').then(r => r.data)
 
@@ -156,3 +175,8 @@ export const verifyPack = (pack_path: string) =>
   api.post<{ valid: boolean; signer_fingerprint: string | null; detail: string }>('/packaging/verify', { pack_path }).then(r => r.data)
 export const installPack = (pack_path: string, target_project_path: string, force = false, license_key?: string) =>
   api.post('/packaging/install', { pack_path, target_project_path, force, license_key: license_key ?? null }).then(r => r.data)
+
+// ---- Templates ----
+export const getTemplates = () => api.get<TemplateInfo[]>('/templates').then(r => r.data)
+export const installTemplate = (name: string, force = false) =>
+  api.post<TemplateInstallResult>(`/templates/${name}/install`, { force }).then(r => r.data)

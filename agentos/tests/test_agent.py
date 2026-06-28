@@ -61,7 +61,7 @@ async def test_agent_execute(agent):
     result = await agent.execute(task_node)
     
     assert result["success"] is True
-    assert result["task_id"] == task["id"]
+    assert result["task_id"] == task_node["id"]
 
 
 @pytest.mark.asyncio

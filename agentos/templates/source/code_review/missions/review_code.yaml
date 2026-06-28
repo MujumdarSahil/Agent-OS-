@@ -1,0 +1,9 @@
+name: review_code
+goal: Review provided code for quality, bugs, security issues, and improvements
+description: The CodeReviewer analyzes the code in depth, then the ReviewReporter formats findings into a prioritized, actionable report.
+crew: code_review_crew
+tasks:
+  - description: Review the following code carefully. Check for bugs, security vulnerabilities (injection, auth issues, data exposure), performance problems, code quality issues (readability, maintainability, SOLID principles), missing error handling, and test coverage gaps. Code to review:\n\n{{code}}
+    assigned_agent: CodeReviewer
+  - description: Based on the code review findings, create a structured review report with sections for Critical Issues, Major Issues, Minor Issues, and Suggestions. For each issue provide the specific location, description, severity, and recommended fix. End with an overall quality assessment.
+    assigned_agent: ReviewReporter

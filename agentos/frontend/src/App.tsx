@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target,
-  Wand2, Shield, Package, Cpu
+  Wand2, Shield, Package, Cpu, LayoutGrid
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
@@ -12,9 +12,11 @@ import RunDetail from './pages/RunDetail'
 import Builder from './pages/Builder'
 import Governance from './pages/Governance'
 import Packaging from './pages/Packaging'
+import Templates from './pages/Templates'
 
 const NAV = [
   { to: '/', icon: <LayoutDashboard size={16}/>, label: 'Dashboard' },
+  { to: '/templates', icon: <LayoutGrid size={16}/>, label: 'Templates' },
   { to: '/agents', icon: <Bot size={16}/>, label: 'Agents' },
   { to: '/tools', icon: <Wrench size={16}/>, label: 'Tools' },
   { to: '/crews', icon: <Users size={16}/>, label: 'Crews' },
@@ -58,6 +60,7 @@ export default function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/templates" element={<Templates />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/crews" element={<Crews />} />

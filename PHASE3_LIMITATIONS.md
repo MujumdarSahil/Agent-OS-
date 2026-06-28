@@ -125,5 +125,27 @@ parallel executions.
 
 ---
 
+## Multi-Squad Federation is a Design Concept Only
+
+**What the docs claim**: Support for multi-squad federation.
+
+**Limitation**: In the current version of AgentOS, multi-squad federation is not implemented in code and remains a design concept described in the architecture documentation. There are no active APIs or execution paths supporting federated communication or routing between multiple isolated squads.
+
+---
+
+## Governance Filter is Easily Bypassed (Keyword-Only)
+
+**What we built**: A governance policy checks task descriptions for a list of prohibited substrings (e.g. `"crack password"`, `"create malware"`, `"exploit vulnerability"`) and blocks execution if found.
+
+**Limitation**: The safety filter relies on simple lowercase substring matching. It is extremely fragile and can be bypassed by simple rephrasings, pluralizations, or word splits. For example:
+- `"exploits vulnerabilities"` or `"exploit the vulnerability"` will bypass `"exploit vulnerability"`.
+- `"create a malware"` or `"write malware"` will bypass `"create malware"`.
+- `"brute-force"` (with a hyphen) will bypass `"brute force"`.
+- `"cracking passwords"` will bypass `"crack password"`.
+
+**Recommended path**: For production safety, do not rely on simple keyword governance filters. Implement LLM-based verifiers or structural sandboxes to inspect and restrict actual executed code/actions at runtime.
+
+---
+
 *Last updated: Phase 3 implementation*
 *Maintained by the AgentOS core team.*

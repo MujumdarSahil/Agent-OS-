@@ -1,0 +1,9 @@
+name: plan_goal
+goal: Create a detailed action plan for achieving a goal with immediate next steps
+description: The TaskPlanner breaks the goal into a structured plan, then the TaskExecutor identifies concrete first steps and execution checklist.
+crew: task_planner_crew
+tasks:
+  - description: Create a detailed plan for achieving this goal or completing this project. Break it into phases, then specific tasks. For each task include what it is, why it matters, estimated time, dependencies, and difficulty (easy/medium/hard). Goal:\n\n{{goal}}
+    assigned_agent: TaskPlanner
+  - description: Review the task plan and create an execution guide. Identify the single most important first step to take TODAY, list all resources and tools needed, flag the 3 biggest potential blockers and how to mitigate them, and create a day-one action checklist. Make it immediately actionable.
+    assigned_agent: TaskExecutor

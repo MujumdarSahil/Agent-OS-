@@ -1,0 +1,9 @@
+name: repurpose_content
+goal: Transform long-form content into a suite of social media posts
+description: The ContentAnalyzer extracts key elements from the source content, then the SocialWriter creates platform-optimized social posts.
+crew: content_repurposing_crew
+tasks:
+  - description: Analyze the following long-form content. Extract the 5-7 most impactful insights, 3-5 notable quotes or statistics, the core thesis, supporting arguments, and any counterintuitive or surprising points that would resonate on social media. Content:\n\n{{content}}
+    assigned_agent: ContentAnalyzer
+  - description: Using the extracted content elements, create a social media content suite including 3 Twitter/X threads (3-5 tweets each), 2 LinkedIn posts (professional tone, 150-300 words each), 5 standalone tweets with key insights, and 1 Instagram caption. Optimize each for engagement on its platform.
+    assigned_agent: SocialWriter

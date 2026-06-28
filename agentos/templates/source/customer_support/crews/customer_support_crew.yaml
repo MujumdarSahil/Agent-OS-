@@ -1,0 +1,5 @@
+name: customer_support_crew
+agents:
+  - Classifier
+  - Responder
+process: sequential

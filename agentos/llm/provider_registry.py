@@ -1,26 +1,40 @@
 """
 Provider Registry - Configured LLM providers and availability checks
+
+Phase 4 additions:
+  - OpenRouter (aggregator — access to 100+ models via one key)
+  - Together AI (GPU cloud — fast open-weight models)
+  - Fireworks AI (GPU cloud — fast open-weight models)
+  - DeepSeek (Chinese AI lab — strong coding/reasoning models)
+  - Additional Groq models (gemma2, llama3.1 instant)
+  
+All entries follow the exact same schema as Phase 1-3 entries:
+  litellm_model, api_key_env, api_base_env, priority, tags
+No special casing added to router_factory.py — adding a provider is a data change only.
+
+Provider model names verified against current docs (June 2026).
+LiteLLM prefixes: openrouter/, together_ai/, fireworks_ai/, deepseek/, groq/
 """
 
 from typing import List, Dict, Any, Optional
 import os
 
+class AgentOSLLMError(Exception):
+    """Raised when all configured LLM providers in the fallback chain fail or no providers are configured."""
+    pass
+
+
 PROVIDER_REGISTRY: List[Dict[str, Any]] = [
+    # -------------------------------------------------------------------------
+    # Tier 1: Premium paid providers (lowest priority number = first in fallback)
+    # -------------------------------------------------------------------------
     {
         "name": "openai_gpt4o",
         "litellm_model": "openai/gpt-4o",
         "api_key_env": "OPENAI_API_KEY",
         "api_base_env": None,
         "priority": 10,
-        "tags": ["paid", "fast"]
-    },
-    {
-        "name": "openai_gpt4o_mini",
-        "litellm_model": "openai/gpt-4o-mini",
-        "api_key_env": "OPENAI_API_KEY",
-        "api_base_env": None,
-        "priority": 20,
-        "tags": ["paid", "fast"]
+        "tags": ["paid", "fast", "openai"]
     },
     {
         "name": "anthropic_claude_sonnet",
@@ -28,7 +42,33 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "api_key_env": "ANTHROPIC_API_KEY",
         "api_base_env": None,
         "priority": 15,
-        "tags": ["paid", "fast"]
+        "tags": ["paid", "fast", "anthropic"]
+    },
+    {
+        "name": "openai_gpt4o_mini",
+        "litellm_model": "openai/gpt-4o-mini",
+        "api_key_env": "OPENAI_API_KEY",
+        "api_base_env": None,
+        "priority": 20,
+        "tags": ["paid", "fast", "openai"]
+    },
+    # Phase 4: OpenRouter — access to 100+ models via single key
+    # Docs: https://openrouter.ai/docs  LiteLLM prefix: openrouter/
+    {
+        "name": "openrouter_claude_sonnet",
+        "litellm_model": "openrouter/anthropic/claude-3.5-sonnet",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 22,
+        "tags": ["paid", "fast", "openrouter"]
+    },
+    {
+        "name": "openrouter_gpt4o",
+        "litellm_model": "openrouter/openai/gpt-4o",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 23,
+        "tags": ["paid", "fast", "openrouter"]
     },
     {
         "name": "gemini_flash",
@@ -36,16 +76,109 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "api_key_env": "GEMINI_API_KEY",
         "api_base_env": None,
         "priority": 30,
-        "tags": ["paid", "fast"]
+        "tags": ["paid", "fast", "gemini"]
     },
+    # Phase 4: DeepSeek — strong coding/reasoning at competitive pricing
+    # Docs: https://platform.deepseek.com/  LiteLLM prefix: deepseek/
+    # NOTE: deepseek-chat is scheduled for retirement Jul 24 2026; using deepseek-v4-flash as fallback name
+    {
+        "name": "deepseek_v4_flash",
+        "litellm_model": "deepseek/deepseek-chat",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "api_base_env": None,
+        "priority": 33,
+        "tags": ["paid", "fast", "deepseek"]
+    },
+    # -------------------------------------------------------------------------
+    # Tier 2: Fast/cheap open-weight cloud providers
+    # -------------------------------------------------------------------------
+    # Phase 4: Groq additional models (llama3.1 instant and gemma2)
     {
         "name": "groq_llama3_3",
         "litellm_model": "groq/llama-3.3-70b-specdec",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
         "priority": 40,
-        "tags": ["paid", "fast"]
+        "tags": ["paid", "fast", "groq"]
     },
+    {
+        "name": "groq_llama3_1_instant",
+        "litellm_model": "groq/llama-3.1-8b-instant",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 42,
+        "tags": ["paid", "fast", "groq"]
+    },
+    {
+        "name": "groq_gemma2",
+        "litellm_model": "groq/gemma2-9b-it",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 44,
+        "tags": ["paid", "fast", "groq"]
+    },
+    # Phase 4: Together AI — GPU cloud with wide open-weight model selection
+    # Docs: https://docs.together.ai/  LiteLLM prefix: together_ai/
+    # Env var: TOGETHERAI_API_KEY (LiteLLM's convention)
+    {
+        "name": "together_llama3_3_70b",
+        "litellm_model": "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "api_key_env": "TOGETHERAI_API_KEY",
+        "api_base_env": None,
+        "priority": 46,
+        "tags": ["paid", "fast", "together"]
+    },
+    {
+        "name": "together_qwen2_5_72b",
+        "litellm_model": "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
+        "api_key_env": "TOGETHERAI_API_KEY",
+        "api_base_env": None,
+        "priority": 48,
+        "tags": ["paid", "fast", "together"]
+    },
+    # Phase 4: Fireworks AI — GPU cloud, very fast inference
+    # Docs: https://docs.fireworks.ai/  LiteLLM prefix: fireworks_ai/
+    # Model format: fireworks_ai/accounts/fireworks/models/<model-id>
+    {
+        "name": "fireworks_llama3_1_70b",
+        "litellm_model": "fireworks_ai/accounts/fireworks/models/llama-v3p1-70b-instruct",
+        "api_key_env": "FIREWORKS_AI_API_KEY",
+        "api_base_env": None,
+        "priority": 50,
+        "tags": ["paid", "fast", "fireworks"]
+    },
+    {
+        "name": "fireworks_qwen2_5_72b",
+        "litellm_model": "fireworks_ai/accounts/fireworks/models/qwen2p5-72b-instruct",
+        "api_key_env": "FIREWORKS_AI_API_KEY",
+        "api_base_env": None,
+        "priority": 52,
+        "tags": ["paid", "fast", "fireworks"]
+    },
+    # Phase 4: OpenRouter free tier — great for "no API key" accessibility
+    # Many open models available for free on OpenRouter (rate-limited)
+    {
+        "name": "openrouter_llama3_1_free",
+        "litellm_model": "openrouter/meta-llama/llama-3.1-8b-instruct:free",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 70,
+        "tags": ["free-tier", "openrouter"]
+    },
+    # -------------------------------------------------------------------------
+    # Tier 3: Custom OpenAI-compatible endpoint
+    # -------------------------------------------------------------------------
+    {
+        "name": "openai_compatible",
+        "litellm_model": "openai/custom-model",
+        "api_key_env": "OPENAI_COMPATIBLE_API_KEY",
+        "api_base_env": "OPENAI_COMPATIBLE_BASE_URL",
+        "priority": 80,
+        "tags": ["open-weight"]
+    },
+    # -------------------------------------------------------------------------
+    # Tier 4: Local Ollama (free, zero cost, zero API key required)
+    # -------------------------------------------------------------------------
     {
         "name": "ollama_qwen",
         "litellm_model": "ollama/qwen2.5-coder",
@@ -62,14 +195,6 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 110,
         "tags": ["free", "local"]
     },
-    {
-        "name": "openai_compatible",
-        "litellm_model": "openai/custom-model",
-        "api_key_env": "OPENAI_COMPATIBLE_API_KEY",
-        "api_base_env": "OPENAI_COMPATIBLE_BASE_URL",
-        "priority": 50,
-        "tags": ["open-weight"]
-    }
 ]
 
 def get_available_providers() -> List[Dict[str, Any]]:

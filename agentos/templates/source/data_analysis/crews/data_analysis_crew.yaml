@@ -1,0 +1,5 @@
+name: data_analysis_crew
+agents:
+  - DataExplorer
+  - InsightSummarizer
+process: sequential

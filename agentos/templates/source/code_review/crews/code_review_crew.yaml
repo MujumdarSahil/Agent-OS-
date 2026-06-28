@@ -1,0 +1,5 @@
+name: code_review_crew
+agents:
+  - CodeReviewer
+  - ReviewReporter
+process: sequential

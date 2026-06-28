@@ -3,6 +3,7 @@ Agent - Core Agent implementation inheriting from BaseAgent
 """
 
 import uuid
+import asyncio
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable
@@ -62,6 +63,10 @@ class Agent(BaseAgent):
         memory: Optional[BaseMemory] = None,
         **kwargs: Any
     ):
+        if llm_client is None:
+            from agentos.llm.llm_client import LLMClient
+            llm_client = LLMClient()
+
         super().__init__(
             name=name,
             role=role,
@@ -76,6 +81,7 @@ class Agent(BaseAgent):
         self.status = AgentStatus.IDLE
         self.roles = [role]
         self.skills = kwargs.get("skills") or []
+        self.memory_ref = kwargs.get("memory_ref") or memory
         self.execution_history = []
         self.resource_metrics = {
             "token_usage": 0,
@@ -84,6 +90,23 @@ class Agent(BaseAgent):
             "memory_estimate": 0.0,
             "wall_time": 0.0,
         }
+
+    @property
+    def skill_vector(self) -> Dict[str, float]:
+        """Build skill vector mapping each skill to a default score of 1.0"""
+        return {skill: 1.0 for skill in self.skills}
+
+    async def plan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """Scaffold a simple task graph/plan with subtasks for execution"""
+        self.status = AgentStatus.PLANNING
+        plan_dict = {
+            "agent_id": self.id,
+            "task_id": task.get("id"),
+            "subtasks": [task]
+        }
+        self.status = AgentStatus.IDLE
+        return plan_dict
+
         
     def to_crewai_agent(self) -> crewai.Agent:
         """
@@ -142,7 +165,27 @@ class Agent(BaseAgent):
                 tasks=[crew_task],
                 verbose=False
             )
-            output = crew.kickoff()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                output = await loop.run_in_executor(None, crew.kickoff)
+            else:
+                output = crew.kickoff()
+            
+            # Save task/result to memory if memory reference is present
+            memory_ref = self.kwargs.get("memory_ref") or getattr(self, "memory_ref", None) or self.memory
+            if memory_ref:
+                await memory_ref.upsert({
+                    "text": f"Task '{task_node.get('description')}' executed successfully by agent '{self.name}'. Result: {output}",
+                    "metadata": {
+                        "author_agent": self.id,
+                        "permission_level": "agent_private",
+                        "task_id": task_node.get("id"),
+                    }
+                })
             
             # Simple result structure
             res = {

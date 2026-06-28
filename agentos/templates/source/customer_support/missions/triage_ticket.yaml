@@ -1,0 +1,9 @@
+name: triage_ticket
+goal: Classify and draft a response for an incoming customer support ticket
+description: The Classifier triages the ticket to determine priority and category, then the Responder drafts a helpful, empathetic response.
+crew: customer_support_crew
+tasks:
+  - description: Triage this customer support ticket. Identify the category (billing/technical/account/product/other), urgency level (critical/high/medium/low), estimated resolution time, which team should handle it, and any immediate actions needed. Ticket content:\n\n{{ticket}}
+    assigned_agent: Classifier
+  - description: Using the triage classification provided, draft a professional, empathetic response to the customer. Acknowledge their concern, explain what will happen next, provide any immediate self-service steps they can take, and give a realistic timeline. Keep it concise but thorough.
+    assigned_agent: Responder

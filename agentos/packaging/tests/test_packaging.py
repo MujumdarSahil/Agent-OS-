@@ -133,6 +133,84 @@ def test_tamper_breaks_verify(source_project, keypair, tmp_path):
     assert verify_pack(pack_path) is False, "Tampered pack should fail verification"
 
 
+def test_more_tamper_variants(source_project, keypair, tmp_path):
+    from agentos.packaging.pack_format import build_pack
+    from agentos.packaging.signer import sign_pack, verify_pack, _update_manifest_in_zip
+    import base64
+
+    priv_path, _ = keypair
+    
+    # 1. Modify a file INSIDE the zip (agents/packagist.yaml)
+    pack_path1 = str(tmp_path / "tamper_file.agentpack")
+    build_pack(
+        project_path=source_project,
+        include={"agents": ["Packagist"], "tools": ["pack_tool"], "crews": ["pack_crew"], "mcp_plugins": []},
+        output_path=pack_path1,
+    )
+    sign_pack(pack_path1, priv_path)
+    assert verify_pack(pack_path1) is True
+
+    # Extract, modify file, re-zip
+    extracted_dir = str(tmp_path / "extracted_tamper")
+    os.makedirs(extracted_dir, exist_ok=True)
+    with zipfile.ZipFile(pack_path1, "r") as zin:
+        zin.extractall(extracted_dir)
+        
+    with open(os.path.join(extracted_dir, "agents", "packagist.yaml"), "a") as f:
+        f.write("\ntampered: true\n")
+        
+    os.remove(pack_path1)
+    with zipfile.ZipFile(pack_path1, "w", zipfile.ZIP_DEFLATED) as zout:
+        for root, _, files in os.walk(extracted_dir):
+            for file in files:
+                fpath = os.path.join(root, file)
+                rel = os.path.relpath(fpath, extracted_dir)
+                zout.write(fpath, arcname=rel)
+                
+    assert verify_pack(pack_path1) is False, "Modifying file inside zip must fail verification"
+
+    # 2. Swap the signature with random bytes of correct length (64 bytes -> 88 chars in base64)
+    pack_path2 = str(tmp_path / "tamper_sig.agentpack")
+    build_pack(
+        project_path=source_project,
+        include={"agents": ["Packagist"], "tools": [], "crews": [], "mcp_plugins": []},
+        output_path=pack_path2,
+    )
+    sign_pack(pack_path2, priv_path)
+    assert verify_pack(pack_path2) is True
+
+    bad_sig = base64.b64encode(b"a" * 64).decode()
+    _update_manifest_in_zip(pack_path2, {"signature": bad_sig})
+    assert verify_pack(pack_path2) is False, "Replacing signature with dummy bytes must fail verification"
+
+    # 3. Swap the public key fingerprint and raw public key
+    pack_path3 = str(tmp_path / "tamper_key.agentpack")
+    build_pack(
+        project_path=source_project,
+        include={"agents": ["Packagist"], "tools": [], "crews": [], "mcp_plugins": []},
+        output_path=pack_path3,
+    )
+    sign_pack(pack_path3, priv_path)
+    assert verify_pack(pack_path3) is True
+
+    # Use a different key to generate raw public key bytes
+    from agentos.packaging.signer import generate_keypair
+    other_priv, other_pub = generate_keypair(keys_dir=str(tmp_path / "other_keys"))
+    
+    with open(other_pub, "rb") as f:
+        other_pub_bytes = f.read()
+    
+    # Extract raw public key bytes from PEM format
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat
+    loaded_pub = load_pem_public_key(other_pub_bytes)
+    raw_pub_bytes = loaded_pub.public_bytes(Encoding.Raw, PublicFormat.Raw)
+    raw_pub_b64 = base64.b64encode(raw_pub_bytes).decode()
+    
+    _update_manifest_in_zip(pack_path3, {"_public_key_raw": raw_pub_b64})
+    assert verify_pack(pack_path3) is False, "Swapping public key must fail signature verification"
+
+
+
 # ---------------------------------------------------------------------------
 # Test 3 — Install into fresh project → agents appear → mission runs
 # ---------------------------------------------------------------------------

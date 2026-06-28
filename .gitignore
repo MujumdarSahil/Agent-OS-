@@ -47,4 +47,9 @@ Thumbs.db
 *.db
 *.faiss
 chroma_db/
+*.pem
+*.key
+*.agentpack
+keys/
+
 

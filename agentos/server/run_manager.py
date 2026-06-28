@@ -35,8 +35,9 @@ class RunManager:
     Singleton-per-app store for active and recent run states.
     """
 
-    def __init__(self):
+    def __init__(self, governance: Optional[Any] = None):
         self._runs: Dict[str, RunState] = {}
+        self.governance = governance
 
     def create_run(self, mission_name: str) -> str:
         run_id = str(uuid.uuid4())
@@ -80,6 +81,7 @@ class RunManager:
                 resume,
                 license_key,
                 state,
+                self.governance,
             )
             state.status = "completed"
             state.outputs.append(str(result))
@@ -105,6 +107,7 @@ class RunManager:
         resume: bool,
         license_key: Optional[str],
         state: RunState,
+        governance: Optional[Any] = None,
     ) -> str:
         """Blocking execution called in a thread executor."""
         from agentos.core.project_ops import build_squad_from_project
@@ -113,7 +116,7 @@ class RunManager:
         if license_key:
             _check_license_for_project(project_path, mission_name, license_key)
 
-        squad, mission = build_squad_from_project(project_path, mission_name)
+        squad, mission = build_squad_from_project(project_path, mission_name, governance=governance)
         result = squad.run_mission(mission, resume=resume)
         return str(result)
 
@@ -126,17 +129,8 @@ def _check_license_for_project(
     used in this mission. No-op if no pack manifest is found.
     """
     try:
-        from agentos.packaging.license_check import verify_license_str
-        from agentos.packaging.pack_format import find_pack_manifest_for_mission
-        manifest = find_pack_manifest_for_mission(project_path, mission_name)
-        if manifest is None:
-            return  # Free/open project — no license required
-        ok = verify_license_str(license_key, manifest)
-        if not ok:
-            raise PermissionError(
-                f"License key is invalid or does not match pack '{manifest.get('name')}'. "
-                "Run is blocked."
-            )
+        from agentos.packaging.license_check import check_license_before_run
+        check_license_before_run(project_path, mission_name, license_key)
     except (ImportError, AttributeError):
         # Packaging module not available yet — skip silently
         pass
