@@ -1,6 +1,6 @@
 # AgentOS Framework
 
-A production-grade, research-worthy, and startup-ready multi-agent framework that supports squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity.
+A production-grade, research-worthy, and startup-ready multi-agent framework built on top of **CrewAI**, **LangChain/LangGraph**, and **LiteLLM**. Instead of reinventing agent execution from scratch, AgentOS integrates these powerful libraries under a clean, class-based interface, supporting squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity.
 
 ## Features
 
@@ -267,6 +267,11 @@ npm run dev -- --port 5173
 
 # Run cybersecurity squad example CLI script
 python agentos/examples/sample_cybersecurity_squad_run.py
+
+### MCP Demos (Teaching Examples)
+AgentOS includes two minimal teaching examples to show how agents, tools, and MCP servers connect:
+- [Demo 1: Custom Local notes.json MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
+- [Demo 2: External Context7 Documentation MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
 See [SECURITY.md](SECURITY.md), [ETHICS.md](ETHICS.md), and [PHASE3_LIMITATIONS.md](PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
 

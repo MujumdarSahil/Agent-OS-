@@ -1,0 +1,7 @@
+name: context7_docs
+version: 1.0.0
+author: AgentOS Developer
+permissions:
+  - network
+entrypoint: plugin.Context7DocsPlugin
+mcp_server_url: https://mcp.context7.com/mcp

@@ -112,7 +112,7 @@ def load_plugin(manifest: MCPPluginManifest, manifest_path: str, tool_registry: 
         )
             
         try:
-            resolver = MCPToolResolver()
+            resolver = MCPToolResolver(agent=None, logger=logger)
             server_config = MCPServerHTTP(url=manifest.mcp_server_url)
             # Resolve tools synchronously using resolver
             native_tools = resolver.resolve([server_config])

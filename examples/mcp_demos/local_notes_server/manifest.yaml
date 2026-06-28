@@ -1,0 +1,7 @@
+name: local_notes
+version: 1.0.0
+author: AgentOS Developer
+permissions:
+  - filesystem_write
+entrypoint: plugin.LocalNotesPlugin
+mcp_server_url: null
