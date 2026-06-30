@@ -34,12 +34,16 @@ from agentos.mcp.plugin_loader import discover_plugins, load_plugin
 from agentos.builder.agent_builder import AgentBuilder
 from agentos.builder.tool_builder import ToolBuilder
 from agentos.builder.crew_builder import CrewBuilder
+from agentos.core.bootstrap import register_builtin_components
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("agentos.cli")
 
 app = typer.Typer(help="AgentOS Framework CLI")
 console = Console()
+
+# Register all built-in components at CLI startup
+register_builtin_components()
 
 def to_camel_case(snake_str: str) -> str:
     """Helper to convert snake_case names to CamelCase class names"""
@@ -330,6 +334,38 @@ def validate(project_path: str):
         raise typer.Exit(code=1)
     else:
         console.print("\n[bold green]Validation passed successfully![/bold green]")
+
+@app.command("list-agent-types")
+def list_agent_types():
+    """List all agent classes currently registered in AgentRegistry."""
+    registry = AgentRegistry()
+    table = Table(title="Registered Agent Types")
+    table.add_column("Type Name", style="cyan")
+    table.add_column("Python Class", style="magenta")
+    if registry._registry:
+        for name, cls in sorted(registry._registry.items()):
+            table.add_row(name, f"{cls.__module__}.{cls.__qualname__}")
+    else:
+        table.add_row("[dim]none[/dim]", "[dim]Run a project first to trigger bootstrap[/dim]")
+    console.print(table)
+
+
+@app.command("list-tool-types")
+def list_tool_types():
+    """List all tool classes and instances currently registered in ToolRegistry."""
+    registry = ToolRegistry()
+    table = Table(title="Registered Tool Types")
+    table.add_column("Name", style="cyan")
+    table.add_column("Kind", style="green")
+    table.add_column("Python Class", style="magenta")
+    for name, cls in sorted(registry._registry.items()):
+        table.add_row(name, "class", f"{cls.__module__}.{cls.__qualname__}")
+    for name, inst in sorted(registry._instances.items()):
+        table.add_row(name, "instance", type(inst).__qualname__)
+    if not registry._registry and not registry._instances:
+        table.add_row("[dim]none[/dim]", "", "[dim]No tools registered yet[/dim]")
+    console.print(table)
+
 
 # =====================================================================
 # CLI COMMANDS - List Info

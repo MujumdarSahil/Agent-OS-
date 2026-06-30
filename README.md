@@ -18,6 +18,7 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
 - **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
 - **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
 - **Expanded Fallback Chain**: Multi-provider registry including OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together AI, Fireworks, DeepSeek, and Ollama
+- **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](EXTENDING.md) for details.
 
 ## Installation
 

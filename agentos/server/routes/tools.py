@@ -28,3 +28,13 @@ async def create_tool(body: ToolScaffoldRequest, request: Request):
     except Exception as e:
         logger.exception("create_tool failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tool-types", response_model=list)
+async def get_tool_types():
+    """Return all tool class and instance names currently registered in ToolRegistry."""
+    from agentos.core.base import ToolRegistry
+    registry = ToolRegistry()
+    classes = sorted(registry._registry.keys())
+    instances = sorted(registry._instances.keys())
+    return classes + instances

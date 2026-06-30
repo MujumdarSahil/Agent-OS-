@@ -23,6 +23,7 @@ class AgentYAMLConfig(BaseModel):
     role: str = Field(..., min_length=1)
     goal: str = Field(..., min_length=1)
     backstory: str = ""
+    type: str = "Agent"
     llm_tags: List[str] = Field(default_factory=list)
     tool_refs: List[str] = Field(default_factory=list)
     memory_ref: Optional[str] = None

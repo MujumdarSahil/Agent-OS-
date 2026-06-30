@@ -310,3 +310,24 @@ async def test_governance_policy_block(client):
     # Cleanup
     r = await client.delete(f"/api/governance/policies/{policy_id}")
     assert r.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — Agent and Tool registry types listing
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_api_agent_types_and_tool_types(client):
+    # GET agent-types
+    r = await client.get("/api/agent-types")
+    assert r.status_code == 200
+    types = r.json()
+    assert "Agent" in types
+    assert "ResearcherAgent" in types
+    assert "SecurityAgent" in types
+
+    # GET tool-types
+    r = await client.get("/api/tool-types")
+    assert r.status_code == 200
+    tool_types = r.json()
+    assert isinstance(tool_types, list)

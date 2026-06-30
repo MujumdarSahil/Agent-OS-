@@ -141,8 +141,13 @@ class AgentRegistry:
     """
     Simple in-memory Agent registry for runtime registration and creation.
     """
-    def __init__(self):
-        self._registry = {}
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(AgentRegistry, cls).__new__(cls)
+            cls._instance._registry = {}
+        return cls._instance
 
     def register(self, agent_cls: type) -> None:
         """Register an agent class."""
@@ -159,9 +164,14 @@ class ToolRegistry:
     """
     Simple in-memory Tool registry for runtime registration and creation.
     """
-    def __init__(self):
-        self._registry = {}
-        self._instances = {}
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(ToolRegistry, cls).__new__(cls)
+            cls._instance._registry = {}
+            cls._instance._instances = {}
+        return cls._instance
 
     def register(self, tool_cls: type) -> None:
         """Register a tool class."""

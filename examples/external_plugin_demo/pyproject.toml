@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "external-plugin-demo"
+version = "0.1.0"
+description = "AgentOS external plugin demonstration package"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.entry-points."agentos.agents"]
+DemoCustomAgent = "external_plugin_demo.agent:DemoCustomAgent"
+
+[project.entry-points."agentos.tools"]
+DemoCustomTool = "external_plugin_demo.tool:DemoCustomTool"
+
+[project.entry-points."agentos.mcp_plugins"]
+DemoMCPPlugin = "external_plugin_demo.plugin:DemoMCPPlugin"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["external_plugin_demo"]

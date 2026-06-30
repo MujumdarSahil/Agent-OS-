@@ -55,38 +55,73 @@ def discover_plugins(project_path: str) -> List[Tuple[MCPPluginManifest, str]]:
     """
     Scans <project>/mcp_plugins/*/manifest.yaml (or manifest.yml),
     validates the manifest against the schema, and returns a list of (manifest, path) tuples.
+    Additionally, scans installed packages for entry points under 'agentos.mcp_plugins'
+    and merges them with project-local plugin discovery.
     """
-    plugins_dir = os.path.join(project_path, "mcp_plugins")
     discovered = []
     
-    if not os.path.exists(plugins_dir):
-        logger.debug(f"No mcp_plugins directory found at {plugins_dir}")
-        return discovered
-
-    for item in os.listdir(plugins_dir):
-        item_path = os.path.join(plugins_dir, item)
-        if not os.path.isdir(item_path):
-            continue
-            
-        manifest_path = None
-        for name in ["manifest.yaml", "manifest.yml"]:
-            test_path = os.path.join(item_path, name)
-            if os.path.exists(test_path):
-                manifest_path = test_path
-                break
+    # 1. Project-local plugins
+    plugins_dir = os.path.join(project_path, "mcp_plugins")
+    if os.path.exists(plugins_dir):
+        for item in os.listdir(plugins_dir):
+            item_path = os.path.join(plugins_dir, item)
+            if not os.path.isdir(item_path):
+                continue
                 
-        if not manifest_path:
-            continue
-            
-        try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-            
-            manifest = MCPPluginManifest(**data)
-            discovered.append((manifest, manifest_path))
-            logger.debug(f"Discovered plugin {manifest.name} at {manifest_path}")
-        except Exception as e:
-            logger.error(f"Failed to load plugin manifest at {manifest_path}: {e}")
+            manifest_path = None
+            for name in ["manifest.yaml", "manifest.yml"]:
+                test_path = os.path.join(item_path, name)
+                if os.path.exists(test_path):
+                    manifest_path = test_path
+                    break
+                    
+            if not manifest_path:
+                continue
+                
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                
+                manifest = MCPPluginManifest(**data)
+                discovered.append((manifest, manifest_path))
+                logger.debug(f"Discovered plugin {manifest.name} at {manifest_path}")
+            except Exception as e:
+                logger.error(f"Failed to load plugin manifest at {manifest_path}: {e}")
+
+    # 2. External entry points
+    try:
+        from importlib.metadata import entry_points
+        for ep in entry_points(group="agentos.mcp_plugins"):
+            try:
+                plugin_class = ep.load()
+                name = getattr(plugin_class, "name", ep.name)
+                manifest_dict = getattr(plugin_class, "manifest", {})
+                if not manifest_dict:
+                    manifest_dict = {
+                        "name": name,
+                        "version": getattr(plugin_class, "version", "1.0.0"),
+                        "author": getattr(plugin_class, "author", "Unknown"),
+                        "permissions": getattr(plugin_class, "permissions", []),
+                        "entrypoint": ep.value
+                    }
+                # Ensure name matches
+                manifest_dict["name"] = name
+                if "version" not in manifest_dict:
+                    manifest_dict["version"] = "1.0.0"
+                if "author" not in manifest_dict:
+                    manifest_dict["author"] = "Unknown"
+                
+                manifest = MCPPluginManifest(**manifest_dict)
+                manifest_path = f"entrypoint:{ep.name}:{ep.value}"
+                discovered.append((manifest, manifest_path))
+                logger.info(f"Discovered external MCP plugin entry point: {ep.name}")
+            except Exception as exc:
+                logger.warning(
+                    f"[entry_points] Failed to load mcp_plugin entry point "
+                    f"'{ep.name}' from '{ep.value}': {exc}"
+                )
+    except Exception as e:
+        logger.warning(f"Error scanning mcp_plugin entry points: {e}")
             
     return discovered
 
@@ -96,6 +131,34 @@ def load_plugin(manifest: MCPPluginManifest, manifest_path: str, tool_registry: 
     Dynamically loads tools from a plugin manifest and registers them under namespaced keys.
     """
     registered_keys = []
+
+    # 0. Load tools from entry point class if manifest_path is an entry point
+    if manifest_path.startswith("entrypoint:"):
+        parts = manifest_path.split(":", 2)
+        ep_name = parts[1]
+        try:
+            from importlib.metadata import entry_points
+            eps = entry_points(group="agentos.mcp_plugins")
+            ep = next((e for e in eps if e.name == ep_name), None)
+            if ep is None:
+                raise ValueError(f"Entry point {ep_name} not found")
+            plugin_class = ep.load()
+            
+            plugin_instance = plugin_class(name=manifest.name, manifest=manifest.model_dump())
+            tools = plugin_instance.register_tools()
+            
+            for tool in tools:
+                original_name = tool.name
+                namespaced_name = f"{manifest.name}.{original_name}"
+                tool.name = namespaced_name
+                
+                tool_registry.register_instance(namespaced_name, tool)
+                registered_keys.append(namespaced_name)
+                logger.info(f"Registered custom plugin tool (via entry point): {namespaced_name}")
+        except Exception as e:
+            logger.error(f"Failed to load custom plugin via entrypoint '{manifest_path}': {e}")
+            
+        return registered_keys
     
     # 1. Load tools from external MCP server if URL is provided
     if manifest.mcp_server_url:

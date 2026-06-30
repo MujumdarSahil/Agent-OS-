@@ -258,6 +258,10 @@ def build_squad_from_project(
     from agentos.core.checkpoint import SQLiteCheckpointStore
     from agentos.llm import LLMClient
     from agentos.mcp.plugin_loader import discover_plugins, load_plugin
+    from agentos.core.bootstrap import register_builtin_components
+
+    # Ensure the registry is populated with builtin components
+    register_builtin_components()
 
     cfg = load_project_config(project_path)
     tags = preferred_tags or cfg.preferred_tags or ["fast"]
@@ -308,14 +312,38 @@ def build_squad_from_project(
                     agent_tools.append(tool_registry.create(camel))
                 except Exception:
                     logger.warning(f"Tool '{ref}' not found for agent '{agent_cfg.name}'")
-        agents_map[agent_cfg.name] = Agent(
-            name=agent_cfg.name,
-            role=agent_cfg.role,
-            goal=agent_cfg.goal,
-            backstory=agent_cfg.backstory,
-            llm_client=llm_client,
-            tools=agent_tools,
-        )
+        agent_type = getattr(agent_cfg, "type", "Agent") or "Agent"
+        if agent_type == "Agent":
+            # --- EXISTING HARDCODED PATH — unchanged behavior ---
+            agents_map[agent_cfg.name] = Agent(
+                name=agent_cfg.name,
+                role=agent_cfg.role,
+                goal=agent_cfg.goal,
+                backstory=agent_cfg.backstory,
+                llm_client=llm_client,
+                tools=agent_tools,
+            )
+        else:
+            # --- REGISTRY PATH — custom BaseAgent subclass ---
+            agent_registry = AgentRegistry()
+            if agent_type not in agent_registry._registry:
+                raise ValueError(
+                    f"Agent type '{agent_type}' (used by agent '{agent_cfg.name}') is not registered. "
+                    f"Run 'agentos list-agent-types' to see all registered types, or ensure "
+                    f"the package that provides '{agent_type}' is installed and its entry point "
+                    f"is correctly defined."
+                )
+            custom_agent = agent_registry.create(
+                agent_type,
+                name=agent_cfg.name,
+                role=agent_cfg.role,
+                goal=agent_cfg.goal,
+                backstory=agent_cfg.backstory,
+                llm_client=llm_client,
+                tools=agent_tools,
+            )
+            agents_map[agent_cfg.name] = custom_agent
+            logger.info(f"Instantiated '{agent_type}' (via registry) for agent '{agent_cfg.name}'")
 
     # Load mission + crew
     mission_cfg = read_mission(project_path, mission_name)

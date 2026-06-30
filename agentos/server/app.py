@@ -35,6 +35,8 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from agentos.core.bootstrap import register_builtin_components
+        register_builtin_components()
         logger.info(f"AgentOS API starting for project: {project_path}")
         yield
         logger.info("AgentOS API shutting down.")

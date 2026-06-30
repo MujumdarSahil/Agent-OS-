@@ -65,3 +65,11 @@ async def remove_agent(name: str, request: Request):
     deleted = delete_agent(_project(request), name)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+
+
+@router.get("/agent-types", response_model=list)
+async def get_agent_types():
+    """Return all agent class names currently registered in AgentRegistry."""
+    from agentos.core.base import AgentRegistry
+    registry = AgentRegistry()
+    return sorted(registry._registry.keys())

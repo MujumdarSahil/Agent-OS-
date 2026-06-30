@@ -204,3 +204,17 @@ agentos\tests\test_umb.py ....                                           [100%]
 
 ====================== 40 passed, 194 warnings in 16.73s ======================
 ```
+
+---
+
+## Section 9: Framework Extensibility Audit (Phase 5)
+
+### Findings & Registry Gap
+During a diagnostic audit, it was discovered that `AgentRegistry` and `ToolRegistry` existed as helper classes but were never wired into the actual execution pipeline of `build_squad_from_project`. Every agent was hardcoded to a plain `crewai.Agent`, making it impossible for custom agent subclasses or external packages to register and run custom Agent types.
+
+### Phase 5 Resolution
+1. **Wired Registry to Execution**: Modified `build_squad_from_project` to check `agent_cfg.type`. If it is `"Agent"` or absent, the plain CrewAI agent path is kept. If it is a custom registered type, it is resolved via the singleton `AgentRegistry` and converted via `.to_crewai_agent()`.
+2. **Built-in Registrations**: Bootstrapped the registry at startup to register built-in subclasses like `ResearcherAgent`, `SecurityAgent`, and `ScriptAuthorAgent`.
+3. **External Entry Points Discovery**: Integrated Python entry point scanning for `agentos.agents`, `agentos.tools`, and `agentos.mcp_plugins`. This allows third-party packages to dynamically inject custom Agents, Tools, and MCP Plugins with clean error isolation (broken packages do not crash AgentOS startup).
+4. **Visibility & Diagnostics**: Added CLI commands `list-agent-types` / `list-tool-types` and equivalent HTTP endpoints to provide full runtime visibility into registered types.
+
