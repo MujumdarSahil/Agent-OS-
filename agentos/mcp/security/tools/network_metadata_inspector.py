@@ -5,18 +5,27 @@ SAFETY: Read-only metadata analysis. No active network probing.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from collections import Counter
+
+from agentos.core.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class NetworkMetadataInspector:
+class NetworkMetadataInspector(BaseTool):
     """
     Network Metadata Inspector - Analyzes network metadata safely.
     
     All operations are read-only. No active network probing.
     """
+    name: str = "inspect_network_metadata"
+    description: str = "Analyzes network metadata safely."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.inspect_metadata(
+            kwargs.get("log_entries", [])
+        )
     
     @staticmethod
     def inspect_metadata(

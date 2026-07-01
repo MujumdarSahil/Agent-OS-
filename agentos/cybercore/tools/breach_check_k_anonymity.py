@@ -4,8 +4,7 @@ Safe - only accepts hash prefixes, never full hashes
 """
 
 import hashlib
-from typing import Dict, Any, Optional
-from agentos.cybercore.utils.crypto_utils import CryptoUtils
+from typing import Dict, Any
 
 
 class BreachCheckKAnonymity:

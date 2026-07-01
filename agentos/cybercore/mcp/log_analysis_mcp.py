@@ -2,11 +2,10 @@
 Log Analysis MCP - Parse and analyze various log formats
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 from agentos.cybercore.utils.log_parsers import (
     SyslogParser,
-    ApacheLogParser,
     WindowsEventLogParser,
     AuthLogParser,
 )

@@ -9,12 +9,26 @@ Inherits from BaseAgent (core.agent.Agent) and provides:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+import asyncio
+from typing import Dict, Any, Optional
 from datetime import datetime
 from agentos.core.agent import Agent
+from agentos.core.base import BaseTool, ToolRegistry
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 
 logger = logging.getLogger(__name__)
+
+
+class SecurityWrapperTool(BaseTool):
+    """
+    A helper tool wrapper that bridges older callable-style tools to BaseTool.
+    """
+    def __init__(self, name: str, description: str, func: Any):
+        super().__init__(name=name, description=description)
+        self.func = func
+
+    def run(self, **kwargs: Any) -> Any:
+        return self.func(kwargs)
 
 
 class SecurityAgent(Agent):
@@ -73,70 +87,31 @@ class SecurityAgent(Agent):
         if security_mcps:
             self._auto_bind_security_mcps()
         
-        # Load security tools into skill registry
-        self.load_security_tools(security_mcps)
-        
         # Import and register cybersecurity tools
         self._register_cybersecurity_tools()
         
         logger.info(f"SecurityAgent created: {name} (role: {role})")
     
     def _register_cybersecurity_tools(self):
-        """Register cybersecurity tools from mcp/security/tools"""
+        """Register cybersecurity tools from ToolRegistry"""
         try:
-            from agentos.mcp.security.tools.log_analyzer import LogAnalyzer
-            from agentos.mcp.security.tools.firewall_audit import FirewallAudit
-            from agentos.mcp.security.tools.permission_audit import PermissionAudit
-            from agentos.mcp.security.tools.system_hardening import SystemHardening
-            from agentos.mcp.security.tools.network_metadata_inspector import NetworkMetadataInspector
-            from agentos.mcp.security.tools.siem_script_builder import SIEMScriptBuilder
-            
-            # Register tools as async callables
-            async def analyze_logs_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return LogAnalyzer.analyze_logs(
-                    params.get("log_entries", []),
-                    params.get("log_type", "generic")
-                )
-            
-            async def audit_firewall_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return FirewallAudit.audit_firewall_rules(
-                    params.get("firewall_rules", []),
-                    params.get("firewall_type", "generic")
-                )
-            
-            async def audit_permissions_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return PermissionAudit.audit_permissions(
-                    params.get("user_list", []),
-                    params.get("permission_data", {})
-                )
-            
-            async def generate_hardening_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return SystemHardening.generate_hardening_recommendations(
-                    params.get("audit_results", {}),
-                    params.get("system_info", {})
-                )
-            
-            async def inspect_network_metadata_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return NetworkMetadataInspector.inspect_metadata(
-                    params.get("log_entries", [])
-                )
-            
-            async def build_siem_script_tool(params: Dict[str, Any]) -> Dict[str, Any]:
-                return SIEMScriptBuilder.build_siem_script(
-                    params.get("siem_type", "splunk"),
-                    params.get("log_sources", []),
-                    params.get("output_format", "python")
-                )
-            
-            self.register_tool("analyze_logs", analyze_logs_tool)
-            self.register_tool("audit_firewall", audit_firewall_tool)
-            self.register_tool("audit_permissions", audit_permissions_tool)
-            self.register_tool("generate_hardening", generate_hardening_tool)
-            self.register_tool("inspect_network_metadata", inspect_network_metadata_tool)
-            self.register_tool("build_siem_script", build_siem_script_tool)
-            
-        except ImportError as e:
-            logger.warning(f"Could not import cybersecurity tools: {e}")
+            tool_registry = ToolRegistry()
+            tool_names = [
+                "LogAnalyzer",
+                "FirewallAudit",
+                "PermissionAudit",
+                "SystemHardening",
+                "NetworkMetadataInspector",
+                "SIEMScriptBuilder"
+            ]
+            for name in tool_names:
+                try:
+                    tool_instance = tool_registry.create(name)
+                    self.register_tool(tool_instance)
+                except Exception as e:
+                    logger.warning(f"Could not load tool '{name}' from registry: {e}")
+        except Exception as e:
+            logger.warning(f"Error registering cybersecurity tools: {e}")
     
     async def run_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -149,14 +124,22 @@ class SecurityAgent(Agent):
         Returns:
             Tool execution result
         """
-        if tool_name in self.tools:
-            tool_func = self.tools[tool_name]
-            return await tool_func(params)
-        else:
-            return {
-                "success": False,
-                "error": f"Tool '{tool_name}' not available",
-            }
+        tool = next((t for t in self.tools if t.name == tool_name), None)
+        if tool:
+            if hasattr(tool, "run"):
+                res = tool.run(**params)
+                if asyncio.iscoroutine(res):
+                    return await res
+                return res
+            elif callable(tool):
+                res = tool(params)
+                if asyncio.iscoroutine(res):
+                    return await res
+                return res
+        return {
+            "success": False,
+            "error": f"Tool '{tool_name}' not available",
+        }
     
     def create_mission_from_template(
         self,
@@ -251,9 +234,9 @@ class SecurityAgent(Agent):
         async def password_policy_eval(params: Dict[str, Any]) -> Dict[str, Any]:
             return await pat_mcp.call_skill("password_policy_eval", params)
         
-        self.register_tool("identify_hash", identify_hash)
-        self.register_tool("hash_strength", hash_strength)
-        self.register_tool("password_policy_eval", password_policy_eval)
+        self.register_tool(SecurityWrapperTool("identify_hash", "Identify password hash type", identify_hash))
+        self.register_tool(SecurityWrapperTool("hash_strength", "Benchmark password hash strength", hash_strength))
+        self.register_tool(SecurityWrapperTool("password_policy_eval", "Evaluate password policy", password_policy_eval))
     
     def _register_network_tools(self, network_mcp: BaseMCPConnector):
         """Register Network Monitor MCP tools"""
@@ -266,9 +249,9 @@ class SecurityAgent(Agent):
         async def classify_incident(params: Dict[str, Any]) -> Dict[str, Any]:
             return await network_mcp.call_skill("classify_incident", params)
         
-        self.register_tool("detect_port_scans", detect_port_scans)
-        self.register_tool("detect_anomalies", detect_anomalies)
-        self.register_tool("classify_incident", classify_incident)
+        self.register_tool(SecurityWrapperTool("detect_port_scans", "Detect network port scans", detect_port_scans))
+        self.register_tool(SecurityWrapperTool("detect_anomalies", "Detect network anomalies", detect_anomalies))
+        self.register_tool(SecurityWrapperTool("classify_incident", "Classify network security incident", classify_incident))
     
     def _register_audit_tools(self, audit_mcp: BaseMCPConnector):
         """Register System Audit MCP tools"""
@@ -281,9 +264,9 @@ class SecurityAgent(Agent):
         async def generate_hardening(params: Dict[str, Any]) -> Dict[str, Any]:
             return await audit_mcp.call_skill("generate_hardening_recommendations", params)
         
-        self.register_tool("audit_firewall", audit_firewall)
-        self.register_tool("audit_config", audit_config)
-        self.register_tool("generate_hardening", generate_hardening)
+        self.register_tool(SecurityWrapperTool("audit_firewall", "Audit system firewall status", audit_firewall))
+        self.register_tool(SecurityWrapperTool("audit_config", "Audit system configuration security", audit_config))
+        self.register_tool(SecurityWrapperTool("generate_hardening", "Generate system hardening recommendations", generate_hardening))
     
     async def execute(self, task_node: Dict[str, Any], context: Dict[str, Any] = None) -> Dict[str, Any]:
         """

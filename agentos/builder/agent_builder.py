@@ -2,9 +2,8 @@
 Agent Builder - Uses LLMClient to generate validated agent configurations from descriptions
 """
 
-import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 
 from agentos.llm import LLMClient

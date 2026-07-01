@@ -10,10 +10,7 @@ Covers all required verification items from the Phase 3 spec:
 """
 
 import asyncio
-import json
 import os
-import shutil
-import time
 import yaml
 import pytest
 import pytest_asyncio

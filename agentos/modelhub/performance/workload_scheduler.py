@@ -3,7 +3,7 @@ Workload Scheduler - Schedules model cascades (fast small -> expensive precise)
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 

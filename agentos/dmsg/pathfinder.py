@@ -4,7 +4,7 @@ DMSG Pathfinder - Find optimal paths through MCP skill graph
 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from agentos.dmsg.registry import MCPRegistry, MCPNode, Skill
+from agentos.dmsg.registry import MCPRegistry, MCPNode
 
 
 @dataclass

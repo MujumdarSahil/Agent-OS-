@@ -5,7 +5,6 @@ Log parsing utilities for various log formats
 import re
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 
 class SyslogParser:

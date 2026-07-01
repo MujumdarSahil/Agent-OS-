@@ -756,7 +756,6 @@ class GovernanceEngine:
 
         if verifier_models:
             try:
-                from agentos.modelhub.safety.verifier import VerifierModel
 
                 verifier = verifier_models.get("policy_verifier")
                 if verifier:

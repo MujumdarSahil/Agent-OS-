@@ -2,7 +2,7 @@
 Security MCP Connectors - Safe, defensive cybersecurity tools
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 import hashlib
 import json

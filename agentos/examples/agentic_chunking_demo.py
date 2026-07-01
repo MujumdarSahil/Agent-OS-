@@ -15,7 +15,7 @@ from agentos.core.chunkers import Chunker
 
 
 # Reuse the same sample documents from your original demo (shortened slightly for brevity)
-TECHNICAL_PAPER = \"\"\"Introduction
+TECHNICAL_PAPER = """Introduction
 
 Artificial intelligence has undergone remarkable transformations in recent years...
 Deep Learning Fundamentals
@@ -29,9 +29,9 @@ The transformer architecture introduced the attention mechanism as a fundamental
 Large Language Models
 
 GPT models demonstrate the power of unsupervised pre-training on vast text corpora...
-\"\"\"
+"""
 
-BUSINESS_REPORT = \"\"\"Executive Summary
+BUSINESS_REPORT = """Executive Summary
 
 Q3 2024 Financial Performance Review
 
@@ -40,9 +40,9 @@ Our company achieved exceptional results in Q3 2024, demonstrating strong growth
 Revenue Analysis
 
 Product sales comprised 65% of total revenue, generating significant year-over-year growth...
-\"\"\"
+"""
 
-USER_MANUAL = \"\"\"Chapter 1: Getting Started
+USER_MANUAL = """Chapter 1: Getting Started
 
 Welcome to the Advanced Document Management System (ADMS) 3.0...
 
@@ -53,7 +53,7 @@ Step 1: Download the installation package from our official website...
 Chapter 2: Basic Operations
 
 ADMS 3.0 supports multiple file formats including PDF, Word, and image formats...
-\"\"\"
+"""
 
 
 def summarize_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -144,7 +144,8 @@ async def main():
         for label, chunks in corpora:
             hits = simple_keyword_search(chunks, query, limit=1)
             if hits:
-                print(f"  ✅ Found match in {label}: {hits[0]['text'][:100].replace('\n', ' ')}...")
+                matched_text = hits[0]['text'][:100].replace('\n', ' ')
+                print(f"  ✅ Found match in {label}: {matched_text}...")
             else:
                 print(f"  ❌ No direct match in {label}")
 
@@ -153,5 +154,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 

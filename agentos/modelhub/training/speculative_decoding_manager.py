@@ -3,7 +3,7 @@ Speculative Decoding Manager - Orchestrates small-draft + large-refine pass
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 

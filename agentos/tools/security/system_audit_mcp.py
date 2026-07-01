@@ -14,7 +14,7 @@ SAFETY GUARANTEES:
 - No exploitation or privilege escalation
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import re
 from datetime import datetime
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector

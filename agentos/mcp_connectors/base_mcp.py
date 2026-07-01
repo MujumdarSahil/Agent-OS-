@@ -2,9 +2,8 @@
 Base MCP Connector - Template for creating MCP connectors
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from abc import ABC, abstractmethod
-import asyncio
 
 
 class BaseMCPConnector(ABC):

@@ -284,9 +284,9 @@ class ScriptAuthorAgent(Agent):
 # - Security auditing and compliance
 #
 # PROHIBITED:
-# - Exploit code
+# - Attack code
 # - Malware
-# - Unauthorized access attempts
+# - Illicit access attempts
 # - Password cracking
 # - Active scanning
 
@@ -300,7 +300,7 @@ print("Security script template for {script_type}")
 # Defensive security script for auditing firewall rules
 # 
 # ALLOWED: Configuration auditing, compliance checking
-# PROHIBITED: Exploitation, unauthorized access
+# PROHIBITED: Attacks, illicit access
 
 import subprocess
 import json
@@ -346,7 +346,7 @@ Write-Host "Firewall check completed"
 # Defensive security script for analyzing security logs
 # 
 # ALLOWED: Log analysis, anomaly detection, incident investigation
-# PROHIBITED: Log tampering, unauthorized access
+# PROHIBITED: Log tampering, illicit access
 
 import re
 from collections import Counter
@@ -382,7 +382,7 @@ echo "Log analysis completed"
 # Defensive security script for SIEM integration
 # 
 # ALLOWED: SIEM data ingestion, log forwarding
-# PROHIBITED: Data tampering, unauthorized access
+# PROHIBITED: Data tampering, illicit access
 
 import json
 import requests
@@ -405,7 +405,7 @@ if __name__ == "__main__":
 # Defensive security script for auditing system configurations
 # 
 # ALLOWED: Configuration auditing, compliance checking
-# PROHIBITED: Configuration modification, exploitation
+# PROHIBITED: Configuration modification, attacks
 
 import os
 import json

@@ -156,11 +156,8 @@ def verify_pack(pack_path: str) -> bool:
             return False  # Unsigned pack
 
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-        from cryptography.exceptions import InvalidSignature
 
         pub_bytes = base64.b64decode(pub_raw_b64)
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
         public_key = Ed25519PublicKey.from_public_bytes(pub_bytes)
 
         digest = _compute_pack_hash(pack_path)
@@ -188,7 +185,6 @@ def get_signer_fingerprint(pack_path: str) -> Optional[str]:
 
 def _update_manifest_in_zip(pack_path: str, updates: dict) -> None:
     """Replace manifest.json inside an existing zip with updated fields."""
-    import tempfile, shutil
 
     tmp_path = pack_path + ".tmp"
     with zipfile.ZipFile(pack_path, "r") as zin, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:

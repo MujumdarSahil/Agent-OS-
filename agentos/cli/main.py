@@ -3,40 +3,32 @@ AgentOS CLI - Typer-based command line interface for project scaffolding, valida
 """
 
 import os
-import sys
+import json
 import yaml
 import glob
-import importlib.util
 import logging
-from typing import List, Optional
+from typing import Optional
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.syntax import Syntax
-from rich import print as rprint
 
 from agentos.core.config_models import (
     ProjectConfig,
     AgentYAMLConfig,
-    ToolYAMLConfig,
     CrewYAMLConfig,
-    MissionYAMLConfig,
-    TaskYAMLConfig
+    MissionYAMLConfig
 )
-from agentos.core.base import AgentRegistry, ToolRegistry, BaseAgent, BaseTool, BaseMemory
-from agentos.core.agent import Agent
-from agentos.core.squad import Squad, SquadRole, Mission
-from agentos.core.planner import TaskGraph, TaskNode
-from agentos.core.governance import GovernanceEngine
+from agentos.core.base import AgentRegistry, ToolRegistry
 from agentos.core.checkpoint import SQLiteCheckpointStore
 from agentos.llm import LLMClient
-from agentos.mcp.plugin_loader import discover_plugins, load_plugin
 from agentos.builder.agent_builder import AgentBuilder
 from agentos.builder.tool_builder import ToolBuilder
 from agentos.builder.crew_builder import CrewBuilder
 from agentos.core.bootstrap import register_builtin_components
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+from agentos.core.logging_config import setup_logging
+setup_logging()
 logger = logging.getLogger("agentos.cli")
 
 app = typer.Typer(help="AgentOS Framework CLI")
@@ -44,6 +36,26 @@ console = Console()
 
 # Register all built-in components at CLI startup
 register_builtin_components()
+
+def version_callback(value: bool):
+    if value:
+        from agentos.__version__ import __version__
+        console.print(f"AgentOS v{__version__}")
+        raise typer.Exit()
+
+@app.callback()
+def main_callback(
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        "-v",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+):
+    pass
+
 
 def to_camel_case(snake_str: str) -> str:
     """Helper to convert snake_case names to CamelCase class names"""
@@ -870,7 +882,6 @@ def run_federated_mission(
 
     from agentos.core.federation import FederatedMission, FederationStage
     from agentos.core.project_ops import build_squad_from_project
-    from agentos.core.checkpoint import SQLiteCheckpointStore
 
     checkpoint_db = os.path.join(project_path, "checkpoints", "run_history.db")
     store = SQLiteCheckpointStore(db_path=checkpoint_db)
@@ -892,7 +903,7 @@ def run_federated_mission(
         result = asyncio.run(fed.run())
 
         console.print(f"\n[green]✓ Federation complete![/green] {result['stages_completed']}/{result['total_stages']} stages ran.")
-        console.print(f"\n[bold]Final output:[/bold]")
+        console.print("\n[bold]Final output:[/bold]")
         console.print(result.get("final_output", "(no output)"))
 
     except RuntimeError as e:

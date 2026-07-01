@@ -5,7 +5,7 @@ SAFETY: Training utilities only. No exploit or malicious model generation.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

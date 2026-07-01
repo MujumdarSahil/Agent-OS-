@@ -8,7 +8,6 @@ Three new missions:
 """
 
 import logging
-from typing import Dict, Any
 from agentos.core.squad import Squad, SquadRole
 from agentos.agents.security_agent import SecurityAgent
 from agentos.agents.script_author_agent import ScriptAuthorAgent
@@ -71,7 +70,6 @@ async def log_threat_analysis_mission():
     logger.info(f"Mission created: {mission.goal}")
     
     # Step 1: Analyze logs using tool
-    from agentos.mcp.security.tools.log_analyzer import LogAnalyzer
     
     log_entries = [
         {"content": "Failed login attempt from 192.168.1.100", "timestamp": "2024-01-01T10:00:00", "source": "syslog"},

@@ -5,18 +5,27 @@ SAFETY: Read-only analysis. No system modifications.
 """
 
 import logging
-import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
+
+from agentos.core.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class SystemHardening:
+class SystemHardening(BaseTool):
     """
     System Hardening - Generates hardening recommendations.
     
     All operations are read-only. No system modifications.
     """
+    name: str = "generate_hardening"
+    description: str = "Generates system hardening recommendations."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.generate_hardening_recommendations(
+            kwargs.get("audit_results", {}),
+            kwargs.get("system_info", None)
+        )
     
     @staticmethod
     def generate_hardening_recommendations(

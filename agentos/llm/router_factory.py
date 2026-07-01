@@ -6,7 +6,6 @@ from typing import List, Dict, Any, Optional
 import os
 import requests
 import logging
-import litellm
 from litellm import Router
 
 from agentos.llm.provider_registry import get_available_providers, PROVIDER_REGISTRY, AgentOSLLMError

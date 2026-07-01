@@ -5,7 +5,6 @@ Task Router (DMARP) - Dynamic Multi-Agent Routing Protocol for task assignment
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
-import uuid
 
 
 class AssignmentStrategy(Enum):

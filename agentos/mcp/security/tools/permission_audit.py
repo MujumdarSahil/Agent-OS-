@@ -7,15 +7,25 @@ SAFETY: Read-only permission analysis. No permission modification.
 import logging
 from typing import Dict, Any, List, Optional
 
+from agentos.core.base import BaseTool
+
 logger = logging.getLogger(__name__)
 
 
-class PermissionAudit:
+class PermissionAudit(BaseTool):
     """
     Permission Audit - Audits user permissions and access controls.
     
     All operations are read-only. No permission modifications.
     """
+    name: str = "audit_permissions"
+    description: str = "Audits user permissions and access controls."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.audit_permissions(
+            kwargs.get("user_list", []),
+            kwargs.get("permission_data", None)
+        )
     
     @staticmethod
     def audit_permissions(

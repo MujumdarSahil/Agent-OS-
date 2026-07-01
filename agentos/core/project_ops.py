@@ -16,7 +16,6 @@ from typing import List, Optional, Dict, Any, Tuple
 from agentos.core.config_models import (
     ProjectConfig,
     AgentYAMLConfig,
-    ToolYAMLConfig,
     CrewYAMLConfig,
     MissionYAMLConfig,
 )

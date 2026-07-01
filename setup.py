@@ -10,9 +10,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
 with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
+version_vars = {}
+with open("agentos/__version__.py", "r", encoding="utf-8") as f:
+    exec(f.read(), version_vars)
+
 setup(
     name="agentos",
-    version="0.1.0",
+    version=version_vars["__version__"],
     author="AgentOS Team",
     description="A production-grade multi-agent framework",
     long_description=long_description,

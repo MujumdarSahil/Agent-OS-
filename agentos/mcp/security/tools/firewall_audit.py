@@ -5,17 +5,27 @@ SAFETY: Read-only configuration analysis. No firewall rule modification.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
+
+from agentos.core.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class FirewallAudit:
+class FirewallAudit(BaseTool):
     """
     Firewall Audit - Audits firewall rules for security best practices.
     
     All operations are read-only. No firewall modifications.
     """
+    name: str = "audit_firewall"
+    description: str = "Audits firewall rules for security best practices."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.audit_firewall_rules(
+            kwargs.get("firewall_rules", []),
+            kwargs.get("firewall_type", "generic")
+        )
     
     @staticmethod
     def audit_firewall_rules(

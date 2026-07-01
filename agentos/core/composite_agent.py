@@ -3,7 +3,7 @@ Composite Agent - Role-merging and hybrid agents
 """
 
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import uuid
 from agentos.core.agent import Agent, AgentStatus
 

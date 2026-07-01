@@ -7,9 +7,8 @@ import sys
 import yaml
 import importlib
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Any, Optional, Tuple
 from pydantic import BaseModel, Field
-import asyncio
 
 from agentos.core.base import BaseTool, ToolRegistry, BaseMCPPlugin
 from crewai.mcp import MCPServerHTTP

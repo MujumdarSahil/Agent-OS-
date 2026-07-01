@@ -2,7 +2,7 @@
 Threat Intelligence MCP - Lightweight threat intelligence feed integrator
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 from agentos.cybercore.utils.normalization import IOCNormalizer
 from datetime import datetime

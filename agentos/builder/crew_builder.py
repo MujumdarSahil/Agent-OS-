@@ -2,7 +2,6 @@
 Crew Builder - Proposes complete agent teams, processes, and task structures from project goals
 """
 
-import json
 import logging
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field

@@ -218,3 +218,21 @@ During a diagnostic audit, it was discovered that `AgentRegistry` and `ToolRegis
 3. **External Entry Points Discovery**: Integrated Python entry point scanning for `agentos.agents`, `agentos.tools`, and `agentos.mcp_plugins`. This allows third-party packages to dynamically inject custom Agents, Tools, and MCP Plugins with clean error isolation (broken packages do not crash AgentOS startup).
 4. **Visibility & Diagnostics**: Added CLI commands `list-agent-types` / `list-tool-types` and equivalent HTTP endpoints to provide full runtime visibility into registered types.
 
+
+---
+
+## Section 10: Security Agent Tool Registry & Signature Fixes (Phase 6)
+
+### Findings: Uncaught Bug in SecurityAgent Tool Registration
+During a targeted diagnostic audit, two related registry and signature mismatch bugs were found:
+1. **Unregistered Built-in Tools**: Built-in security tools (`FirewallAudit`, `LogAnalyzer`, `PermissionAudit`, `SystemHardening`, `NetworkMetadataInspector`, `SIEMScriptBuilder`) were implemented as plain Python classes with static methods. They did not inherit from `BaseTool` or register into `ToolRegistry`, making them invisible to the framework's registry CLI and API.
+2. **Signature Mismatch**: `SecurityAgent` called `self.register_tool(name, tool_func)` (a name-callable pair), whereas the base `Agent.register_tool` method expects a single `BaseTool` instance. This mismatch was never caught because `SecurityAgent` was never instantiated or executed in any existing tests.
+
+### Phase 6 Resolution
+1. **Converted to BaseTool**: Refactored all 6 built-in security tools to inherit from `BaseTool`, implementing `run(**kwargs)` while preserving their static methods for backward compatibility.
+2. **Registered in Bootstrap**: Added explicit registration for all 6 built-in security tools in `register_builtin_components()` in `agentos/core/bootstrap.py` during framework startup.
+3. **Corrected Tool Registration Calls**: Updated `SecurityAgent`'s `_register_cybersecurity_tools()` to look up tool instances from `ToolRegistry` and register them using `self.register_tool(tool_instance)` matching the single-argument base signature.
+4. **Wrapped Callables**: Created `SecurityWrapperTool` to wrap dynamic MCP tool async callables cleanly under the `BaseTool` interface, and updated `run_tool` on `SecurityAgent` to seamlessly support both sync and async callable/BaseTool executions.
+5. **E2E Test Coverage**: Added a comprehensive E2E test file `agentos/tests/test_security_agents_e2e.py` to instantiate and execute tools via `SecurityAgent` and generate scripts via `ScriptAuthorAgent`. The test was verified to fail when the signature fix was reverted, proving it successfully exercises the corrected path.
+
+

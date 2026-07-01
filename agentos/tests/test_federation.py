@@ -12,12 +12,11 @@ All tests use AGENTOS_MOCK_LLM=1 (no real LLM required).
 Windows Safe: uses ignore_cleanup_errors=True on TemporaryDirectory to prevent WinError 32 locking issues.
 """
 
-import asyncio
 import os
 import pytest
 import tempfile
 import uuid
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 
 # ---------------------------------------------------------------------------
@@ -32,7 +31,6 @@ def _make_checkpoint_store(tmp_path: str):
 
 def _make_mock_mission(mission_id: str, goal: str, first_task_desc: str):
     """Create a minimal mock mission with a task graph."""
-    from unittest.mock import MagicMock
 
     task_node = MagicMock()
     task_node.description = first_task_desc
@@ -282,7 +280,7 @@ class TestFederatedMissionFailure:
                 await fed.run()
 
             # Stage 0 should be checkpointed even though overall run failed
-            stage0_key = f"fed_test-fail_stage_0"
+            stage0_key = "fed_test-fail_stage_0"
             checkpoint = store.load_latest_checkpoint(stage0_key)
             assert checkpoint is not None
             assert checkpoint.get("status") == "completed"
@@ -293,7 +291,7 @@ class TestFederationStageNaming:
     @pytest.mark.asyncio
     async def test_stage_name_defaults_to_squad_name(self):
         """Stage name should default to squad.name if not explicitly set."""
-        from agentos.core.federation import FederatedMission, FederationStage
+        from agentos.core.federation import FederationStage
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             store = _make_checkpoint_store(tmp)

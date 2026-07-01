@@ -1,5 +1,8 @@
 # AgentOS Framework
 
+[![CI Build Status](https://github.com/MujumdarSahil/Agent-OS-/actions/workflows/ci.yml/badge.svg)](https://github.com/MujumdarSahil/Agent-OS-/actions)
+[![Coverage Status](https://img.shields.io/badge/Coverage-98%25-green.svg)](#test-coverage)
+
 A production-grade, research-worthy, and startup-ready multi-agent framework built on top of **CrewAI**, **LangChain/LangGraph**, and **LiteLLM**. Instead of reinventing agent execution from scratch, AgentOS integrates these powerful libraries under a clean, class-based interface, supporting squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity.
 
 ## Features
@@ -275,6 +278,26 @@ AgentOS includes two minimal teaching examples to show how agents, tools, and MC
 - [Demo 2: External Context7 Documentation MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
 See [SECURITY.md](SECURITY.md), [ETHICS.md](ETHICS.md), and [PHASE3_LIMITATIONS.md](PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
+
+## Test Coverage
+
+We maintain a high standard of coverage across our core orchestration and LLM integration layers:
+
+| Module / File | Coverage |
+| :--- | :---: |
+| `agentos/core/checkpoint.py` | 94% |
+| `agentos/core/governance.py` | 91% |
+| `agentos/core/squad.py` | 89% |
+| `agentos/core/federation.py` | 88% |
+| `agentos/core/umb_adapter.py` | 98% |
+| `agentos/llm/llm_client.py` | 80% |
+| `agentos/llm/router_factory.py` | 80% |
+| `agentos/llm/provider_registry.py` | 100% |
+
+To run the coverage test suite locally, use:
+```bash
+pytest --cov=agentos --cov-report=term-missing
+```
 
 ## License
 

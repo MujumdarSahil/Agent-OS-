@@ -2,7 +2,7 @@
 Data normalization utilities for cybersecurity operations
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
 import re
 

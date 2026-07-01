@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from agentos.templates.templates import list_templates, install_template, BUNDLED_TEMPLATES
+from agentos.templates.templates import list_templates, install_template
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/templates", tags=["templates"])

@@ -6,17 +6,27 @@ SAFETY: Generates defensive scripts only. No exploit or attack code.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+
+from agentos.core.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class SIEMScriptBuilder:
+class SIEMScriptBuilder(BaseTool):
     """
     SIEM Script Builder - Generates defensive SIEM integration scripts.
     
     All scripts are defensive/educational only.
     """
+    name: str = "build_siem_script"
+    description: str = "Generates defensive SIEM integration scripts."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.build_siem_script(
+            kwargs.get("siem_type", "splunk"),
+            kwargs.get("log_sources", None),
+            kwargs.get("output_format", "python")
+        )
     
     @staticmethod
     def build_siem_script(

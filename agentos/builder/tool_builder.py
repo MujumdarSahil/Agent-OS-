@@ -2,7 +2,6 @@
 Tool Builder - Uses LLMClient to generate python tool stubs from descriptions
 """
 
-import json
 import logging
 from typing import Dict, Any, Tuple
 from pydantic import BaseModel, Field

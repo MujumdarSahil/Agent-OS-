@@ -3,7 +3,7 @@ KG Integration - KAG/KG-RAG/FKG integration stubs
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

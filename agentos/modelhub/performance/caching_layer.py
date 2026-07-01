@@ -4,7 +4,7 @@ Caching Layer - Cache embeddings and model outputs to save cost
 
 import logging
 import hashlib
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)

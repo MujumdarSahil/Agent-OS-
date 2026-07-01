@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
 
-from agentos.core.governance import GovernanceEngine, PolicyType
+from agentos.core.governance import GovernanceEngine
 from agentos.server.models import PolicyInfo, PolicyCreateRequest
 
 logger = logging.getLogger(__name__)

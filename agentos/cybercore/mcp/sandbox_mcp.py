@@ -3,7 +3,7 @@ Sandbox MCP - Interface with Cuckoo Sandbox or internal simulator
 Safe behavior analysis - NO arbitrary command execution
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 from datetime import datetime
 import hashlib

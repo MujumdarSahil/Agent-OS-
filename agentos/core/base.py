@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 import crewai
 from crewai.tools import BaseTool as CrewAIBaseTool
 
-from agentos.llm.llm_client import LLMClient, AgentOSChatModel
+from agentos.llm.llm_client import LLMClient
 
 # Pydantic Schemas for validation
 class AgentConfig(BaseModel):

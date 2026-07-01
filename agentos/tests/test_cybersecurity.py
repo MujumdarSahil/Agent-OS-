@@ -5,7 +5,6 @@ Tests for Cybersecurity components
 import pytest
 from agentos.core.cybersecurity_agents import (
     TriageAgent,
-    InvestigatorAgent,
     SandboxAnalystAgent,
     ComplianceAgent,
     ResponderAgent,

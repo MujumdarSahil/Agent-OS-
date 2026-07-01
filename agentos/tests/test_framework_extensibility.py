@@ -179,7 +179,6 @@ def test_build_squad_custom_type_uses_registry():
     register_builtin_components()
 
     from agentos.core.project_ops import list_agents
-    from agentos.core.base import AgentRegistry
     from agentos.agents.researcher_agent import ResearcherAgent
 
     tmp = tempfile.mkdtemp()

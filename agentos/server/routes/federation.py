@@ -3,8 +3,8 @@ federation.py — Phase 4 API routes for Multi-Squad Federation.
 
 Sequential federation only. See PHASE4_FEDERATION.md for full scope and limitations.
 """
-import asyncio
 import logging
+import os
 import uuid
 from typing import Dict, List, Optional, Any
 

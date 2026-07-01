@@ -4,7 +4,7 @@ Chunking Utilities - Semantic and layout-aware chunking strategies
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

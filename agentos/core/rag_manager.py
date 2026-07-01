@@ -5,7 +5,7 @@ Provides RAG capabilities integrated with UMB and ModelHub.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from agentos.core.umb_adapter import UMBAdapter
 
 logger = logging.getLogger(__name__)

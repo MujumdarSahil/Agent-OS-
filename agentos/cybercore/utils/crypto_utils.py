@@ -4,7 +4,7 @@ Cryptographic utilities for safe hash operations
 
 import hashlib
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class CryptoUtils:

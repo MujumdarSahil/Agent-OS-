@@ -3,7 +3,7 @@ Tests for Squad class
 """
 
 import pytest
-from agentos.core.squad import Squad, SquadRole, Mission
+from agentos.core.squad import Squad, SquadRole
 from agentos.core.agent import Agent
 from agentos.core.umb_adapter import UMBAdapter
 

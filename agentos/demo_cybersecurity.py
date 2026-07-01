@@ -3,7 +3,6 @@ AgentOS Cybersecurity Demo - Showcase security workflows
 """
 
 import asyncio
-from agentos.core.agent import Agent
 from agentos.core.squad import Squad, SquadRole
 from agentos.core.umb_adapter import UMBAdapter
 from agentos.core.governance import GovernanceEngine
@@ -88,7 +87,7 @@ async def demo_alert_triage_workflow():
     triage_result = await triage_agent.triage_alert(alert)
     if triage_result.get("success"):
         triage_data = triage_result["triage_result"]
-        print(f"\nTriage completed:")
+        print("\nTriage completed:")
         print(f"  Alert ID: {triage_data['alert_id']}")
         print(f"  Severity: {triage_data['severity']}")
         print(f"  Recommended action: {triage_data['recommended_action']}")
@@ -104,7 +103,7 @@ async def demo_alert_triage_workflow():
         
         if investigation.get("success"):
             inv_data = investigation["investigation"]
-            print(f"\nInvestigation completed:")
+            print("\nInvestigation completed:")
             print(f"  Log results: {inv_data['log_results_count']}")
             print(f"  Enriched IOCs: {len(inv_data.get('enriched_iocs', []))}")
             print(f"  Hypothesis: {inv_data.get('hypothesis', 'N/A')}")
@@ -140,7 +139,7 @@ async def demo_sandbox_analysis():
     
     if analysis.get("success"):
         analysis_data = analysis["analysis"]
-        print(f"\nAnalysis completed:")
+        print("\nAnalysis completed:")
         print(f"  Risk level: {analysis_data['risk_level']}")
         print(f"  Network indicators: {len(analysis_data.get('network_indicators', []))}")
         print(f"  Recommendation: {analysis_data.get('recommendation', 'N/A')}")
@@ -180,7 +179,7 @@ async def demo_password_audit():
         "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",
     ]
     
-    print(f"\nAuditing password policy...")
+    print("\nAuditing password policy...")
     print(f"  Policy: min_length={policy_config['min_length']}")
     print(f"  Sample hashes: {len(password_hashes)}")
     
@@ -192,7 +191,7 @@ async def demo_password_audit():
     
     if audit_result.get("success"):
         audit_data = audit_result["audit"]
-        print(f"\nAudit completed:")
+        print("\nAudit completed:")
         print(f"  Compliance score: {audit_data.get('compliance_score', 0):.2f}")
         print(f"  Violations: {len(audit_data.get('violations', []))}")
         print(f"  Recommendations: {len(audit_data.get('recommendations', []))}")
@@ -241,7 +240,7 @@ async def demo_incident_response():
     )
     
     if containment.get("success"):
-        print(f"\nContainment completed:")
+        print("\nContainment completed:")
         print(f"  Actions taken: {len(containment.get('actions', []))}")
         for action in containment.get("actions", []):
             if action.get("success"):
@@ -277,7 +276,7 @@ async def demo_threat_hunting():
     )
     
     if hunt_result.get("success"):
-        print(f"\nHunt completed:")
+        print("\nHunt completed:")
         print(f"  Pattern: {hunt_result['pattern']}")
         print(f"  Anomalies found: {len(hunt_result.get('anomalies', []))}")
         summary = hunt_result.get("summary", {})
@@ -383,16 +382,16 @@ async def demo_full_workflow():
         alert_id = triage_result["triage_result"]["alert_id"]
         print(f"   Alert ID: {alert_id}")
         
-        print(f"\n2. Investigate alert")
+        print("\n2. Investigate alert")
         investigation = await investigator.investigate(alert_id, "malware detection")
-        print(f"   Investigation completed")
+        print("   Investigation completed")
         
-        print(f"\n3. Analyze artifact in sandbox")
+        print("\n3. Analyze artifact in sandbox")
         artifact_hash = alert.get("file_hash", "")
         analysis = await analyst.analyze_artifact(artifact_hash, "file")
         print(f"   Risk level: {analysis.get('analysis', {}).get('risk_level', 'N/A')}")
         
-        print(f"\n4. Review recommendation")
+        print("\n4. Review recommendation")
         recommendation = {
             "id": "rec-001",
             "risk_level": "high",
@@ -402,7 +401,7 @@ async def demo_full_workflow():
         print(f"   Approved: {review.get('review', {}).get('approved', False)}")
         
         if review.get("review", {}).get("approved"):
-            print(f"\n5. Contain incident")
+            print("\n5. Contain incident")
             containment = await responder.contain_incident(
                 incident_id=alert_id,
                 host_id="HOST-12345",
@@ -410,7 +409,7 @@ async def demo_full_workflow():
             )
             print(f"   Containment completed: {containment.get('success', False)}")
     
-    print(f"\nMission workflow completed!")
+    print("\nMission workflow completed!")
 
 
 async def main():

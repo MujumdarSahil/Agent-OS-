@@ -13,8 +13,7 @@ SAFETY: Read-only log analysis only. No active network probing.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any, List
 from collections import Counter
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 

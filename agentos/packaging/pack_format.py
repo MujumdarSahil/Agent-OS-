@@ -16,7 +16,6 @@ It does NOT prevent redistribution or copying. See PHASE3_LIMITATIONS.md.
 import json
 import os
 import zipfile
-import shutil
 import glob
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -231,7 +230,7 @@ def install_pack(
                 )
             for zpath in zf.namelist():
                 if zpath.startswith(f"mcp_plugins/{pname}/"):
-                    rel = zpath[len(f"mcp_plugins/"):]
+                    rel = zpath[len("mcp_plugins/"):]
                     dest = os.path.join(target_project, "mcp_plugins", rel)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     with zf.open(zpath) as src, open(dest, "wb") as dst:

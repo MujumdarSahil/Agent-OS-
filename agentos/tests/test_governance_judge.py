@@ -8,9 +8,8 @@ Tests cover:
   4. Honest bypass audit: which variants the judge still misses
 """
 
-import asyncio
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 # ---------------------------------------------------------------------------

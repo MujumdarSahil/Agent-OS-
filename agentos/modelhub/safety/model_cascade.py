@@ -3,7 +3,7 @@ Model Cascade - Pipeline: fast_model -> precise_model -> safety_verifier
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class ModelCascade:
         # Stage 2: Precise model (refine)
         precise_result = {
             "model": self.precise_model_id,
-            "response": f"Precise model refinement",
+            "response": "Precise model refinement",
             "stage": "refine",
             "draft": fast_result,
         }

@@ -10,7 +10,6 @@ from agentos.core.config_models import (
     AgentYAMLConfig,
     CrewYAMLConfig,
     MissionYAMLConfig,
-    TaskYAMLConfig,
 )
 
 
@@ -120,6 +119,7 @@ class MCPPluginScaffoldRequest(BaseModel):
 # ---------------------------------------------------------------------------
 class HealthResponse(BaseModel):
     status: str = "ok"
+    version: str = "0.0.0"
     project: str
     agents: int = 0
     tools: int = 0

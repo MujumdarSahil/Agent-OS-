@@ -2,7 +2,14 @@
 AgentOS - A production-grade multi-agent framework
 """
 
-__version__ = "0.1.0"
+from agentos.__version__ import __version__
+from agentos.exceptions import (
+    AgentOSError,
+    AgentOSLLMError,
+    AgentOSRegistryError,
+    AgentOSGovernanceError,
+    AgentOSPackagingError,
+)
 
 from agentos.core.agent import Agent
 from agentos.core.squad import Squad
@@ -44,6 +51,12 @@ except ImportError:
     CYBERSECURITY_AVAILABLE = False
 
 __all__ = [
+    "__version__",
+    "AgentOSError",
+    "AgentOSLLMError",
+    "AgentOSRegistryError",
+    "AgentOSGovernanceError",
+    "AgentOSPackagingError",
     "Agent",
     "Squad",
     "GovernanceEngine",

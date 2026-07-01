@@ -18,13 +18,11 @@ EXPLICITLY OUT OF SCOPE (future phases):
   See PHASE4_FEDERATION.md for the full limitation list.
 """
 
-import asyncio
 import json
 import logging
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

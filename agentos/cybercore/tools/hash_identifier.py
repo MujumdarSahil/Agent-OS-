@@ -4,7 +4,7 @@ Supports 20+ hash patterns
 """
 
 import re
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 
 class HashIdentifier:
@@ -77,7 +77,7 @@ class HashIdentifier:
         # If multiple matches, return the most specific
         if matches:
             # Prefer named hashes (bcrypt, PBKDF2, etc.) over generic hex
-            named_matches = [m for m in matches if not m["hash_type"] in ["MD5", "SHA1", "SHA256", "SHA512"]]
+            named_matches = [m for m in matches if m["hash_type"] not in ["MD5", "SHA1", "SHA256", "SHA512"]]
             if named_matches:
                 return named_matches[0]
             return matches[0]

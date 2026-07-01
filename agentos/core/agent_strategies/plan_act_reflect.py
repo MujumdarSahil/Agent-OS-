@@ -3,7 +3,7 @@ Plan-Act-Reflect Strategy - Agent loop with planning and reflection
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

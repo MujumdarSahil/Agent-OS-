@@ -3,13 +3,12 @@ Password Audit MCP - Safe password policy auditing
 NO password cracking - only policy evaluation and breach checks
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 from agentos.cybercore.tools.hash_identifier import HashIdentifier
 from agentos.cybercore.tools.password_entropy_estimator import PasswordEntropyEstimator
 from agentos.cybercore.tools.breach_check_k_anonymity import BreachCheckKAnonymity
 from agentos.cybercore.utils.validation import HashValidator, PolicyValidator
-from agentos.cybercore.utils.crypto_utils import CryptoUtils
 
 
 class PasswordAuditMCP(BaseMCPConnector):

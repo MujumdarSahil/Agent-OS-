@@ -13,8 +13,7 @@ SAFETY: Mathematical evaluation only, NO real cracking.
 
 import logging
 import re
-import hashlib
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 
 logger = logging.getLogger(__name__)

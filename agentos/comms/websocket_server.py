@@ -2,8 +2,7 @@
 WebSocket Server - Real-time collaboration for multi-agent interactions
 """
 
-from typing import Dict, Any, Optional, List, Callable
-import asyncio
+from typing import Dict, Any, List, Callable
 import json
 from enum import Enum
 from datetime import datetime

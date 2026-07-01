@@ -10,7 +10,6 @@ Manages the lifecycle of mission runs triggered via the API:
 
 import asyncio
 import logging
-import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional

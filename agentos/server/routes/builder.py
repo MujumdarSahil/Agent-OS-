@@ -58,7 +58,6 @@ async def preview_agent(body: BuilderDescriptionRequest, request: Request):
 @router.post("/agent/confirm", response_model=BuilderConfirmResponse)
 async def confirm_agent(body: BuilderConfirmRequest, request: Request):
     p = request.app.state.project_path
-    import yaml
     from agentos.core.config_models import AgentYAMLConfig
     from agentos.core.project_ops import write_agent
     try:
@@ -123,7 +122,6 @@ async def preview_crew(body: BuilderDescriptionRequest, request: Request):
 
 @router.post("/crew/confirm", response_model=BuilderConfirmResponse)
 async def confirm_crew(body: BuilderConfirmRequest, request: Request):
-    import yaml
     from agentos.core.config_models import AgentYAMLConfig, CrewYAMLConfig
     from agentos.core.project_ops import write_agent, write_crew, write_mission
     from agentos.core.config_models import MissionYAMLConfig, TaskYAMLConfig

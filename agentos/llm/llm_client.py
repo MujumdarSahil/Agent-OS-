@@ -7,7 +7,6 @@ import json
 import logging
 from typing import List, Dict, Any, Optional, Generator, AsyncGenerator
 import litellm
-from litellm import Router
 from litellm.integrations.custom_logger import CustomLogger
 
 from langchain_core.language_models.chat_models import BaseChatModel

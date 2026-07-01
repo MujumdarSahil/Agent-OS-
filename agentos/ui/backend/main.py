@@ -527,7 +527,6 @@ async def get_job_status(model_id: str, token: str = Depends(verify_token)):
 async def get_modelhub_metrics(token: str = Depends(verify_token)):
     """Get ModelHub metrics"""
     try:
-        from agentos.modelhub.llm_connector import LLMConnector
         
         # Stub metrics
         return {

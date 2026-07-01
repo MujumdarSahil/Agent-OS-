@@ -9,7 +9,6 @@ security MCPs work together:
 3. System Hardening Mission
 """
 
-from typing import Dict, Any, List
 from agentos.core.squad import Squad, SquadRole
 from agentos.core.security_agents import SecurityAgent, ScriptAuthorAgent
 from agentos.core.governance import GovernanceEngine

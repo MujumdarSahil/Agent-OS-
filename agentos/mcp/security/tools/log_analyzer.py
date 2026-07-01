@@ -6,19 +6,28 @@ SAFETY: Read-only log analysis. No log modification or tampering.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
-from collections import Counter
+
+from agentos.core.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class LogAnalyzer:
+class LogAnalyzer(BaseTool):
     """
     Log Analyzer - Analyzes security logs for threats and anomalies.
     
     All operations are read-only. No log modification.
     """
+    name: str = "analyze_logs"
+    description: str = "Analyzes security logs for threats and anomalies."
+
+    def run(self, **kwargs: Any) -> Dict[str, Any]:
+        return self.analyze_logs(
+            kwargs.get("log_entries", []),
+            kwargs.get("log_type", "generic")
+        )
     
     # Security event patterns
     SECURITY_PATTERNS = [

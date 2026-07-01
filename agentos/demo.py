@@ -151,7 +151,7 @@ async def demo_routing():
     router = TaskRouter(strategy=AssignmentStrategy.HYBRID)
     plan = router.assign(graph, agents)
     
-    print(f"Assignment plan:")
+    print("Assignment plan:")
     for task_id, agent_id in plan.assignments.items():
         if agent_id:
             agent = next(a for a in agents if a.id == agent_id)

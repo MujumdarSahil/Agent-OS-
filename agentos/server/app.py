@@ -29,6 +29,10 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     Args:
         project_path: Optional absolute path to the AgentOS project directory.
     """
+    from agentos.core.logging_config import setup_logging
+    from agentos.__version__ import __version__
+    setup_logging()
+
     if project_path is None:
         project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
     project_path = os.path.abspath(project_path)
@@ -44,7 +48,7 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app = FastAPI(
         title="AgentOS API",
         description="REST API for the AgentOS multi-agent framework",
-        version="3.0.0",
+        version=__version__,
         lifespan=lifespan,
     )
 

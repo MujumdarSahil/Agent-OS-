@@ -3,7 +3,6 @@ Tests for Agent class
 """
 
 import pytest
-import asyncio
 from agentos.core.agent import Agent, AgentStatus, ResourceQuota
 from agentos.core.umb_adapter import UMBAdapter
 

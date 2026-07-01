@@ -14,8 +14,7 @@ import crewai
 
 logger = logging.getLogger(__name__)
 
-from agentos.core.base import BaseAgent, BaseMemory
-from agentos.core.agent import Agent
+from agentos.core.base import BaseAgent
 
 class SquadRole(Enum):
     """Roles in a squad hierarchy"""

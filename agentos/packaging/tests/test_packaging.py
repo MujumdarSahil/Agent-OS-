@@ -11,8 +11,6 @@ Covers:
 import base64
 import json
 import os
-import shutil
-import tempfile
 import zipfile
 import yaml
 import pytest
@@ -136,7 +134,6 @@ def test_tamper_breaks_verify(source_project, keypair, tmp_path):
 def test_more_tamper_variants(source_project, keypair, tmp_path):
     from agentos.packaging.pack_format import build_pack
     from agentos.packaging.signer import sign_pack, verify_pack, _update_manifest_in_zip
-    import base64
 
     priv_path, _ = keypair
     
@@ -255,7 +252,7 @@ def test_install_pack(source_project, keypair, tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_license_missing_blocks(source_project, keypair, tmp_path):
-    from agentos.packaging.pack_format import build_pack, install_pack
+    from agentos.packaging.pack_format import build_pack
     from agentos.packaging.signer import sign_pack
     from agentos.packaging.license_check import verify_license_str
 
@@ -269,7 +266,7 @@ def test_license_missing_blocks(source_project, keypair, tmp_path):
     sign_pack(pack_path, priv_path)
 
     # Simulate a manifest that requires a license
-    import zipfile, json
+    import zipfile
     with zipfile.ZipFile(pack_path, "r") as zf:
         manifest = json.loads(zf.read("manifest.json"))
 
@@ -286,7 +283,7 @@ def test_license_correct_key_passes(source_project, keypair, tmp_path):
     from agentos.packaging.signer import sign_pack
     from agentos.packaging.pack_format import build_pack
     from agentos.packaging.license_check import generate_license, verify_license_str
-    import zipfile, json
+    import zipfile
 
     priv_path, _ = keypair
     pack_path = str(tmp_path / "licensed2.agentpack")

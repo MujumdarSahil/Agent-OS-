@@ -7,10 +7,7 @@ Templates are stored as .agentpack files built from source YAML in agentos/templ
 Install logic reuses Phase 3's pack_format.install_pack() exactly — no new install code.
 """
 
-import json
 import os
-import zipfile
-import shutil
 from typing import List, Dict, Any, Optional
 
 # Path to pre-built template packs (built by build_templates.py)

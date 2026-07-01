@@ -1,10 +1,8 @@
 """Packaging API routes — build, sign, verify, install .agentpack files."""
 import logging
 import os
-import tempfile
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request
 
 from agentos.server.models import (
     PackBuildRequest, PackSignRequest, PackVerifyRequest,

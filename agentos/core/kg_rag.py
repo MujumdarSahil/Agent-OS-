@@ -5,7 +5,7 @@ Converts graph context (triples) to doc-context for RAG.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

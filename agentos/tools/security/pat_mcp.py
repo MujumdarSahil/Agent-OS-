@@ -15,8 +15,7 @@ SAFETY GUARANTEES:
 - Educational and defensive use only
 """
 
-from typing import Dict, Any, List, Optional
-import hashlib
+from typing import Dict, Any, List
 import re
 from agentos.mcp_connectors.base_mcp import BaseMCPConnector
 

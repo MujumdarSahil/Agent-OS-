@@ -3,7 +3,7 @@ Tree of Thoughts Strategy - Explores multiple reasoning paths
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

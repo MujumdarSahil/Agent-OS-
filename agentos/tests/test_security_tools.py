@@ -2,7 +2,6 @@
 Unit tests for security tools
 """
 
-import pytest
 from agentos.mcp.security.tools.log_analyzer import LogAnalyzer
 from agentos.mcp.security.tools.firewall_audit import FirewallAudit
 from agentos.mcp.security.tools.permission_audit import PermissionAudit

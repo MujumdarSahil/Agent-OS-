@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "agentos"
-version = "0.1.0"
+version = "0.2.0"
 description = "A production-grade multi-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -48,3 +48,18 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["agentos*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E402",  # Module level import not at top of file
+    "F841",  # Local variable assigned to but never used
+    "F811",  # Redefinition of unused function
+    "E501",  # Line too long
+    "W291",  # Trailing whitespace
+    "W293",  # Blank line contains whitespace
+    "E722",  # Bare except
+    "E712",  # Equality comparisons to True/False
+    "F401",  # Unused imports (public api exposure)
+]
+

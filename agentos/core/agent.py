@@ -6,7 +6,7 @@ import uuid
 import asyncio
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
 import crewai
 
 from agentos.core.base import BaseAgent, BaseTool, BaseMemory

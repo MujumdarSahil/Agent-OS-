@@ -16,12 +16,10 @@ Provider model names verified against current docs (June 2026).
 LiteLLM prefixes: openrouter/, together_ai/, fireworks_ai/, deepseek/, groq/
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import os
 
-class AgentOSLLMError(Exception):
-    """Raised when all configured LLM providers in the fallback chain fail or no providers are configured."""
-    pass
+from agentos.exceptions import AgentOSLLMError
 
 
 PROVIDER_REGISTRY: List[Dict[str, Any]] = [

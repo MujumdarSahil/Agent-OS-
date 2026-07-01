@@ -3,7 +3,6 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import ValidationError
 
 from agentos.core.config_models import AgentYAMLConfig
 from agentos.core.project_ops import (

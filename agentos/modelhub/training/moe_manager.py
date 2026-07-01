@@ -3,7 +3,7 @@ MoE Manager - Mixture-of-Experts routing simulation
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

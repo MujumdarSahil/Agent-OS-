@@ -2,7 +2,7 @@
 YARA scanner - Safe file scanning using YARA rules
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import os
 
 
@@ -87,7 +87,6 @@ class YARAScanner:
             }
         
         try:
-            import yara
             
             # Scan file
             matches = self.yara_rules.match(file_path)
@@ -139,7 +138,6 @@ class YARAScanner:
             }
         
         try:
-            import yara
             
             # Scan data
             matches = self.yara_rules.match(data=data)
