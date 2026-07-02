@@ -13,6 +13,9 @@ PROD mode (--prod):
 
 Usage:
   python main.py [--project PATH] [--backend-port 8000] [--frontend-port 5173] [--prod]
+
+If no --project is given and the current directory has no agentos.config.yaml,
+the bundled task_planner demo project is used automatically.
 """
 
 import argparse
@@ -26,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.resolve()
 FRONTEND_DIR = ROOT / "agentos" / "frontend"
+DEFAULT_PROJECT = ROOT / "agentos" / "templates" / "source" / "task_planner"
 
 
 def parse_args():
@@ -33,7 +37,7 @@ def parse_args():
     parser.add_argument(
         "--project",
         default=None,
-        help="Path to AgentOS project (default: current directory if valid project)",
+        help="Path to AgentOS project (default: current directory, or bundled demo project)",
     )
     parser.add_argument("--backend-port", type=int, default=8000)
     parser.add_argument("--frontend-port", type=int, default=5173)
@@ -49,12 +53,20 @@ def resolve_project(project_arg: str | None) -> str:
             print(f"ERROR: Project path does not exist: {p}", file=sys.stderr)
             sys.exit(1)
         return p
-    # Default: current directory if it's a valid project
     cwd = os.getcwd()
     if os.path.exists(os.path.join(cwd, "agentos.config.yaml")):
         return cwd
+
+    default = str(DEFAULT_PROJECT)
+    if os.path.exists(os.path.join(default, "agentos.config.yaml")):
+        print(
+            f"No AgentOS project in current directory - using bundled demo:\n  {default}\n"
+            f"Pass --project <path> to use a different project.\n"
+        )
+        return default
+
     print(
-        "ERROR: Current directory is not an AgentOS project (no agentos.config.yaml found).\n"
+        "ERROR: No AgentOS project found.\n"
         "Use --project <path> to specify a project directory, or run:\n"
         "  agentos new-project my-project",
         file=sys.stderr,
