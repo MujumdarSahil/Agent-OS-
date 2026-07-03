@@ -11,6 +11,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health", response_model=HealthResponse)
 async def health(request: Request):
     p = request.app.state.project_path
+    from agentos.llm.llm_client import get_last_used_provider, get_fallback_events_count
     return HealthResponse(
         status="ok",
         version=__version__,
@@ -19,4 +20,6 @@ async def health(request: Request):
         tools=len(list_tools(p)),
         crews=len(list_crews(p)),
         missions=len(list_missions(p)),
+        last_used_model=get_last_used_provider() or "No model used yet",
+        fallback_events=get_fallback_events_count()
     )

@@ -21,6 +21,25 @@ from agentos.llm.provider_registry import AgentOSLLMError
 logger = logging.getLogger(__name__)
 
 
+import threading
+
+_local_storage = threading.local()
+_fallback_events_count = 0
+
+def set_last_used_provider(provider: str) -> None:
+    _local_storage.last_used_provider = provider
+
+def get_last_used_provider() -> Optional[str]:
+    return getattr(_local_storage, "last_used_provider", None)
+
+def increment_fallback_events() -> None:
+    global _fallback_events_count
+    _fallback_events_count += 1
+
+def get_fallback_events_count() -> int:
+    global _fallback_events_count
+    return _fallback_events_count
+
 class AgentOSFallbackLogger(CustomLogger):
     """
     LiteLLM custom logger callback to log provider successes, failures,
@@ -30,19 +49,23 @@ class AgentOSFallbackLogger(CustomLogger):
         model = kwargs.get("model", "unknown")
         exception = kwargs.get("exception", "unknown error")
         logger.info(f"Provider {model} failed ({exception}), trying next fallback...")
+        increment_fallback_events()
 
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         model = kwargs.get("model", "unknown")
         exception = kwargs.get("exception", "unknown error")
         logger.info(f"Provider {model} failed ({exception}), trying next fallback...")
+        increment_fallback_events()
 
     def log_success_event(self, kwargs, response_obj, start_time, end_time):
         model = kwargs.get("model", "unknown")
         logger.info(f"Successfully served request using provider/model: {model}")
+        set_last_used_provider(model)
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         model = kwargs.get("model", "unknown")
         logger.info(f"Successfully served request using provider/model: {model}")
+        set_last_used_provider(model)
 
 # Register custom fallback logger callback globally in litellm
 litellm.callbacks = [AgentOSFallbackLogger()]
@@ -126,6 +149,7 @@ class LLMClient:
             elif isinstance(response, dict) and "model" in response:
                 model_served = response["model"]
             logger.info(f"Request served by: {model_served}")
+            set_last_used_provider(model_served)
             return response
         except Exception as e:
             logger.error(f"All providers in fallback chain failed: {e}")
@@ -167,6 +191,7 @@ class LLMClient:
             elif isinstance(response, dict) and "model" in response:
                 model_served = response["model"]
             logger.info(f"Request served by: {model_served}")
+            set_last_used_provider(model_served)
             return response
         except Exception as e:
             logger.error(f"All providers in fallback chain failed in acomplete: {e}")

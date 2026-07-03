@@ -61,19 +61,27 @@ class SQLiteCheckpointStore(CheckpointStore):
                     PRIMARY KEY (mission_id, task_index)
                 )
             """)
+            try:
+                conn.execute("ALTER TABLE checkpoints ADD COLUMN provider TEXT")
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
 
     def save_checkpoint(self, mission_id: str, task_index: int, state: Dict[str, Any]) -> None:
         status = state.get("status", "in_progress")
         timestamp = state.get("timestamp") or datetime.now().isoformat()
         state["timestamp"] = timestamp
+        
+        from agentos.llm.llm_client import get_last_used_provider
+        provider = state.get("provider") or get_last_used_provider() or "unknown"
+        state["provider"] = provider
         state_str = json.dumps(state)
         
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                INSERT OR REPLACE INTO checkpoints (mission_id, task_index, state, status, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            """, (mission_id, task_index, state_str, status, timestamp))
+                INSERT OR REPLACE INTO checkpoints (mission_id, task_index, state, status, timestamp, provider)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (mission_id, task_index, state_str, status, timestamp, provider))
             conn.commit()
         logger.debug(f"Saved checkpoint for mission {mission_id}, task {task_index} (status: {status})")
 
@@ -91,7 +99,7 @@ class SQLiteCheckpointStore(CheckpointStore):
         return None
 
     def list_runs(self, mission_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        query = "SELECT mission_id, task_index, status, timestamp FROM checkpoints"
+        query = "SELECT mission_id, task_index, status, timestamp, provider FROM checkpoints"
         params = ()
         if mission_id:
             query += " WHERE mission_id = ?"
@@ -106,7 +114,8 @@ class SQLiteCheckpointStore(CheckpointStore):
                     "mission_id": r[0],
                     "task_index": r[1],
                     "status": r[2],
-                    "timestamp": r[3]
+                    "timestamp": r[3],
+                    "provider": r[4] or "unknown"
                 }
                 for r in cursor.fetchall()
             ]

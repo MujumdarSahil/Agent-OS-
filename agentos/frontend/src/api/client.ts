@@ -74,15 +74,19 @@ export interface Checkpoint {
   task_index: number
   status: string
   timestamp: string
+  provider?: string
 }
 
 export interface HealthStatus {
   status: string
+  version?: string
   project: string
   agents: number
   tools: number
   crews: number
   missions: number
+  last_used_model?: string
+  fallback_events?: number
 }
 
 export interface TemplateInfo {
@@ -180,3 +184,37 @@ export const installPack = (pack_path: string, target_project_path: string, forc
 export const getTemplates = () => api.get<TemplateInfo[]>('/templates').then(r => r.data)
 export const installTemplate = (name: string, force = false) =>
   api.post<TemplateInstallResult>(`/templates/${name}/install`, { force }).then(r => r.data)
+
+// ---- LLM Providers ----
+export interface ProviderStatus {
+  name: string
+  litellm_model: string
+  priority: number
+  tags: string[]
+  api_key_configured: boolean
+  api_key_env: string | null
+  api_base_env: string | null
+  status: 'active' | 'unconfigured' | 'probe_failed'
+  is_local: boolean
+}
+
+export interface FallbackChainItem {
+  order: number
+  name: string
+  litellm_model: string
+  status: string
+}
+
+export interface ProviderTestResponse {
+  success: boolean
+  latency_ms: number
+  response: string | null
+  error: string | null
+}
+
+export const getProviders = () => api.get<ProviderStatus[]>('/providers').then(r => r.data)
+export const saveProviderKeys = (data: { provider_name: string; api_key?: string; api_base_url?: string; model_name?: string }) =>
+  api.post<{ success: boolean; provider_name: string; key_env_var: string }>('/providers/keys', data).then(r => r.data)
+export const deleteProviderKeys = (name: string) => api.delete<{ success: boolean }>(`/providers/keys/${name}`).then(r => r.data)
+export const getFallbackChain = () => api.get<FallbackChainItem[]>('/providers/fallback-chain').then(r => r.data)
+export const testProvider = (name: string) => api.post<ProviderTestResponse>(`/providers/test/${name}`).then(r => r.data)

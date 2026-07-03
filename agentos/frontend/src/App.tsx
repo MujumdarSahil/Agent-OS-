@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target,
-  Wand2, Shield, Package, Cpu, LayoutGrid
+  Wand2, Shield, Package, Cpu, LayoutGrid, Settings as SettingsIcon
 } from 'lucide-react'
+import { getHealth } from './api/client'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
 import Tools from './pages/Tools'
@@ -13,6 +15,7 @@ import Builder from './pages/Builder'
 import Governance from './pages/Governance'
 import Packaging from './pages/Packaging'
 import Templates from './pages/Templates'
+import Settings from './pages/Settings'
 
 const NAV = [
   { to: '/', icon: <LayoutDashboard size={16}/>, label: 'Dashboard' },
@@ -24,9 +27,22 @@ const NAV = [
   { to: '/builder', icon: <Wand2 size={16}/>, label: 'Builder' },
   { to: '/governance', icon: <Shield size={16}/>, label: 'Governance' },
   { to: '/packaging', icon: <Package size={16}/>, label: 'Packaging' },
+  { to: '/settings', icon: <SettingsIcon size={16}/>, label: 'Settings' },
 ]
 
 export default function App() {
+  const [version, setVersion] = useState('0.2.0')
+
+  useEffect(() => {
+    getHealth()
+      .then(h => {
+        if (h.version) {
+          setVersion(h.version)
+        }
+      })
+      .catch(err => console.error('Error fetching version:', err))
+  }, [])
+
   return (
     <BrowserRouter>
       <div className="app-shell">
@@ -51,7 +67,7 @@ export default function App() {
           <div style={{ padding: '0 12px', marginTop: 'auto' }}>
             <div style={{ padding: '12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', fontSize: 11 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                <Cpu size={12}/> Phase 3 · v3.0.0
+                <Cpu size={12}/> AgentOS · v{version}
               </div>
             </div>
           </div>
@@ -69,6 +85,7 @@ export default function App() {
             <Route path="/builder" element={<Builder />} />
             <Route path="/governance" element={<Governance />} />
             <Route path="/packaging" element={<Packaging />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>

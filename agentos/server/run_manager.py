@@ -110,14 +110,20 @@ class RunManager:
     ) -> str:
         """Blocking execution called in a thread executor."""
         from agentos.core.project_ops import build_squad_from_project
+        from agentos.llm.llm_client import get_last_used_provider
 
         # Optional license check before execution
         if license_key:
             _check_license_for_project(project_path, mission_name, license_key)
 
         squad, mission = build_squad_from_project(project_path, mission_name, governance=governance)
-        result = squad.run_mission(mission, resume=resume)
-        return str(result)
+        try:
+            result = squad.run_mission(mission, resume=resume)
+            state.provider = get_last_used_provider()
+            return str(result)
+        except Exception as e:
+            state.provider = get_last_used_provider()
+            raise e
 
 
 def _check_license_for_project(

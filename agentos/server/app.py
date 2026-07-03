@@ -76,6 +76,7 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     gov.initialize_security_policies()
     app.state.governance = gov
     app.state.run_manager = RunManager(governance=gov)
+    app.state.failed_providers = set()
 
     # -----------------------------------------------------------------------
     # Register API routes
@@ -93,6 +94,7 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     from agentos.server.routes.packaging import router as packaging_router
     from agentos.server.routes.templates import router as templates_router
     from agentos.server.routes.federation import router as federation_router
+    from agentos.server.routes.providers import router as providers_router
 
     app.include_router(health_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
@@ -107,6 +109,7 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app.include_router(packaging_router, prefix="/api")
     app.include_router(templates_router, prefix="/api")
     app.include_router(federation_router, prefix="/api")
+    app.include_router(providers_router, prefix="/api")
 
     # -----------------------------------------------------------------------
     # Serve built frontend in production mode

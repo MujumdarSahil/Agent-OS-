@@ -125,6 +125,8 @@ class HealthResponse(BaseModel):
     tools: int = 0
     crews: int = 0
     missions: int = 0
+    last_used_model: Optional[str] = "No model used yet"
+    fallback_events: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -167,3 +169,41 @@ class CheckpointRecord(BaseModel):
     task_index: int
     status: str
     timestamp: str
+    provider: Optional[str] = "unknown"
+
+# ---------------------------------------------------------------------------
+# Provider management
+# ---------------------------------------------------------------------------
+class ProviderStatusResponse(BaseModel):
+    name: str
+    litellm_model: str
+    priority: int
+    tags: List[str]
+    api_key_configured: bool
+    api_key_env: Optional[str] = None
+    api_base_env: Optional[str] = None
+    status: str
+    is_local: bool
+
+class ProviderKeysRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    api_base_url: Optional[str] = None
+    model_name: Optional[str] = None
+
+class ProviderKeysResponse(BaseModel):
+    success: bool
+    provider_name: str
+    key_env_var: Optional[str] = None
+
+class FallbackChainItem(BaseModel):
+    order: int
+    name: str
+    litellm_model: str
+    status: str
+
+class ProviderTestResponse(BaseModel):
+    success: bool
+    latency_ms: int
+    response: Optional[str] = None
+    error: Optional[str] = None
