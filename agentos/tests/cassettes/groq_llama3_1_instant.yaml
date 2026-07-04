@@ -1,0 +1,82 @@
+interactions:
+- request:
+    body: '{"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content":
+      "Respond only with the word OK."}], "temperature": 0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '130'
+      content-type:
+      - application/json
+      host:
+      - api.groq.com
+      user-agent:
+      - litellm/1.90.0
+    method: POST
+    uri: https://api.groq.com/openai/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/1VRwW7rIBC89zP2bEdgINj+hXd4H1BVFrY3CQ0GB0jaKvK/d93WqXpCzM6MZnbv
+        YEdoYTiZPEyzK0WjUCs2lMO+qkvJpSob0TSlGk1/0Iw1QiMUEPpXHPKPcDcEkmK2wdNoiGgykinX
+        teC6UqoqYAojOqI7ZyZTih0v6760PmXj86o5BTtggvb5DtaP+A4tIxGmZI4I7R1icPSCSck+NMFn
+        9GuG//9gKcCF4xxDTyb+6lwBB+ttOnWUJlGuFlIOMywvBVw308sVr9hlO9GP7ZjSXAjZqALIZ5pz
+        l8MZPfnJ6hfayKxSQgop1xxb+Yeg+os+NFpJzWpRQA7ZuF9/+UA2Kmes5rLSy0/crqce5zG8+a1e
+        +kgZp45aHjHO0X5t4jB3UtR6FDj2Pe3ovTvGcFm7fl054qVj/Pw2+9vML8hNnKnEx+3E9avhxE/4
+        fTjaBGdqv19WKN7oNhQNI1lQnxEn40dYnj4B4+entDwCAAA=
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cache-control:
+      - private, max-age=0, no-store, no-cache, must-revalidate
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a15e8dc6af1526a7-BOM
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json
+      date:
+      - Sat, 04 Jul 2026 13:42:32 GMT
+      server:
+      - cloudflare
+      set-cookie:
+      - __cf_bm=DyDyg8bqKicpK9rijBxvKpX5pcDHadMkz59xVp_NXZ4-1783172552.744876-1.0.1.1-Sp.XMx8jvwOlar9UVfcp0tkJfIP0MKlRB7dvFzfROV4QZGHUSNzfkAjA4BDC3IN8WJPsANmGMCI0pmhFC8QxLFDhijTdFs4G11yAJxMTKMerdlwfyEzF9DDUYF7C2Yy2;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=groq.com; Expires=Sat, 04
+        Jul 2026 14:12:32 GMT
+      strict-transport-security:
+      - max-age=15552000
+      transfer-encoding:
+      - chunked
+      vary:
+      - Origin
+      via:
+      - 1.1 google
+      x-groq-region:
+      - bom
+      x-ratelimit-limit-requests:
+      - '14400'
+      x-ratelimit-limit-tokens:
+      - '6000'
+      x-ratelimit-remaining-requests:
+      - '14399'
+      x-ratelimit-remaining-tokens:
+      - '5957'
+      x-ratelimit-reset-requests:
+      - 6s
+      x-ratelimit-reset-tokens:
+      - 430ms
+      x-request-id:
+      - req_01kwpnvp1qe1arp343yvh17ja1
+    status:
+      code: 200
+      message: OK
+version: 1

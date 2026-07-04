@@ -101,7 +101,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     {
         "name": "groq_llama3_3",
         "display_name": "Llama 3.3 70B",
-        "litellm_model": "groq/llama-3.3-70b-specdec",
+        "litellm_model": "groq/llama-3.3-70b-versatile",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
         "priority": 40,
@@ -117,9 +117,9 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "tags": ["paid", "fast", "groq"]
     },
     {
-        "name": "groq_gemma2",
-        "display_name": "Gemma 2 9B",
-        "litellm_model": "groq/gemma2-9b-it",
+        "name": "groq_qwen3_32b",
+        "display_name": "Qwen 3 32B",
+        "litellm_model": "groq/qwen/qwen3-32b",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
         "priority": 44,

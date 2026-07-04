@@ -30,6 +30,7 @@ psycopg2-binary>=2.9.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 flake8>=6.1.0
+vcrpy>=6.0.0
 
 # Frontend/UI (Python-only)
 # Streamlit app lives in agentos/ui/streamlit_app.py

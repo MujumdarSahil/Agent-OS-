@@ -1,0 +1,87 @@
+interactions:
+- request:
+    body: '{"model": "qwen/qwen3-32b", "messages": [{"role": "user", "content": "Respond
+      only with the word OK."}], "temperature": 0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '124'
+      content-type:
+      - application/json
+      host:
+      - api.groq.com
+      user-agent:
+      - litellm/1.90.0
+    method: POST
+    uri: https://api.groq.com/openai/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/3VTTY+bMBC991eMfNkLoXyEkOTW43arrtT2UjUVcuwhuIBNbLMJXeW/d0yyu+2h
+        F0DDezPvzcczU5JtmWi4F/3QLcpkJfY17herteCLpRDJghdluajLcpkWy2y52RQsYmb/C4W/EWNh
+        iIpeGU2/hEXukZKm5TpPy6wo8oj1RmJH8OMJ9fvwyBd5tg/oxiiBjm1/PDOlJZ7ZNiE4OscPyLbP
+        zJqO3ow7p5zn2geO0R51qL4bkyQXvlG6nT9xpx9bPkXgG4TRoYUTURz0CN6ARTcYLcHoboKT8s0M
+        OxkrYcceH+Idg0/oA7jnLYIbLcI9jKTKhtIShLGWbHdTDN8anMANKFStUFIi7gnrGjN2ErTxwKUE
+        rqeg7QDYOYzg1+j8a6V70BiIBkSDogVVBzUW71ygQaOkRA1KO29HEVoLxt5A0x0J8+h8SN1PMLdf
+        cS0whq+KXjMI8ExRoUguOK6Cxy//b8DjQzSLujmoTdeZ09UWnvnV82cz5+SaBz0uIp8U8JaTmLOP
+        4ePf/m6dpFnVyvZUkmT1xs6D4E+G9PRhoC26GL7jEM21gvmui+FDZ9Wh8RRU19E51HIWe52hw3in
+        r8N//8/0af4P7BKxzhwGa/a0V3rsuojVSivXVLSajpZ0y5w3A7v8jNj4smfHEUesQj3awDhdF+Wm
+        XG5odSlPP/jKmxY15UuLt9ANnCRJmWTJehVW8+US3ghp/m/8xsrSVZGt8nQTMW88794I2fo19Iot
+        s2y9TIrLTXG1JyutNCf94tBNzmNfkdED2sGq+T7qocr2tRDFUuYrupxzdbDmGOzOV2/xWCVpexr0
+        08ARXcZXx7LB33aTSJwI7zAccr4K7rL0EgL2ie6VhKGlBGRHYk+nwS7v/gAT7RFESgQAAA==
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cache-control:
+      - private, max-age=0, no-store, no-cache, must-revalidate
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a15e8dc85a36490d-BOM
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json
+      date:
+      - Sat, 04 Jul 2026 13:42:33 GMT
+      server:
+      - cloudflare
+      set-cookie:
+      - __cf_bm=CGOS_IZAb62RHUt6xadC6GEMNFm58DM7aIurerUdhWQ-1783172553.0207317-1.0.1.1-p.7pxXgMaN0_S_yNO27ubqk_PJBxo_46TyDpf218UzMOi4UZPGORiD4zn4UH7i8TxVo351h5unSDaT.DvtMHHe9SGVLtD31zewPd4UX99IG.VjMySndqei_rwi.hFo2j;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=groq.com; Expires=Sat, 04
+        Jul 2026 14:12:33 GMT
+      strict-transport-security:
+      - max-age=15552000
+      transfer-encoding:
+      - chunked
+      vary:
+      - Origin
+      via:
+      - 1.1 google
+      x-groq-region:
+      - bom
+      x-ratelimit-limit-requests:
+      - '1000'
+      x-ratelimit-limit-tokens:
+      - '6000'
+      x-ratelimit-remaining-requests:
+      - '999'
+      x-ratelimit-remaining-tokens:
+      - '5984'
+      x-ratelimit-reset-requests:
+      - 1m26.4s
+      x-ratelimit-reset-tokens:
+      - 160ms
+      x-request-id:
+      - req_01kwpnvpaees2a6q7hezr90dey
+    status:
+      code: 200
+      message: OK
+version: 1
