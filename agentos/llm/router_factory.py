@@ -6,9 +6,15 @@ from typing import List, Dict, Any, Optional
 import os
 import requests
 import logging
+import litellm
 from litellm import Router
 
 from agentos.llm.provider_registry import get_available_providers, PROVIDER_REGISTRY, AgentOSLLMError
+
+# Drop parameters that are unsupported by a given provider (e.g. cache_breakpoint on Groq).
+# LiteLLM sometimes forwards OpenAI/Anthropic prompt-caching metadata to providers that
+# don't support it. Setting this at module load ensures it applies globally for the process.
+litellm.drop_params = True
 
 logger = logging.getLogger(__name__)
 

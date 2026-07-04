@@ -9,6 +9,10 @@ from typing import List, Dict, Any, Optional, Generator, AsyncGenerator
 import litellm
 from litellm.integrations.custom_logger import CustomLogger
 
+# Drop top-level parameters unsupported by some providers.
+# Defense-in-depth alongside _sanitize_messages() below.
+litellm.drop_params = True
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -69,6 +73,32 @@ class AgentOSFallbackLogger(CustomLogger):
 
 # Register custom fallback logger callback globally in litellm
 litellm.callbacks = [AgentOSFallbackLogger()]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Message sanitizer
+# ─────────────────────────────────────────────────────────────────────────────
+_CACHE_FIELDS = frozenset({"cache_breakpoint", "cache_control"})
+
+def _sanitize_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Strip Anthropic/OpenAI prompt-caching metadata fields from message dicts.
+
+    LiteLLM ≥ 1.86 mutates message objects in-place when the first provider
+    (e.g. OpenAI) uses prompt caching, inserting 'cache_breakpoint' or
+    'cache_control' into individual message dicts.  Those fields are then
+    forwarded verbatim to the next fallback provider (e.g. Groq), which
+    rejects them with a 400 Bad Request.  This helper strips the fields before
+    every router call so every provider in the chain receives a clean payload.
+    """
+    cleaned = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            cleaned.append(msg)
+            continue
+        filtered = {k: v for k, v in msg.items() if k not in _CACHE_FIELDS}
+        cleaned.append(filtered)
+    return cleaned
+
 
 class LLMClient:
     """
@@ -139,7 +169,7 @@ class LLMClient:
         try:
             response = self.router.completion(
                 model="agentos-default",
-                messages=messages,
+                messages=_sanitize_messages(messages),
                 **kwargs
             )
             # Log which provider actually served the request
@@ -162,7 +192,7 @@ class LLMClient:
         try:
             response = self.router.completion(
                 model="agentos-default",
-                messages=messages,
+                messages=_sanitize_messages(messages),
                 stream=True,
                 **kwargs
             )
@@ -182,7 +212,7 @@ class LLMClient:
         try:
             response = await self.router.acompletion(
                 model="agentos-default",
-                messages=messages,
+                messages=_sanitize_messages(messages),
                 **kwargs
             )
             model_served = "unknown"
@@ -204,7 +234,7 @@ class LLMClient:
         try:
             response = await self.router.acompletion(
                 model="agentos-default",
-                messages=messages,
+                messages=_sanitize_messages(messages),
                 stream=True,
                 **kwargs
             )

@@ -31,6 +31,15 @@ ROOT = Path(__file__).parent.resolve()
 FRONTEND_DIR = ROOT / "agentos" / "frontend"
 DEFAULT_PROJECT = ROOT / "agentos" / "templates" / "source" / "task_planner"
 
+# Force UTF-8 output on Windows so crewai/litellm emoji don't crash the console.
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf-8-sig"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass  # Python < 3.7 — no reconfigure; best-effort
+
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="AgentOS - Start the full-stack platform")
@@ -117,6 +126,7 @@ def run_dev(project_path: str, backend_port: int, frontend_port: int):
     # Set AGENTOS_PROJECT env for the backend process
     env = os.environ.copy()
     env["AGENTOS_PROJECT"] = project_path
+    env["PYTHONIOENCODING"] = "utf-8"  # Prevents emoji/Unicode crash on Windows cp1252 consoles
 
     # Spawn backend
     backend_proc = subprocess.Popen(
@@ -190,6 +200,7 @@ def run_prod(project_path: str, backend_port: int):
 
     env = os.environ.copy()
     env["AGENTOS_PROJECT"] = project_path
+    env["PYTHONIOENCODING"] = "utf-8"  # Prevents emoji/Unicode crash on Windows cp1252 consoles
 
     proc = subprocess.Popen(
         [

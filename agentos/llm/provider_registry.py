@@ -168,11 +168,12 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "tags": ["paid", "fast", "fireworks"]
     },
     # Phase 4: OpenRouter free tier — great for "no API key" accessibility
-    # Many open models available for free on OpenRouter (rate-limited)
+    # Free models are rate-limited but require only an OpenRouter key.
+    # NOTE: meta-llama/llama-3.1-8b-instruct:free was retired; mistral-7b-instruct:free is active (verified Jun 2026).
     {
-        "name": "openrouter_llama3_1_free",
-        "display_name": "Llama 3.1 Free (OpenRouter)",
-        "litellm_model": "openrouter/meta-llama/llama-3.1-8b-instruct:free",
+        "name": "openrouter_mistral_7b_free",
+        "display_name": "Mistral 7B Free (OpenRouter)",
+        "litellm_model": "openrouter/mistralai/mistral-7b-instruct:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
         "priority": 70,
