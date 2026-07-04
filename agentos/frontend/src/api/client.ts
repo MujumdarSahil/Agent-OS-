@@ -81,6 +81,7 @@ export interface HealthStatus {
   status: string
   version?: string
   project: string
+  has_project: boolean
   agents: number
   tools: number
   crews: number
@@ -188,6 +189,7 @@ export const installTemplate = (name: string, force = false) =>
 // ---- LLM Providers ----
 export interface ProviderStatus {
   name: string
+  display_name: string
   litellm_model: string
   priority: number
   tags: string[]
@@ -201,6 +203,7 @@ export interface ProviderStatus {
 export interface FallbackChainItem {
   order: number
   name: string
+  display_name: string
   litellm_model: string
   status: string
 }

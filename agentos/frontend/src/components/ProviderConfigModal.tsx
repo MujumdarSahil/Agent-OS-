@@ -152,7 +152,7 @@ export default function ProviderConfigModal({
 
   const handleRemove = async () => {
     if (!selectedProv) return
-    if (!confirm(`Are you sure you want to remove the credentials for ${selectedProv.name}?`)) return
+    if (!confirm(`Are you sure you want to remove the credentials for ${selectedProv.display_name}?`)) return
 
     setLoading(true)
     try {
@@ -220,14 +220,14 @@ export default function ProviderConfigModal({
               <optgroup label="Cloud Providers">
                 {clouds.map((p) => (
                   <option key={p.name} value={p.name}>
-                    {p.name.replace(/_/g, ' ').toUpperCase()} ({p.litellm_model})
+                    {p.display_name} ({p.litellm_model})
                   </option>
                 ))}
               </optgroup>
               <optgroup label="Local Providers">
                 {locals.map((p) => (
                   <option key={p.name} value={p.name}>
-                    {p.name.replace(/_/g, ' ').toUpperCase()} ({p.litellm_model})
+                    {p.display_name} ({p.litellm_model})
                   </option>
                 ))}
               </optgroup>

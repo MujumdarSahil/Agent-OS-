@@ -37,6 +37,19 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
         project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
     project_path = os.path.abspath(project_path)
 
+    # Load API keys from .env (repo root first, then project directory overrides)
+    try:
+        from dotenv import load_dotenv
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        root_env = os.path.join(repo_root, ".env")
+        if os.path.exists(root_env):
+            load_dotenv(root_env)
+        project_env = os.path.join(project_path, ".env")
+        if os.path.exists(project_env):
+            load_dotenv(project_env, override=True)
+    except ImportError:
+        pass
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         from agentos.core.bootstrap import register_builtin_components

@@ -88,6 +88,7 @@ async def get_providers(request: Request):
         result.append(
             ProviderStatusResponse(
                 name=name,
+                display_name=prov.get("display_name", name),
                 litellm_model=prov["litellm_model"],
                 priority=prov["priority"],
                 tags=prov["tags"],
@@ -222,6 +223,7 @@ async def get_fallback_chain(request: Request):
             FallbackChainItem(
                 order=idx + 1,
                 name=prov_name,
+                display_name=prov.get("display_name", prov_name) if prov else prov_name,
                 litellm_model=litellm_model,
                 status=status,
             )

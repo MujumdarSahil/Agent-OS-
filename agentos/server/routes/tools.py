@@ -5,14 +5,17 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.server.models import ToolScaffoldRequest, ToolInfo
-from agentos.core.project_ops import list_tools, scaffold_tool
+from agentos.core.project_ops import list_tools, scaffold_tool, is_valid_project
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["tools"])
 
 
 def _project(request: Request) -> str:
-    return request.app.state.project_path
+    p = request.app.state.project_path
+    if not is_valid_project(p):
+        raise HTTPException(status_code=404, detail="No active AgentOS project found.")
+    return p
 
 
 @router.get("/tools", response_model=List[ToolInfo])

@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 from agentos.core.config_models import MissionYAMLConfig
-from agentos.core.project_ops import list_missions, write_mission, read_mission
+from agentos.core.project_ops import list_missions, write_mission, read_mission, is_valid_project
 from agentos.server.models import RunStartResponse, RunRequest
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,10 @@ router = APIRouter(tags=["missions"])
 
 
 def _project(request: Request) -> str:
-    return request.app.state.project_path
+    p = request.app.state.project_path
+    if not is_valid_project(p):
+        raise HTTPException(status_code=404, detail="No active AgentOS project found.")
+    return p
 
 
 @router.get("/missions", response_model=List[MissionYAMLConfig])

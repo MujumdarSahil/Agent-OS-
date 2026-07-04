@@ -31,6 +31,27 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+Activate the virtual environment first before running any `agentos` or `python` commands:
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+**Mac/Linux:**
+```bash
+source venv/bin/activate
+```
+
+Create a new project and launch the dashboard:
+```bash
+# Create a new project
+agentos new-project demo
+
+# Launch the platform dashboard
+python main.py --project demo
+```
+
 ### Basic Agent
 
 ```python
@@ -245,14 +266,16 @@ AgentOS includes comprehensive cybersecurity capabilities:
 
 ### Running the Full Platform (Backend + Frontend)
 
-AgentOS includes a unified launcher that starts both the FastAPI backend and the React frontend in a single command, auto-installing frontend dependencies:
+AgentOS includes a unified launcher that starts both the FastAPI backend and the React frontend in a single command, auto-installing frontend dependencies.
+
+Run python main.py from inside a project directory, or use python main.py --project <path>. The dashboard requires an open project to display agents, crews, and missions.
 
 ```bash
 # Start the platform in development mode
-python main.py
+python main.py --project demo
 
 # Or start in production mode (single process serving both API and static frontend)
-python main.py --prod
+python main.py --project demo --prod
 ```
 
 ### Manual Execution

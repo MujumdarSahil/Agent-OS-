@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from agentos.core.config_models import AgentYAMLConfig
 from agentos.core.project_ops import (
-    list_agents, read_agent, write_agent, delete_agent,
+    list_agents, read_agent, write_agent, delete_agent, is_valid_project,
 )
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,10 @@ router = APIRouter(tags=["agents"])
 
 
 def _project(request: Request) -> str:
-    return request.app.state.project_path
+    p = request.app.state.project_path
+    if not is_valid_project(p):
+        raise HTTPException(status_code=404, detail="No active AgentOS project found.")
+    return p
 
 
 @router.get("/agents", response_model=List[AgentYAMLConfig])

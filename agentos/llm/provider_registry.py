@@ -28,6 +28,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     {
         "name": "openai_gpt4o",
+        "display_name": "GPT-4o",
         "litellm_model": "openai/gpt-4o",
         "api_key_env": "OPENAI_API_KEY",
         "api_base_env": None,
@@ -36,6 +37,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "anthropic_claude_sonnet",
+        "display_name": "Claude Sonnet",
         "litellm_model": "anthropic/claude-3-5-sonnet-20241022",
         "api_key_env": "ANTHROPIC_API_KEY",
         "api_base_env": None,
@@ -44,6 +46,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "openai_gpt4o_mini",
+        "display_name": "GPT-4o Mini",
         "litellm_model": "openai/gpt-4o-mini",
         "api_key_env": "OPENAI_API_KEY",
         "api_base_env": None,
@@ -54,6 +57,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # Docs: https://openrouter.ai/docs  LiteLLM prefix: openrouter/
     {
         "name": "openrouter_claude_sonnet",
+        "display_name": "Claude Sonnet (OpenRouter)",
         "litellm_model": "openrouter/anthropic/claude-3.5-sonnet",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
@@ -62,6 +66,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "openrouter_gpt4o",
+        "display_name": "GPT-4o (OpenRouter)",
         "litellm_model": "openrouter/openai/gpt-4o",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
@@ -70,6 +75,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "gemini_flash",
+        "display_name": "Gemini 2.0 Flash",
         "litellm_model": "gemini/gemini-2.0-flash",
         "api_key_env": "GEMINI_API_KEY",
         "api_base_env": None,
@@ -81,6 +87,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # NOTE: deepseek-chat is scheduled for retirement Jul 24 2026; using deepseek-v4-flash as fallback name
     {
         "name": "deepseek_v4_flash",
+        "display_name": "DeepSeek Chat",
         "litellm_model": "deepseek/deepseek-chat",
         "api_key_env": "DEEPSEEK_API_KEY",
         "api_base_env": None,
@@ -93,6 +100,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # Phase 4: Groq additional models (llama3.1 instant and gemma2)
     {
         "name": "groq_llama3_3",
+        "display_name": "Llama 3.3 70B",
         "litellm_model": "groq/llama-3.3-70b-specdec",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
@@ -101,6 +109,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "groq_llama3_1_instant",
+        "display_name": "Llama 3.1 Instant",
         "litellm_model": "groq/llama-3.1-8b-instant",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
@@ -109,6 +118,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "groq_gemma2",
+        "display_name": "Gemma 2 9B",
         "litellm_model": "groq/gemma2-9b-it",
         "api_key_env": "GROQ_API_KEY",
         "api_base_env": None,
@@ -116,10 +126,11 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "tags": ["paid", "fast", "groq"]
     },
     # Phase 4: Together AI — GPU cloud with wide open-weight model selection
-    # Docs: https://docs.together.ai/  LiteLLM prefix: together_ai/
+    # Docs: https://together.ai/  LiteLLM prefix: together_ai/
     # Env var: TOGETHERAI_API_KEY (LiteLLM's convention)
     {
         "name": "together_llama3_3_70b",
+        "display_name": "Meta Llama 3.3",
         "litellm_model": "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo",
         "api_key_env": "TOGETHERAI_API_KEY",
         "api_base_env": None,
@@ -128,6 +139,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "together_qwen2_5_72b",
+        "display_name": "Qwen 2.5 72B",
         "litellm_model": "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
         "api_key_env": "TOGETHERAI_API_KEY",
         "api_base_env": None,
@@ -135,10 +147,11 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "tags": ["paid", "fast", "together"]
     },
     # Phase 4: Fireworks AI — GPU cloud, very fast inference
-    # Docs: https://docs.fireworks.ai/  LiteLLM prefix: fireworks_ai/
+    # Docs: https://fireworks.ai/  LiteLLM prefix: fireworks_ai/
     # Model format: fireworks_ai/accounts/fireworks/models/<model-id>
     {
         "name": "fireworks_llama3_1_70b",
+        "display_name": "Llama 3.1 70B",
         "litellm_model": "fireworks_ai/accounts/fireworks/models/llama-v3p1-70b-instruct",
         "api_key_env": "FIREWORKS_AI_API_KEY",
         "api_base_env": None,
@@ -147,6 +160,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "fireworks_qwen2_5_72b",
+        "display_name": "Qwen 2.5 72B",
         "litellm_model": "fireworks_ai/accounts/fireworks/models/qwen2p5-72b-instruct",
         "api_key_env": "FIREWORKS_AI_API_KEY",
         "api_base_env": None,
@@ -157,6 +171,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # Many open models available for free on OpenRouter (rate-limited)
     {
         "name": "openrouter_llama3_1_free",
+        "display_name": "Llama 3.1 Free (OpenRouter)",
         "litellm_model": "openrouter/meta-llama/llama-3.1-8b-instruct:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
@@ -168,6 +183,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     {
         "name": "openai_compatible",
+        "display_name": "Custom OpenAI-Compatible",
         "litellm_model": "openai/custom-model",
         "api_key_env": "OPENAI_COMPATIBLE_API_KEY",
         "api_base_env": "OPENAI_COMPATIBLE_BASE_URL",
@@ -179,6 +195,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     {
         "name": "ollama_qwen",
+        "display_name": "Ollama · Qwen 2.5 Coder",
         "litellm_model": "ollama/qwen2.5-coder",
         "api_key_env": None,
         "api_base_env": "OLLAMA_BASE_URL",
@@ -187,6 +204,7 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "ollama_llama",
+        "display_name": "Ollama · Llama 3.2",
         "litellm_model": "ollama/llama3.2",
         "api_key_env": None,
         "api_base_env": "OLLAMA_BASE_URL",

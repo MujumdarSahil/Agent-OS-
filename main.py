@@ -55,20 +55,13 @@ def resolve_project(project_arg: str | None) -> str:
         return p
     cwd = os.getcwd()
     if os.path.exists(os.path.join(cwd, "agentos.config.yaml")):
+        print(f"Opening project: {cwd} (found agentos.config.yaml)")
         return cwd
 
-    default = str(DEFAULT_PROJECT)
-    if os.path.exists(os.path.join(default, "agentos.config.yaml")):
-        print(
-            f"No AgentOS project in current directory - using bundled demo:\n  {default}\n"
-            f"Pass --project <path> to use a different project.\n"
-        )
-        return default
-
     print(
-        "ERROR: No AgentOS project found.\n"
-        "Use --project <path> to specify a project directory, or run:\n"
-        "  agentos new-project my-project",
+        "No AgentOS project found in current directory.\n"
+        "Create one with: agentos new-project myproject\n"
+        "Then run: python main.py --project myproject",
         file=sys.stderr,
     )
     sys.exit(1)

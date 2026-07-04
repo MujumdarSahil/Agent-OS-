@@ -121,6 +121,7 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.0.0"
     project: str
+    has_project: bool = False
     agents: int = 0
     tools: int = 0
     crews: int = 0
@@ -176,6 +177,7 @@ class CheckpointRecord(BaseModel):
 # ---------------------------------------------------------------------------
 class ProviderStatusResponse(BaseModel):
     name: str
+    display_name: str
     litellm_model: str
     priority: int
     tags: List[str]
@@ -199,6 +201,7 @@ class ProviderKeysResponse(BaseModel):
 class FallbackChainItem(BaseModel):
     order: int
     name: str
+    display_name: str
     litellm_model: str
     status: str
 

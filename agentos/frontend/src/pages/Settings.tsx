@@ -20,6 +20,7 @@ import ProviderConfigModal from '../components/ProviderConfigModal'
 
 interface DiagnosticRow {
   providerName: string
+  displayName: string
   model: string
   running: boolean
   completed: boolean
@@ -76,6 +77,7 @@ export default function Settings() {
     setDiagnosticRunning(true)
     const initialRows: DiagnosticRow[] = configured.map((p) => ({
       providerName: p.name,
+      displayName: p.display_name,
       model: p.litellm_model,
       running: false,
       completed: false,
@@ -173,7 +175,7 @@ export default function Settings() {
                   return (
                     <tr key={p.name}>
                       <td className="font-semibold text-sm">
-                        {p.name.replace(/_/g, ' ').toUpperCase()}
+                        {p.display_name}
                       </td>
                       <td className="font-mono text-xs">{p.litellm_model}</td>
                       <td>
@@ -234,7 +236,7 @@ export default function Settings() {
                   >
                     <div className="flex justify-between items-center gap-6 mb-1">
                       <span className="text-secondary font-bold">
-                        #{item.order} {item.name.replace(/_/g, ' ').toUpperCase()}
+                        #{item.order} {item.display_name}
                       </span>
                       <span
                         className={`text-[10px] px-1 rounded ${
@@ -299,8 +301,8 @@ export default function Settings() {
                 <tbody>
                   {diagnostics.map((d) => (
                     <tr key={d.providerName}>
-                      <td className="font-mono font-semibold text-xs">
-                        {d.providerName.replace(/_/g, ' ').toUpperCase()}
+                      <td className="font-semibold text-xs">
+                        {d.displayName}
                       </td>
                       <td className="font-mono text-xs text-muted">{d.model}</td>
                       <td>

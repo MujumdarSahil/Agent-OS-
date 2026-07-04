@@ -17,6 +17,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowUpRight,
+  FolderOpen,
 } from 'lucide-react'
 import ProviderConfigModal from '../components/ProviderConfigModal'
 
@@ -63,7 +64,16 @@ interface GroupedRun {
 }
 
 export default function Dashboard() {
-  const { data: health } = useQuery({ queryKey: ['health'], queryFn: getHealth, refetchInterval: 30000 })
+  const {
+    data: health,
+    isLoading: healthLoading,
+    isError: healthIsError,
+    error: healthError,
+  } = useQuery({
+    queryKey: ['health'],
+    queryFn: getHealth,
+    refetchInterval: 30000,
+  })
   const { data: checkpoints, refetch: refetchCheckpoints } = useQuery({ queryKey: ['checkpoints'], queryFn: () => getCheckpoints() })
   const { data: providers, refetch: refetchProviders } = useQuery({ queryKey: ['providers'], queryFn: getProviders, refetchInterval: 30000 })
   const { refetch: refetchChain } = useQuery({ queryKey: ['fallback-chain'], queryFn: getFallbackChain, refetchInterval: 30000 })
@@ -72,6 +82,7 @@ export default function Dashboard() {
   const [testResults, setTestResults] = useState<Record<string, { latency: number; success: boolean }>>({})
   const [selectedProvider, setSelectedProvider] = useState<string | undefined>(undefined)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isAvailableExpanded, setIsAvailableExpanded] = useState(false)
 
   const handleTest = async (e: React.MouseEvent, name: string) => {
     e.stopPropagation()
@@ -113,7 +124,13 @@ export default function Dashboard() {
 
   // Find the highest priority active provider in the chain
   const sortedProviders = providers ? [...providers].sort((a, b) => a.priority - b.priority) : []
-  const firstActiveProvider = sortedProviders.find((p) => p.status === 'active')?.name || ''
+  const configuredProviders = sortedProviders.filter((p) => p.api_key_configured || p.is_local)
+  const firstActiveProvider = configuredProviders.find((p) => p.status === 'active')?.name || ''
+
+  // Categories for available/unconfigured providers (Fix B)
+  const cloudAvailable = sortedProviders.filter((p) => !p.is_local && p.name !== 'openai_compatible' && !p.api_key_configured)
+  const localAvailable = sortedProviders.filter((p) => (p.is_local || p.name === 'openai_compatible') && (!p.api_key_configured || p.status === 'probe_failed'))
+  const availableCount = cloudAvailable.length + localAvailable.length
 
   // Group task checkpoints by mission run
   const groupedRuns: GroupedRun[] = []
@@ -135,12 +152,15 @@ export default function Dashboard() {
       const diffSeconds = Math.max(0, Math.round((endTime - startTime) / 1000))
       const durationStr = diffSeconds === 0 ? '< 1s' : `${diffSeconds}s`
 
+      const provObj = providers?.find((p) => p.name === newest.provider)
+      const displayModel = provObj ? provObj.display_name : (newest.provider || 'unknown')
+
       groupedRuns.push({
         missionId,
         status: newest.status,
         started: oldest.timestamp,
         duration: durationStr,
-        modelUsed: newest.provider || 'unknown',
+        modelUsed: displayModel,
         tasks: `Task ${newest.task_index + 1}`,
       })
     })
@@ -149,6 +169,38 @@ export default function Dashboard() {
   }
 
   const recentRuns = groupedRuns.slice(0, 5)
+
+  const renderStatValue = (val: number | undefined) => {
+    if (healthLoading) {
+      return <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading...</span>
+    }
+    const axiosError = healthError as any
+    const isProjectError = healthIsError && (axiosError?.response?.status === 404 || axiosError?.response?.status === 422)
+    const isNoProject = (health && !health.has_project) || isProjectError
+
+    if (isNoProject) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+          <FolderOpen size={16} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>No project open</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'normal', lineHeight: '1.2', fontWeight: 'normal' }}>
+              Run agentos new-project myproject then restart with python main.py --project myproject
+            </span>
+          </div>
+        </div>
+      )
+    }
+
+    if (healthIsError) {
+      return (
+        <span style={{ fontSize: 11, color: '#ef4444' }} title={String(healthError)}>
+          API Error
+        </span>
+      )
+    }
+    return val !== undefined ? val : '—'
+  }
 
   return (
     <div>
@@ -160,16 +212,21 @@ export default function Dashboard() {
         </div>
 
         <div
-          className="font-mono text-xs px-3 py-1.5 rounded-full border flex items-center gap-2"
+          className="font-mono flex items-center gap-2"
           style={{
+            fontSize: 12,
+            padding: '6px 12px',
+            borderRadius: 20,
+            border: '1px solid var(--border)',
             background: 'var(--bg-hover)',
-            borderColor: 'var(--border-color)',
             color: 'var(--text-primary)',
           }}
         >
           <span
-            className="w-2 h-2 rounded-full"
             style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
               backgroundColor: health?.last_used_model && health.last_used_model !== 'No model used yet' ? '#22c55e' : '#6b7280',
               boxShadow: health?.last_used_model && health.last_used_model !== 'No model used yet' ? '0 0 8px #22c55e' : 'none',
             }}
@@ -181,161 +238,402 @@ export default function Dashboard() {
 
       {/* FALLBACK CHAIN PANEL */}
       <div className="mb-6">
-        <h3 className="mb-3" style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-secondary)' }}>
-          LLM Fallback Chain
-        </h3>
-        <div className="flex flex-wrap items-stretch gap-3 p-4 bg-dark-secondary rounded border border-dark-primary">
-          {sortedProviders.map((p, idx) => {
-            const meta = PROVIDER_METADATA[p.name] || { initials: 'LL', bg: 'rgba(255,255,255,0.05)', text: '#fff' }
-            const isFirstActive = p.name === firstActiveProvider
-            const hasResult = testResults[p.name] !== undefined
+        <div className="flex flex-col mb-3">
+          <h3 style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-secondary)' }}>
+            LLM Fallback Chain
+          </h3>
+          <p className="text-muted text-xs mt-1">
+            Providers are tried in order. If one fails, the next continues automatically.
+          </p>
+        </div>
 
-            let badgeText = 'Not configured'
-            let badgeColor = 'var(--text-secondary)'
-            let badgeBg = 'var(--bg-hover)'
+        {configuredProviders.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center p-6 text-center"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px dashed var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '40px 24px',
+            }}
+          >
+            <Activity size={36} className="text-muted mb-2" style={{ opacity: 0.5 }} />
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>No providers configured yet</h3>
+            <p className="text-secondary mb-4" style={{ fontSize: 13, maxWidth: 360, margin: '0 auto 16px' }}>
+              Add your API keys to build an active LLM fallback chain.
+            </p>
+            <button
+              onClick={handleAddProvider}
+              className="btn btn-primary py-1.5 px-4 text-xs flex items-center gap-1"
+            >
+              <Plus size={14} /> Add Provider
+            </button>
+          </div>
+        ) : (
+          <div
+            className="flex flex-row items-center gap-3"
+            style={{
+              padding: 16,
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {configuredProviders.map((p, idx) => {
+              const meta = PROVIDER_METADATA[p.name] || { initials: 'LL', bg: 'rgba(255,255,255,0.05)', text: '#fff' }
+              const isFirstActive = p.name === firstActiveProvider
+              const hasResult = testResults[p.name] !== undefined
 
-            if (p.status === 'probe_failed') {
-              badgeText = 'Failed'
-              badgeColor = '#ef4444'
-              badgeBg = 'rgba(239,68,68,0.1)'
-            } else if (p.api_key_configured || p.is_local) {
-              if (isFirstActive) {
+              let badgeText = 'Standby'
+              let badgeColor = '#f59e0b'
+              let badgeBg = 'rgba(245,158,11,0.1)'
+
+              if (p.status === 'probe_failed') {
+                badgeText = 'Failed'
+                badgeColor = '#ef4444'
+                badgeBg = 'rgba(239,68,68,0.1)'
+              } else if (isFirstActive) {
                 badgeText = 'Active'
                 badgeColor = '#22c55e'
                 badgeBg = 'rgba(34,197,94,0.1)'
-              } else {
-                badgeText = 'Standby'
-                badgeColor = '#f59e0b'
-                badgeBg = 'rgba(245,158,11,0.1)'
               }
-            }
 
-            const isTesting = testingName === p.name
+              const isTesting = testingName === p.name
+              const getOrdinal = (n: number) => {
+                const j = n % 10;
+                const k = n % 100;
+                if (j === 1 && k !== 11) return n + "st";
+                if (j === 2 && k !== 12) return n + "nd";
+                if (j === 3 && k !== 13) return n + "rd";
+                return n + "th";
+              }
 
-            return (
-              <div key={p.name} className="flex items-center gap-3">
-                <div
-                  onClick={() => handleOpenConfig(p.name)}
-                  className={`card flex flex-col justify-between p-3.5 cursor-pointer transition-all duration-200 ${
-                    isTesting ? 'animate-pulse' : ''
-                  }`}
-                  style={{
-                    width: 190,
-                    minHeight: 125,
-                    border: isFirstActive ? '1px solid #8b5cf6' : '1px solid var(--border-color)',
-                    boxShadow: isFirstActive ? '0 0 12px rgba(139,92,246,0.1)' : 'none',
-                    backgroundColor: 'var(--bg-card)',
-                  }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs font-mono"
-                      style={{ background: meta.bg, color: meta.text }}
-                    >
-                      {meta.initials}
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-muted font-semibold">PRIORITY {idx + 1}</span>
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold mt-1"
-                        style={{ color: badgeColor, backgroundColor: badgeBg }}
+              return (
+                <div key={p.name} className="flex items-center gap-3" style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                  <div
+                    onClick={() => handleOpenConfig(p.name)}
+                    className={`card flex flex-col justify-between transition-all duration-200 ${
+                      isTesting ? 'animate-pulse' : ''
+                    }`}
+                    style={{
+                      width: 190,
+                      minHeight: 125,
+                      padding: 14,
+                      borderRadius: 'var(--radius-lg)',
+                      cursor: 'pointer',
+                      border: isFirstActive ? '1px solid #8b5cf6' : '1px solid var(--border)',
+                      boxShadow: isFirstActive ? '0 0 12px rgba(139,92,246,0.1)' : 'none',
+                      backgroundColor: 'var(--bg-card)',
+                      whiteSpace: 'normal',
+                      display: 'flex',
+                    }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="flex items-center justify-center font-bold font-mono"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          fontSize: 12,
+                          background: meta.bg,
+                          color: meta.text,
+                        }}
                       >
-                        {badgeText}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="my-2">
-                    <div className="font-mono text-xs font-semibold truncate" title={p.litellm_model}>
-                      {p.litellm_model.split('/')[1] || p.litellm_model}
-                    </div>
-                    <div className="text-[10px] text-muted font-mono truncate">{p.name}</div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="text-[10px] font-mono">
-                      {isTesting && <span className="text-purple animate-pulse">testing...</span>}
-                      {!isTesting && hasResult && (
+                        {meta.initials}
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="font-semibold text-muted" style={{ fontSize: 10 }}>{getOrdinal(idx + 1)}</span>
                         <span
-                          style={{ color: testResults[p.name].success ? '#22c55e' : '#ef4444' }}
-                          className="flex items-center gap-0.5"
+                          className="font-mono font-semibold"
+                          style={{
+                            fontSize: 10,
+                            padding: '2px 6px',
+                            borderRadius: 'var(--radius-sm)',
+                            marginTop: 4,
+                            color: badgeColor,
+                            backgroundColor: badgeBg,
+                          }}
                         >
-                          {testResults[p.name].success ? (
-                            <>
-                              <CheckCircle size={10} /> {testResults[p.name].latency}ms
-                            </>
-                          ) : (
-                            <>
-                              <XCircle size={10} /> failed
-                            </>
-                          )}
+                          {badgeText}
                         </span>
-                      )}
+                      </div>
                     </div>
-                    {(p.api_key_configured || p.is_local) && (
+
+                    <div style={{ margin: '8px 0' }}>
+                      <div className="font-semibold truncate" style={{ fontSize: 12 }} title={p.display_name}>
+                        {p.display_name}
+                      </div>
+                      <div className="text-muted font-mono truncate" style={{ fontSize: 10 }}>
+                        {p.litellm_model.split('/')[1] || p.litellm_model}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="font-mono" style={{ fontSize: 10 }}>
+                        {isTesting && <span className="text-purple animate-pulse">testing...</span>}
+                        {!isTesting && hasResult && (
+                          <span
+                            style={{ color: testResults[p.name].success ? '#22c55e' : '#ef4444' }}
+                            className="flex items-center gap-1"
+                          >
+                            {testResults[p.name].success ? (
+                              <>
+                                <CheckCircle size={10} /> {testResults[p.name].latency}ms
+                              </>
+                            ) : (
+                              <>
+                                <XCircle size={10} /> failed
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={(e) => handleTest(e, p.name)}
                         disabled={isTesting || testingName !== null}
-                        className="btn btn-secondary text-[10px] py-0.5 px-2 font-mono flex items-center gap-1"
+                        className="btn btn-secondary flex items-center gap-1"
+                        style={{ fontSize: 10, padding: '2px 8px' }}
                       >
                         <Play size={8} /> Test
                       </button>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} className="text-muted flex-shrink-0" />
+                </div>
+              )
+            })}
+
+            {/* ADD PROVIDER CARD */}
+            <button
+              onClick={handleAddProvider}
+              className="card flex flex-col items-center justify-center transition-all duration-200"
+              style={{
+                width: 190,
+                minHeight: 125,
+                borderRadius: 'var(--radius-lg)',
+                border: '2px dashed var(--border)',
+                backgroundColor: 'rgba(255,255,255,0.01)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                verticalAlign: 'top',
+              }}
+            >
+              <div
+                className="flex items-center justify-center text-muted"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--bg-hover)',
+                  marginBottom: 8,
+                }}
+              >
+                <Plus size={16} />
+              </div>
+              <span className="font-semibold text-muted" style={{ fontSize: 12 }}>Add Provider</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* AVAILABLE PROVIDERS (Fix B) */}
+      {availableCount > 0 && (
+        <div className="mb-6">
+          <button
+            onClick={() => setIsAvailableExpanded(!isAvailableExpanded)}
+            className="btn btn-secondary w-full flex items-center justify-between p-3"
+            style={{
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border)',
+              fontSize: 13,
+            }}
+          >
+            <span>
+              Available providers ({availableCount}) &nbsp;&nbsp; {isAvailableExpanded ? ' [Hide ▲]' : ' [Show ▼]'}
+            </span>
+            <ChevronRight
+              size={16}
+              style={{
+                transform: isAvailableExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+              }}
+            />
+          </button>
+
+          {isAvailableExpanded && (
+            <div
+              className="mt-3 p-4 rounded-lg"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 24,
+                }}
+              >
+                {/* Column 1: Cloud Providers */}
+                <div>
+                  <h4 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Cloud Providers
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {cloudAvailable.length === 0 ? (
+                      <div className="text-xs text-muted p-2">None unconfigured</div>
+                    ) : (
+                      cloudAvailable.map((p) => {
+                        const meta = PROVIDER_METADATA[p.name] || { initials: 'LL', bg: 'rgba(255,255,255,0.05)', text: '#fff' }
+                        return (
+                          <div
+                            key={p.name}
+                            className="card flex items-center justify-between p-3"
+                            style={{
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'row',
+                            }}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden" style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                        className="flex items-center justify-center font-bold font-mono"
+                                        style={{
+                                          width: 28,
+                                          height: 28,
+                                          borderRadius: '50%',
+                                          fontSize: 11,
+                                          background: meta.bg,
+                                          color: meta.text,
+                                          flexShrink: 0,
+                                        }}
+                              >
+                                {meta.initials}
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div className="font-semibold truncate" style={{ fontSize: 12 }}>
+                                  {p.display_name}
+                                </div>
+                                <div className="text-muted font-mono truncate" style={{ fontSize: 10 }}>
+                                  {p.litellm_model.split('/')[1] || p.litellm_model}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleOpenConfig(p.name)}
+                              className="btn btn-secondary flex-shrink-0"
+                              style={{ height: 26, fontSize: 10, padding: '2px 8px', marginLeft: 8 }}
+                            >
+                              + Configure
+                            </button>
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 </div>
 
-                {idx < sortedProviders.length - 1 && (
-                  <ChevronRight size={18} className="text-muted flex-shrink-0" />
-                )}
+                {/* Column 2: Local & Compatible */}
+                <div>
+                  <h4 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Local & Compatible
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {localAvailable.length === 0 ? (
+                      <div className="text-xs text-muted p-2">None unconfigured</div>
+                    ) : (
+                      localAvailable.map((p) => {
+                        const meta = PROVIDER_METADATA[p.name] || { initials: 'LL', bg: 'rgba(255,255,255,0.05)', text: '#fff' }
+                        return (
+                          <div
+                            key={p.name}
+                            className="card flex items-center justify-between p-3"
+                            style={{
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'row',
+                            }}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden" style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                        className="flex items-center justify-center font-bold font-mono"
+                                        style={{
+                                          width: 28,
+                                          height: 28,
+                                          borderRadius: '50%',
+                                          fontSize: 11,
+                                          background: meta.bg,
+                                          color: meta.text,
+                                          flexShrink: 0,
+                                        }}
+                              >
+                                {meta.initials}
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div className="font-semibold truncate" style={{ fontSize: 12 }}>
+                                  {p.display_name}
+                                </div>
+                                <div className="text-muted font-mono truncate" style={{ fontSize: 10 }}>
+                                  {p.litellm_model.split('/')[1] || p.litellm_model}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleOpenConfig(p.name)}
+                              className="btn btn-secondary flex-shrink-0"
+                              style={{ height: 26, fontSize: 10, padding: '2px 8px', marginLeft: 8 }}
+                            >
+                              + Configure
+                            </button>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
-            )
-          })}
-
-          {/* ADD PROVIDER CARD */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleAddProvider}
-              className="card flex flex-col items-center justify-center border-dashed border-2 hover:border-purple transition-all duration-200"
-              style={{
-                width: 190,
-                minHeight: 125,
-                borderColor: 'var(--border-color)',
-                backgroundColor: 'rgba(255,255,255,0.01)',
-              }}
-            >
-              <div className="w-8 h-8 rounded-full bg-dark-secondary flex items-center justify-center text-muted mb-2">
-                <Plus size={16} />
-              </div>
-              <span className="text-xs font-semibold text-muted">Add Provider</span>
-            </button>
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* STATS ROW */}
       <div className="stat-grid mb-6">
         <div className="stat-card">
-          <div className="stat-value">{health?.agents ?? '—'}</div>
+          <div className="stat-value">{renderStatValue(health?.agents)}</div>
           <div className="stat-label">Agents</div>
           <p className="text-[10px] text-muted mt-1">Configured agents</p>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{health?.tools ?? '—'}</div>
+          <div className="stat-value">{renderStatValue(health?.tools)}</div>
           <div className="stat-label">Tools</div>
           <p className="text-[10px] text-muted mt-1">Available plugins</p>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{health?.crews ?? '—'}</div>
+          <div className="stat-value">{renderStatValue(health?.crews)}</div>
           <div className="stat-label">Crews</div>
           <p className="text-[10px] text-muted mt-1">Hierarchical processes</p>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{health?.missions ?? '—'}</div>
+          <div className="stat-value">{renderStatValue(health?.missions)}</div>
           <div className="stat-label">Missions</div>
           <p className="text-[10px] text-muted mt-1">Run templates</p>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{groupedRuns.filter((r) => r.status === 'completed').length}</div>
+          <div className="stat-value">
+            {renderStatValue(groupedRuns.filter((r) => r.status === 'completed').length)}
+          </div>
           <div className="stat-label">Completed Runs</div>
           <p className="text-[10px] text-muted mt-1">
             {groupedRuns.length > 0 ? `${groupedRuns.length} total runs recorded` : 'No history yet'}
@@ -343,7 +641,7 @@ export default function Dashboard() {
         </div>
         <div className="stat-card">
           <div className="stat-value text-purple" style={{ color: '#8b5cf6' }}>
-            {health?.fallback_events ?? 0}
+            {renderStatValue(health?.fallback_events)}
           </div>
           <div className="stat-label">Fallback Events</div>
           <p className="text-[10px] text-muted mt-1">Auto-routed errors (24h)</p>

@@ -5,14 +5,17 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.core.config_models import CrewYAMLConfig
-from agentos.core.project_ops import list_crews, write_crew, read_crew
+from agentos.core.project_ops import list_crews, write_crew, read_crew, is_valid_project
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["crews"])
 
 
 def _project(request: Request) -> str:
-    return request.app.state.project_path
+    p = request.app.state.project_path
+    if not is_valid_project(p):
+        raise HTTPException(status_code=404, detail="No active AgentOS project found.")
+    return p
 
 
 @router.get("/crews", response_model=List[CrewYAMLConfig])
