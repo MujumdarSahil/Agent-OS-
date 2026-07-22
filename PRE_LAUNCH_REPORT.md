@@ -218,9 +218,11 @@ agentos/tests/test_umb.py - PASSED
 agentos/tests/test_vcr_providers.py::test_provider_endpoint[groq_llama3_3] PASSED
 agentos/tests/test_vcr_providers.py::test_provider_endpoint[groq_llama3_1_instant] PASSED
 agentos/tests/test_vcr_providers.py::test_provider_endpoint[groq_qwen3_32b] PASSED
+agentos/tests/test_vcr_providers.py::test_provider_endpoint[openrouter_laguna_s_2_1_free] PASSED
+agentos/tests/test_vcr_providers.py::test_provider_endpoint[huggingface_llama3_2_1b] SKIPPED (No cassette & HUGGINGFACE_API_KEY not set)
 ```
 
-**Result:** PASS (CASSETTE) — recorded calls replayed successfully from saved yaml tapes without network traffic.
+**Result:** PASS (CASSETTE) — 4 recorded provider calls replayed successfully from saved yaml tapes without network traffic. Hugging Face entry skipped until HUGGINGFACE_API_KEY is supplied.
 
 ---
 

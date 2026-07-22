@@ -179,6 +179,29 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 70,
         "tags": ["free-tier", "openrouter"]
     },
+    # Free endpoint context window is 262,144 tokens, NOT the model's full 1M — do not assume long-context tasks will fit.
+    # Poolside's free-tier terms state inputs/outputs may be used for training. Flag this in user-facing docs, not just code comments, so users routing proprietary code through it are actually informed, not just covered by a buried comment.
+    {
+        "name": "openrouter_laguna_s_2_1_free",
+        "display_name": "Laguna S 2.1 Free (OpenRouter)",
+        "litellm_model": "openrouter/poolside/laguna-s-2.1:free",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 72,
+        "tags": ["free-tier", "openrouter"]
+    },
+    # Hugging Face Inference API (discovery-first, serverless endpoints via LiteLLM).
+    # Does NOT perform local model download or self-hosted serving.
+    # Requires a valid HUGGINGFACE_API_KEY (or HF_TOKEN) in environment.
+    {
+        "name": "huggingface_llama3_2_1b",
+        "display_name": "Hugging Face · Llama 3.2 1B",
+        "litellm_model": "huggingface/meta-llama/Llama-3.2-1B-Instruct",
+        "api_key_env": "HUGGINGFACE_API_KEY",
+        "api_base_env": None,
+        "priority": 75,
+        "tags": ["free-tier", "huggingface"]
+    },
     # -------------------------------------------------------------------------
     # Tier 3: Custom OpenAI-compatible endpoint
     # -------------------------------------------------------------------------

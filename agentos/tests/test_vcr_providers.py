@@ -1,6 +1,8 @@
 import os
 import pytest
 import vcr
+from dotenv import load_dotenv
+load_dotenv()
 from unittest.mock import patch
 from agentos.llm.llm_client import LLMClient
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
