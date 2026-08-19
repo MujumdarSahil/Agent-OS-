@@ -20,8 +20,9 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
 - **Task Router (DMARP)**: Dynamic Multi-Agent Routing Protocol for intelligent task assignment
 - **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
 - **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
-- **Expanded Fallback Chain**: Multi-provider registry including OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier), Together AI, Fireworks, DeepSeek, Hugging Face Inference API (experimental), and Ollama.
+- **Expanded Fallback Chain**: Multi-provider registry including OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier, GLM-5.2 free tier, Gemma 4 31B free tier, and Nemotron 3 Nano Omni free tier), Together AI, Fireworks, DeepSeek, Hugging Face Inference API (experimental), and Ollama.
   > **Note on Laguna S 2.1 Free Tier:** Context window is capped at **262,144 tokens** on the free endpoint (NOT full 1M). Poolside's free-tier terms state inputs/outputs may be used for training; avoid sending proprietary code.
+  > **Note on Vision-Capable Models:** Models such as `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` support reading and analyzing image inputs (multimodal vision input). They perform image **reading/understanding only** and do NOT support image generation.
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
 - **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](EXTENDING.md) for details.
 

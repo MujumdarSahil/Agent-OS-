@@ -190,6 +190,33 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 72,
         "tags": ["free-tier", "openrouter"]
     },
+    {
+        "name": "openrouter_glm_5_2_free",
+        "display_name": "GLM-5.2 Free (OpenRouter)",
+        "litellm_model": "openrouter/z-ai/glm-5.2:free",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 73,
+        "tags": ["free-tier", "openrouter"]
+    },
+    {
+        "name": "openrouter_gemma_4_31b_free",
+        "display_name": "Gemma 4 31B Free (OpenRouter)",
+        "litellm_model": "openrouter/google/gemma-4-31b-it:free",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 74,
+        "tags": ["free-tier", "openrouter", "vision"]
+    },
+    {
+        "name": "openrouter_nemotron_3_nano_omni_free",
+        "display_name": "Nemotron-3 Nano Omni Free (OpenRouter)",
+        "litellm_model": "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "api_base_env": None,
+        "priority": 75,
+        "tags": ["free-tier", "openrouter", "vision"]
+    },
     # Hugging Face Inference API (discovery-first, serverless endpoints via LiteLLM).
     # Does NOT perform local model download or self-hosted serving.
     # Requires a valid HUGGINGFACE_API_KEY (or HF_TOKEN) in environment.
