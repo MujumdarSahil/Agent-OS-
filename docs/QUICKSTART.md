@@ -190,7 +190,7 @@ pytest agentos/tests/
 
 ## Next Steps
 
-- Read the full [README.md](README.md) for detailed documentation
+- Read the full [README.md](../README.md) for detailed documentation
 - Explore the `agentos/demo.py` file for more examples
 - Check `agentos/tests/` for usage patterns
 - Customize MCP connectors in `agentos/mcp_connectors/`

@@ -24,7 +24,7 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
   > **Note on Laguna S 2.1 Free Tier:** Context window is capped at **262,144 tokens** on the free endpoint (NOT full 1M). Poolside's free-tier terms state inputs/outputs may be used for training; avoid sending proprietary code.
   > **Note on Vision-Capable Models:** Models such as `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` support reading and analyzing image inputs (multimodal vision input). They perform image **reading/understanding only** and do NOT support image generation.
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
-- **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](EXTENDING.md) for details.
+- **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](docs/EXTENDING.md) for details.
 
 ## Installation
 
@@ -303,7 +303,7 @@ AgentOS includes two minimal teaching examples to show how agents, tools, and MC
 - [Demo 1: Custom Local notes.json MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
 - [Demo 2: External Context7 Documentation MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
-See [SECURITY.md](SECURITY.md), [ETHICS.md](ETHICS.md), and [PHASE3_LIMITATIONS.md](PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
+See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
 
 ## Test Coverage
 
