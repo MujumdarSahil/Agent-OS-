@@ -46,8 +46,12 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 #  installed packages can register here for global availability)
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = [".", "SWE"]
 include = ["agentos*"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "SWE"]
+testpaths = ["SWE/tests/swe"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]

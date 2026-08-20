@@ -27,7 +27,7 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M9** | Final Release | **COMPLETE** | System integration validation, security audits, complete documentation, release checklist, and 63/63 passing tests on canonical `SWE` branch. |
 | **M10** | Semantic Code Intelligence | **COMPLETE** | Provider-agnostic semantic intelligence layer (`PythonSemanticResolver`). Eliminates dict `.get()` false positives, analyzes exception intent (`INTENTIONAL_FALLBACK`), classifies module roles (`ENTRYPOINT_LAUNCHER`), and performs semantic verification. |
 | **M11** | Polyglot Semantic Intelligence | **COMPLETE** | Extends semantic analysis to JavaScript, TypeScript, React, and Vue. Added `ModuleRole.TEST_HARNESS` (M11.1) classification and cross-language API contract checking. |
-| **M12** | Security Data-Flow & Taint Analysis | **COMPLETE** | Deterministic, provider-agnostic taint tracking engine (`agentos_swe/security/taint/`). Tracks untrusted data from `SOURCE → PROPAGATION → SINK` with inter-procedural flow, sanitizer awareness (`shlex.quote`, parameterized SQL, `html.escape`), and evidence-driven severity scoring. |
+| **M12** | Security Data-Flow & Taint Analysis | **COMPLETE** | Deterministic, provider-agnostic taint tracking engine (`SWE/agentos_swe/security/taint/`). Tracks untrusted data from `SOURCE → PROPAGATION → SINK` with inter-procedural flow, sanitizer awareness (`shlex.quote`, parameterized SQL, `html.escape`), and evidence-driven severity scoring. |
 
 ---
 
