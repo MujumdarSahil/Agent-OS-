@@ -54,8 +54,8 @@ class ArchitectureAgent(BaseInvestigatorAgent):
                 # M10 Semantic Module Role Analysis
                 role_res = self.semantic_resolver.analyze_module_role(rel_file, context)
 
-                # EXPLICITLY SKIP ENTRYPOINT LAUNCHERS (main.py, server.py, streamlit_app.py, CLI scripts)
-                if role_res.role == ModuleRole.ENTRYPOINT_LAUNCHER:
+                # EXPLICITLY SKIP ENTRYPOINT LAUNCHERS AND TEST HARNESSES
+                if role_res.role in (ModuleRole.ENTRYPOINT_LAUNCHER, ModuleRole.TEST_HARNESS):
                     continue
 
                 ev_sem = Evidence(

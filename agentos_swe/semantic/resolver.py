@@ -251,24 +251,44 @@ class PythonSemanticResolver(SemanticCodeProvider):
         context: Optional[Any] = None
     ) -> ModuleRoleResult:
         """
-        Determine whether module acts as entrypoint launcher or library module.
+        Determine whether module acts as entrypoint launcher, test harness, or library module.
         """
         base_name = os.path.basename(file_path).lower()
         rel_path = file_path.lower().replace("\\", "/")
+
+        # 1. Direct file/directory name & location conventions for TEST_HARNESS
+        is_test_dir = rel_path.startswith("tests/") or "/tests/" in rel_path or rel_path.startswith("testing/") or "/testing/" in rel_path or rel_path.startswith("integration/") or "/integration/" in rel_path or rel_path.startswith("e2e/") or "/e2e/" in rel_path
+        is_test_filename = base_name.startswith("test_") or base_name.endswith("_test.py") or base_name.endswith("_spec.py") or base_name in ("conftest.py", "pytest.ini")
+
+        if is_test_dir or is_test_filename:
+            return ModuleRoleResult(
+                role=ModuleRole.TEST_HARNESS,
+                confidence=0.95,
+                reason=f"Module '{file_path}' matches test harness location or naming convention ({'test dir' if is_test_dir else ''} {'test filename' if is_test_filename else ''}).",
+                language="python",
+                provider="PythonSemanticResolver",
+                rule="test_harness_convention",
+            )
 
         # Direct file/directory name conventions for launchers
         if base_name in ("main.py", "app.py", "server.py", "streamlit_app.py", "manage.py", "cli.py", "run.py", "launcher.py"):
             return ModuleRoleResult(
                 role=ModuleRole.ENTRYPOINT_LAUNCHER,
                 confidence=0.95,
-                reason=f"Filename '{base_name}' is a standard application entrypoint launcher convention."
+                reason=f"Filename '{base_name}' is a standard application entrypoint launcher convention.",
+                language="python",
+                provider="PythonSemanticResolver",
+                rule="entrypoint_launcher_filename",
             )
 
         if "/scripts/" in rel_path or rel_path.startswith("scripts/"):
             return ModuleRoleResult(
                 role=ModuleRole.ENTRYPOINT_LAUNCHER,
                 confidence=0.90,
-                reason=f"File path '{rel_path}' is located in scripts directory."
+                reason=f"File path '{rel_path}' is located in scripts directory.",
+                language="python",
+                provider="PythonSemanticResolver",
+                rule="scripts_directory",
             )
 
         # Inspect AST content if file exists
@@ -279,17 +299,35 @@ class PythonSemanticResolver(SemanticCodeProvider):
         if os.path.isfile(full_path):
             try:
                 content = open(full_path, "r", encoding="utf-8", errors="replace").read()
+
+                # Content-based test harness detection (pytest fixtures, unittest.TestCase, test_ functions, unittest/pytest imports)
+                if "import pytest" in content or "import unittest" in content or "from unittest" in content or "@pytest.fixture" in content or "unittest.TestCase" in content or "def test_" in content:
+                    return ModuleRoleResult(
+                        role=ModuleRole.TEST_HARNESS,
+                        confidence=0.92,
+                        reason="Module content contains test framework imports, unittest.TestCase, or test functions.",
+                        language="python",
+                        provider="PythonSemanticResolver",
+                        rule="test_harness_content",
+                    )
+
                 if '__name__ == "__main__"' in content or "__name__ == '__main__'" in content:
                     return ModuleRoleResult(
                         role=ModuleRole.ENTRYPOINT_LAUNCHER,
                         confidence=0.98,
-                        reason="Module contains '__name__ == \"__main__\"' launch block."
+                        reason="Module contains '__name__ == \"__main__\"' launch block.",
+                        language="python",
+                        provider="PythonSemanticResolver",
+                        rule="main_block",
                     )
                 if "FastAPI(" in content or "Flask(" in content or "@click.command" in content or "@app.get(" in content:
                     return ModuleRoleResult(
                         role=ModuleRole.ENTRYPOINT_LAUNCHER,
                         confidence=0.90,
-                        reason="Module initializes API server / CLI framework application root."
+                        reason="Module initializes API server / CLI framework application root.",
+                        language="python",
+                        provider="PythonSemanticResolver",
+                        rule="framework_app_root",
                     )
             except Exception:
                 pass
@@ -297,7 +335,10 @@ class PythonSemanticResolver(SemanticCodeProvider):
         return ModuleRoleResult(
             role=ModuleRole.LIBRARY_MODULE,
             confidence=0.80,
-            reason="Module represents a standard library/component module."
+            reason="Module represents a standard library/component module.",
+            language="python",
+            provider="PythonSemanticResolver",
+            rule="library_module_default",
         )
 
     # -------------------------------------------------------------------------

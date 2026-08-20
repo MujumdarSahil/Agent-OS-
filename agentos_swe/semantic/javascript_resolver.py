@@ -152,8 +152,23 @@ class JavaScriptSemanticResolver(SemanticCodeProvider):
         file_path: str,
         context: Optional[Any] = None
     ) -> ModuleRoleResult:
-        """Classify JS module as ENTRYPOINT_LAUNCHER vs LIBRARY_MODULE."""
+        """Classify JS module as ENTRYPOINT_LAUNCHER, TEST_HARNESS, or LIBRARY_MODULE."""
         filename = os.path.basename(file_path).lower()
+        rel_path = file_path.lower().replace("\\", "/")
+
+        is_test_dir = rel_path.startswith("tests/") or "/tests/" in rel_path or rel_path.startswith("test/") or "/test/" in rel_path or rel_path.startswith("spec/") or "/spec/" in rel_path or rel_path.startswith("e2e/") or "/e2e/" in rel_path
+        is_test_file = filename.startswith("test_") or filename.endswith(".test.js") or filename.endswith(".test.jsx") or filename.endswith(".spec.js") or filename.endswith(".spec.jsx") or filename.endswith("_test.js")
+
+        if is_test_dir or is_test_file:
+            return ModuleRoleResult(
+                role=ModuleRole.TEST_HARNESS,
+                confidence=0.95,
+                reason=f"JavaScript test harness module '{filename}'.",
+                language=self.language,
+                provider=self.provider,
+                rule="js_test_harness",
+            )
+
         if filename in ("index.js", "main.js", "app.js", "server.js", "index.jsx", "app.jsx", "vite.config.js"):
             return ModuleRoleResult(
                 role=ModuleRole.ENTRYPOINT_LAUNCHER,

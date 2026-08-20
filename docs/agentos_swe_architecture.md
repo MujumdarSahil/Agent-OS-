@@ -85,6 +85,7 @@ PythonResolver    JavaScriptResolver         TypeScriptResolver          VueReso
 3. **`VueSemanticResolver` & `ReactSemanticResolver`**: Vue SFC script block parser (<script setup>, lifecycle hooks `onMounted`, SFC imports) and React Hook/JSX analyzer (`useEffect`, `useState`, API calls).
 4. **`APIContractAnalyzer`**: Cross-language contract auditing matching frontend request paths (`fetch("/api/users")`) against backend Python routes (`@app.get("/api/user")`), reporting path mismatches (singular/plural), HTTP method mismatches, and missing backend endpoints as `INFERRED` contract findings with confidence scores.
 5. **Semantic Confidence & Provenance Model**: All semantic findings maintain provenance fields (`language`, `provider`, `rule`, `confidence`), using 0.90–1.00 for deterministic evidence, 0.70–0.89 for strong inferences, and 0.40–0.69 for weak inferences.
+6. **`ModuleRole.TEST_HARNESS` (M11.1)**: Extends module role classification to identify test harness files (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`, `pytest`/`unittest` fixtures). Excludes test harness files from production architectural coupling / fan-out alerts while preserving full architectural investigation of production modules.
 
 ---
 

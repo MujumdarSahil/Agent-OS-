@@ -26,9 +26,10 @@ class ExceptionIntent(str, Enum):
 
 
 class ModuleRole(str, Enum):
-    """Architectural role classification of a python module."""
+    """Architectural role classification of a python/polyglot module."""
     ENTRYPOINT_LAUNCHER = "ENTRYPOINT_LAUNCHER"
     LIBRARY_MODULE = "LIBRARY_MODULE"
+    TEST_HARNESS = "TEST_HARNESS"
 
 
 @dataclass

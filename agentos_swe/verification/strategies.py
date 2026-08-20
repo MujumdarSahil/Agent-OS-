@@ -115,14 +115,14 @@ class StaticVerificationStrategy:
                 except Exception:
                     pass
 
-            # 4. M10 Semantic Refutation for Entrypoint Launcher Fan-Out
+            # 4. M10/M11.1 Semantic Refutation for Entrypoint Launcher & Test Harness Fan-Out
             if finding.category == "architecture" and "High Coupling" in finding.title:
                 role_res = self.semantic_resolver.analyze_module_role(finding.file, context)
-                if role_res.role == ModuleRole.ENTRYPOINT_LAUNCHER:
+                if role_res.role in (ModuleRole.ENTRYPOINT_LAUNCHER, ModuleRole.TEST_HARNESS):
                     ev = Evidence(
                         source=EvidenceSource.SEMANTIC_ANALYSIS,
                         kind=EvidenceKind.OBSERVED,
-                        description=f"Semantic verification refuted architecture claim: Module '{finding.file}' is an entrypoint launcher ({role_res.reason}), where high import fan-out is expected design.",
+                        description=f"Semantic verification refuted architecture claim: Module '{finding.file}' is classified as {role_res.role.value} ({role_res.reason}), where high import fan-out is expected design.",
                         payload=role_res.to_dict(),
                     )
                     return False, ev
