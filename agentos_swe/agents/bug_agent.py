@@ -17,7 +17,7 @@ from agentos_swe.models import (
 )
 from agentos_swe.context import RepositoryContext
 
-from agentos_swe.semantic import PythonSemanticResolver, ExceptionIntent
+from agentos_swe.semantic import SemanticProviderRegistry, PythonSemanticResolver, ExceptionIntent
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,8 @@ class BugAgent(BaseInvestigatorAgent):
             backstory="Specialized code auditor analyzing correctness, edge cases, and exception safety.",
             **kwargs,
         )
-        self.semantic_resolver = PythonSemanticResolver()
+        self.semantic_registry = SemanticProviderRegistry()
+        self.semantic_resolver = self.semantic_registry
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []

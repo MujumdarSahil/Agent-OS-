@@ -16,7 +16,7 @@ from agentos_swe.models import (
 )
 from agentos_swe.context import RepositoryContext
 
-from agentos_swe.semantic import PythonSemanticResolver, SemanticCategory
+from agentos_swe.semantic import SemanticProviderRegistry, PythonSemanticResolver, SemanticCategory
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,8 @@ class PerformanceAgent(BaseInvestigatorAgent):
             backstory="Specialized performance engineer analyzing algorithmic efficiency and resource usage.",
             **kwargs,
         )
-        self.semantic_resolver = PythonSemanticResolver()
+        self.semantic_registry = SemanticProviderRegistry()
+        self.semantic_resolver = self.semantic_registry
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []

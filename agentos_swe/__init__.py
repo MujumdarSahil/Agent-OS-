@@ -104,6 +104,12 @@ from agentos_swe.semantic import (
     ModuleRoleResult,
     SemanticCodeProvider,
     PythonSemanticResolver,
+    JavaScriptSemanticResolver,
+    TypeScriptSemanticResolver,
+    VueSemanticResolver,
+    ReactSemanticResolver,
+    SemanticProviderRegistry,
+    APIContractAnalyzer,
 )
 
 __all__ = [

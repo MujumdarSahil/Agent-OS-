@@ -17,6 +17,7 @@ from agentos_swe.models import (
     EvidenceKind,
 )
 from agentos_swe.context import RepositoryContext
+from agentos_swe.semantic import SemanticProviderRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class SecurityAgent(BaseInvestigatorAgent):
             backstory="Specialized cybersecurity auditor focused on vulnerability assessment and secure coding.",
             **kwargs,
         )
+        self.semantic_registry = SemanticProviderRegistry()
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []
@@ -53,10 +55,32 @@ class SecurityAgent(BaseInvestigatorAgent):
             secret_findings = self._scan_secrets(rel_file, snippet)
             findings.extend(secret_findings)
 
-            # 2. AST Security Analysis
+            # 2. AST / Semantic Security Analysis for Python
             if rel_file.endswith(".py"):
                 ast_findings = self._analyze_ast_security(rel_file, snippet)
                 findings.extend(ast_findings)
+
+            # 3. Polyglot Security Analysis (JS/TS/Vue/React)
+            ext = os.path.splitext(rel_file)[1].lower()
+            if ext in (".js", ".jsx", ".ts", ".tsx", ".vue"):
+                poly_sec = self.semantic_registry.analyze_security_patterns(rel_file, snippet)
+                for p_item in poly_sec:
+                    ev_sec = Evidence(
+                        source=EvidenceSource.SEMANTIC_ANALYSIS,
+                        kind=EvidenceKind.OBSERVED,
+                        description=p_item.get("reason", "Security vulnerability pattern detected."),
+                        payload=p_item,
+                    )
+                    finding = self.create_finding(
+                        category="security",
+                        severity=p_item.get("severity", "high"),
+                        title=p_item.get("title", "Security Vulnerability"),
+                        description=f"File '{rel_file}': {p_item.get('reason', '')}",
+                        file=rel_file,
+                        evidence=[ev_sec],
+                        confidence=0.90,
+                    )
+                    findings.append(finding)
 
         return findings
 

@@ -39,6 +39,9 @@ class SemanticCallResult:
     resolved_symbol: str
     resolved_receiver_type: str = "unknown"
     reason: str = ""
+    language: str = "unknown"
+    provider: str = "unknown"
+    rule: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -55,6 +58,9 @@ class ExceptionAnalysisResult:
     reason: str = ""
     caught_exceptions: List[str] = field(default_factory=list)
     has_fallback_value: bool = False
+    language: str = "unknown"
+    provider: str = "unknown"
+    rule: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -69,6 +75,9 @@ class ModuleRoleResult:
     role: ModuleRole
     confidence: float
     reason: str = ""
+    language: str = "unknown"
+    provider: str = "unknown"
+    rule: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:

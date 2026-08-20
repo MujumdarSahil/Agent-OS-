@@ -55,6 +55,39 @@ Key M10 Capabilities:
 3. **Module Role Classification**: Identifies application entrypoints (`main.py`, `server.py`, `streamlit_app.py`, `cli.py`) to prevent false-positive high fan-out coupling reports on composition roots.
 4. **Semantic Verification**: `StaticVerificationStrategy` validates semantic evidence to reject syntactic false positives before confirmation.
 
+## M11 — Polyglot Semantic Intelligence & Advanced Analysis
+
+M11 extends AgentOS-SWE beyond Python-only semantic intelligence to support multi-language repositories containing **Python, JavaScript, TypeScript, React, and Vue** frontend code.
+
+```
+                  Polyglot Source Code (.py, .js, .jsx, .ts, .tsx, .vue)
+                                            ↓
+                                 SemanticProviderRegistry
+  ┌───────────────────────┬──────────────────────────┬────────────────────────┬───────────────────────┐
+  │                       │                          │                        │                       │
+PythonResolver    JavaScriptResolver         TypeScriptResolver          VueResolver            ReactResolver
+ (Python AST)     (JS / HTTP fetch)        (TS Typed ApiClient)     (<script setup> Vue)     (Hooks & JSX XSS)
+  │                       │                          │                        │                       │
+  └───────────────────────┴──────────────────────────┴────────────────────────┴───────────────────────┘
+                                            ↓
+                              Cross-Language API Contract Analyzer
+                      (Frontend fetch/axios <-> Backend FastAPI/Flask routes)
+                                            ↓
+                          Semantic Confidence & Provenance Model
+                            (0.90-1.00 = Strong, 0.70-0.89 = Inferred)
+                                            ↓
+                        Investigation Squad & Verification Integration
+```
+
+### Key M11 Architectural Components:
+1. **`SemanticProviderRegistry`**: Central registry matching file extensions (`.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`) to language-specific semantic providers with graceful `UNKNOWN` fallback on unsupported extensions or parser errors.
+2. **`JavaScriptSemanticResolver` & `TypeScriptSemanticResolver`**: Static resolvers distinguishing network requests (`fetch`, `axios.get`, `client.get`, `apiClient.get<T>()`) from standard object key lookups (`job.get("title")`, `map.get()`, `config.get()`). Also audits JS security risks (`dangerouslySetInnerHTML`, `eval`, `new Function`, `child_process.exec`).
+3. **`VueSemanticResolver` & `ReactSemanticResolver`**: Vue SFC script block parser (<script setup>, lifecycle hooks `onMounted`, SFC imports) and React Hook/JSX analyzer (`useEffect`, `useState`, API calls).
+4. **`APIContractAnalyzer`**: Cross-language contract auditing matching frontend request paths (`fetch("/api/users")`) against backend Python routes (`@app.get("/api/user")`), reporting path mismatches (singular/plural), HTTP method mismatches, and missing backend endpoints as `INFERRED` contract findings with confidence scores.
+5. **Semantic Confidence & Provenance Model**: All semantic findings maintain provenance fields (`language`, `provider`, `rule`, `confidence`), using 0.90–1.00 for deterministic evidence, 0.70–0.89 for strong inferences, and 0.40–0.69 for weak inferences.
+
+---
+
 ## AgentOS Framework Integration Matrix
 
 - **`Agent` & `Squad`**: Investigation squad agents inherit from `agentos.core.agent.Agent` and execute under `agentos.core.squad.Squad` mission orchestration.
@@ -77,4 +110,4 @@ Key M10 Capabilities:
 ## Known Limitations
 
 1. **Remote Git Commit Push**: Requires valid `GITHUB_TOKEN` and setting `AGENTOS_SWE_DRY_RUN=0`.
-2. **Language Support**: Optimized for Python codebases; additional AST parsers can be registered for non-Python languages.
+2. **Language Support**: Polyglot static analysis available for Python, JavaScript, TypeScript, Vue, and React. Dynamic runtime analysis requires dedicated language sandboxes.

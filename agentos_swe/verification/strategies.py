@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 from agentos_swe.semantic import (
+    SemanticProviderRegistry,
     PythonSemanticResolver,
     SemanticCategory,
     ExceptionIntent,
@@ -37,7 +38,8 @@ class StaticVerificationStrategy:
     """
 
     def __init__(self):
-        self.semantic_resolver = PythonSemanticResolver()
+        self.semantic_registry = SemanticProviderRegistry()
+        self.semantic_resolver = self.semantic_registry
 
     def verify(self, finding: Finding, context: RepositoryContext) -> Tuple[bool, Optional[Evidence]]:
         if not finding.file:
