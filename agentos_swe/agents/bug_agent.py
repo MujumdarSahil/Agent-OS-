@@ -17,6 +17,8 @@ from agentos_swe.models import (
 )
 from agentos_swe.context import RepositoryContext
 
+from agentos_swe.semantic import PythonSemanticResolver, ExceptionIntent
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +35,7 @@ class BugAgent(BaseInvestigatorAgent):
             backstory="Specialized code auditor analyzing correctness, edge cases, and exception safety.",
             **kwargs,
         )
+        self.semantic_resolver = PythonSemanticResolver()
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []
@@ -73,27 +76,36 @@ class BugAgent(BaseInvestigatorAgent):
             # Check 1: Bare except or swallowed exception (except Exception: pass)
             if isinstance(node, ast.ExceptHandler):
                 line_no = getattr(node, "lineno", 1)
-                is_bare = node.type is None
-                is_swallowed = False
-                if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
-                    is_swallowed = True
 
-                if is_bare or is_swallowed:
+                # M10 Semantic Exception Analysis
+                exc_res = self.semantic_resolver.analyze_exception_block(rel_file, node, tree)
+
+                # EXPLICITLY SKIP INTENTIONAL FALLBACKS (e.g. ImportError, parser fallback, DB init fallback)
+                if exc_res.intent == ExceptionIntent.INTENTIONAL_FALLBACK:
+                    continue
+
+                if exc_res.intent in (ExceptionIntent.POSSIBLE_ERROR_SWALLOW, ExceptionIntent.UNKNOWN):
+                    ev_sem = Evidence(
+                        source=EvidenceSource.SEMANTIC_ANALYSIS,
+                        kind=EvidenceKind.OBSERVED,
+                        description=f"Semantic exception analysis: {exc_res.intent.value}. {exc_res.reason}",
+                        payload=exc_res.to_dict(),
+                    )
                     ev_ast = Evidence(
                         source=EvidenceSource.STATIC_ANALYSIS,
                         kind=EvidenceKind.OBSERVED,
-                        description=f"Except handler at line {line_no} {'is bare' if is_bare else 'swallows exception with pass'}.",
+                        description=f"Except handler at line {line_no} swallows exception without fallback.",
                         payload={"file": rel_file, "line": line_no},
                     )
                     finding = self.create_finding(
                         category="bug",
-                        severity="medium" if is_swallowed else "low",
+                        severity="medium" if exc_res.intent == ExceptionIntent.POSSIBLE_ERROR_SWALLOW else "low",
                         title="Swallowed or Bare Exception Handler",
-                        description=f"File '{rel_file}' line {line_no} contains a {'bare' if is_bare else 'swallowed (pass)'} exception handler which may mask runtime errors.",
+                        description=f"File '{rel_file}' line {line_no} contains an exception handler that swallows errors without explicit fallback or logging.",
                         file=rel_file,
                         line_range=(line_no, line_no),
-                        evidence=[ev_ast],
-                        confidence=0.9,
+                        evidence=[ev_ast, ev_sem],
+                        confidence=exc_res.confidence,
                     )
                     findings.append(finding)
 

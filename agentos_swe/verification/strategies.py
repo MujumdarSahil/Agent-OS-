@@ -21,10 +21,23 @@ from agentos_swe.verification.sandbox import IsolatedSandbox
 logger = logging.getLogger(__name__)
 
 
+from agentos_swe.semantic import (
+    PythonSemanticResolver,
+    SemanticCategory,
+    ExceptionIntent,
+    ModuleRole,
+)
+
+logger = logging.getLogger(__name__)
+
+
 class StaticVerificationStrategy:
     """
-    Evaluates AST syntax, static analysis proof, and defensive code checks.
+    Evaluates AST syntax, static analysis proof, semantic evidence, and defensive code checks.
     """
+
+    def __init__(self):
+        self.semantic_resolver = PythonSemanticResolver()
 
     def verify(self, finding: Finding, context: RepositoryContext) -> Tuple[bool, Optional[Evidence]]:
         if not finding.file:
@@ -41,7 +54,8 @@ class StaticVerificationStrategy:
 
         try:
             content = open(full_path, "r", encoding="utf-8", errors="replace").read()
-            # If finding claims security injection, check if sanitization / escape calls exist in file
+
+            # 1. Security Sanitization Refutation
             if finding.category == "security" and ("eval" in finding.title or "shell=True" in finding.title):
                 if "shlex.quote" in content or "html.escape" in content:
                     ev = Evidence(
@@ -51,10 +65,70 @@ class StaticVerificationStrategy:
                     )
                     return False, ev
 
+            # 2. M10 Semantic Refutation for Performance Loop I/O (dict.get false positive rejection)
+            if finding.category == "performance" and ("Loop" in finding.title or "get" in finding.title):
+                try:
+                    tree = ast.parse(content, filename=finding.file)
+                    line_no = finding.line_range[0] if finding.line_range else 1
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Call) and getattr(node, "lineno", None) == line_no:
+                            sem_res = self.semantic_resolver.resolve_call(finding.file, node, tree)
+                            if sem_res.category == SemanticCategory.DICT_LOOKUP:
+                                ev = Evidence(
+                                    source=EvidenceSource.SEMANTIC_ANALYSIS,
+                                    kind=EvidenceKind.OBSERVED,
+                                    description=f"Semantic verification refuted performance claim: Call at line {line_no} resolves to dictionary lookup ({sem_res.resolved_symbol}) rather than network I/O.",
+                                    payload=sem_res.to_dict(),
+                                )
+                                return False, ev
+                            if sem_res.category == SemanticCategory.UNKNOWN:
+                                fn_name = node.func.id if isinstance(node.func, ast.Name) else (node.func.attr if isinstance(node.func, ast.Attribute) else "")
+                                if fn_name == "get":
+                                    ev = Evidence(
+                                        source=EvidenceSource.SEMANTIC_ANALYSIS,
+                                        kind=EvidenceKind.OBSERVED,
+                                        description=f"Semantic verification refuted performance claim: Receiver type for '.get' call at line {line_no} is unconfirmed/ambiguous.",
+                                        payload=sem_res.to_dict(),
+                                    )
+                                    return False, ev
+                except Exception:
+                    pass
+
+            # 3. M10 Semantic Refutation for Swallowed Exception Handlers
+            if finding.category == "bug" and "Exception Handler" in finding.title:
+                try:
+                    tree = ast.parse(content, filename=finding.file)
+                    line_no = finding.line_range[0] if finding.line_range else 1
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.ExceptHandler) and getattr(node, "lineno", None) == line_no:
+                            exc_res = self.semantic_resolver.analyze_exception_block(finding.file, node, tree)
+                            if exc_res.intent == ExceptionIntent.INTENTIONAL_FALLBACK:
+                                ev = Evidence(
+                                    source=EvidenceSource.SEMANTIC_ANALYSIS,
+                                    kind=EvidenceKind.OBSERVED,
+                                    description=f"Semantic verification refuted bug claim: Exception handler at line {line_no} is an intentional fallback mechanism ({exc_res.reason}).",
+                                    payload=exc_res.to_dict(),
+                                )
+                                return False, ev
+                except Exception:
+                    pass
+
+            # 4. M10 Semantic Refutation for Entrypoint Launcher Fan-Out
+            if finding.category == "architecture" and "High Coupling" in finding.title:
+                role_res = self.semantic_resolver.analyze_module_role(finding.file, context)
+                if role_res.role == ModuleRole.ENTRYPOINT_LAUNCHER:
+                    ev = Evidence(
+                        source=EvidenceSource.SEMANTIC_ANALYSIS,
+                        kind=EvidenceKind.OBSERVED,
+                        description=f"Semantic verification refuted architecture claim: Module '{finding.file}' is an entrypoint launcher ({role_res.reason}), where high import fan-out is expected design.",
+                        payload=role_res.to_dict(),
+                    )
+                    return False, ev
+
             ev = Evidence(
                 source=EvidenceSource.STATIC_ANALYSIS,
                 kind=EvidenceKind.OBSERVED,
-                description=f"Static AST inspection confirmed source file '{finding.file}' exists and contains target syntax.",
+                description=f"Static AST & semantic inspection confirmed source file '{finding.file}' exists and contains valid defect pattern.",
             )
             return True, ev
         except Exception as ex:

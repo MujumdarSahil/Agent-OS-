@@ -25,8 +25,35 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M7** | Observability | **COMPLETE** | Lightweight structured event tracing (`TraceCollector`) and machine-readable JSON / Markdown run report generator (`ReportGenerator`). |
 | **M8** | Benchmarking | **COMPLETE** | Ground truth dataset (`BenchmarkFixtures`), precision/recall/F1 evaluator (`BenchmarkEvaluator`), resilience experiments, and ablation matrix (`BenchmarkRunner`). |
 | **M9** | Final Release | **COMPLETE** | System integration validation, security audits, complete documentation, release checklist, and 63/63 passing tests on canonical `SWE` branch. |
+| **M10** | Semantic Code Intelligence | **COMPLETE** | Provider-agnostic semantic intelligence layer (`PythonSemanticResolver`). Eliminates dict `.get()` false positives, analyzes exception intent (`INTENTIONAL_FALLBACK`), classifies module roles (`ENTRYPOINT_LAUNCHER`), and performs semantic verification. |
 
 ---
+
+## M10 — Semantic Code Intelligence Architecture
+
+M10 enhances AgentOS-SWE from syntactic pattern matching to **semantic code understanding**:
+
+```
+AST / Code Graph
+       ↓
+Semantic Resolver (PythonSemanticResolver)
+ ├── Symbol & Type Resolution (dict.get vs requests.get)
+ ├── Call Categorization (DICT_LOOKUP, HTTP_NETWORK_CALL, FILE_IO_CALL, DATABASE_QUERY)
+ ├── Exception Intent Analysis (INTENTIONAL_FALLBACK vs POSSIBLE_ERROR_SWALLOW)
+ └── Module Role Classification (ENTRYPOINT_LAUNCHER vs LIBRARY_MODULE)
+       ↓
+Semantic Evidence (EvidenceSource.SEMANTIC_ANALYSIS)
+       ↓
+Investigation Agents & Semantic Verification (StaticVerificationStrategy)
+       ↓
+Confirmed / Rejected / Inconclusive Findings
+```
+
+Key M10 Capabilities:
+1. **Dict `.get()` Resolution**: Disambiguates receiver types so standard dictionary key lookups (e.g. `job.get("title")`) are recognized as `DICT_LOOKUP` and excluded from loop network I/O analysis.
+2. **Exception Intent Analysis**: Evaluates surrounding AST context to detect intentional fallback blocks (`ImportError`, multi-stage parsing, DB init fallback, compatibility branches) and skip false-positive bug reports.
+3. **Module Role Classification**: Identifies application entrypoints (`main.py`, `server.py`, `streamlit_app.py`, `cli.py`) to prevent false-positive high fan-out coupling reports on composition roots.
+4. **Semantic Verification**: `StaticVerificationStrategy` validates semantic evidence to reject syntactic false positives before confirmation.
 
 ## AgentOS Framework Integration Matrix
 

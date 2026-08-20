@@ -95,6 +95,16 @@ from agentos_swe.benchmark import (
     ResilienceExperiments,
     BenchmarkRunner,
 )
+from agentos_swe.semantic import (
+    SemanticCategory,
+    SemanticCallResult,
+    ExceptionIntent,
+    ExceptionAnalysisResult,
+    ModuleRole,
+    ModuleRoleResult,
+    SemanticCodeProvider,
+    PythonSemanticResolver,
+)
 
 __all__ = [
     "AgentOSSWEError",

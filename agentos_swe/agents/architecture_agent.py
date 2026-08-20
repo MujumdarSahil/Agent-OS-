@@ -16,6 +16,8 @@ from agentos_swe.models import (
 )
 from agentos_swe.context import RepositoryContext
 
+from agentos_swe.semantic import PythonSemanticResolver, ModuleRole
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +34,7 @@ class ArchitectureAgent(BaseInvestigatorAgent):
             backstory="Specialized software architect using graph intelligence to evaluate system modularity and cohesion.",
             **kwargs,
         )
+        self.semantic_resolver = PythonSemanticResolver()
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []
@@ -47,21 +50,34 @@ class ArchitectureAgent(BaseInvestigatorAgent):
 
             # Check High Fan-Out (High Coupling)
             if len(deps) >= 10:
+                # M10 Semantic Module Role Analysis
+                role_res = self.semantic_resolver.analyze_module_role(rel_file, context)
+
+                # EXPLICITLY SKIP ENTRYPOINT LAUNCHERS (main.py, server.py, streamlit_app.py, CLI scripts)
+                if role_res.role == ModuleRole.ENTRYPOINT_LAUNCHER:
+                    continue
+
+                ev_sem = Evidence(
+                    source=EvidenceSource.SEMANTIC_ANALYSIS,
+                    kind=EvidenceKind.OBSERVED,
+                    description=f"Module role resolved to {role_res.role.value}: {role_res.reason}",
+                    payload=role_res.to_dict(),
+                )
                 ev_graph = Evidence(
                     source=EvidenceSource.CODE_GRAPH,
                     kind=EvidenceKind.OBSERVED,
-                    description=f"Module '{rel_file}' depends on {len(deps)} other modules (high fan-out).",
+                    description=f"Library module '{rel_file}' depends on {len(deps)} other modules (high fan-out).",
                     payload={"file": rel_file, "dependencies_count": len(deps)},
                 )
                 finding = self.create_finding(
                     category="architecture",
                     severity="medium",
                     title=f"High Coupling / Fan-Out in '{rel_file}'",
-                    description=f"Module '{rel_file}' imports/depends on {len(deps)} external modules, indicating high architectural coupling and low modular cohesion.",
+                    description=f"Library module '{rel_file}' imports/depends on {len(deps)} external modules, indicating high architectural coupling and low modular cohesion.",
                     file=rel_file,
-                    evidence=[ev_graph],
+                    evidence=[ev_graph, ev_sem],
                     graph_context={"dependency_count": len(deps), "dependencies": [d.id for d in deps]},
-                    confidence=0.9,
+                    confidence=role_res.confidence,
                 )
                 findings.append(finding)
 
