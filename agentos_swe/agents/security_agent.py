@@ -1,6 +1,9 @@
 """
 SecurityAgent - Specialized investigation agent for detecting security vulnerabilities,
 hardcoded secrets, injection risks, and unsafe deserialization.
+
+M12: Enhanced with deterministic data-flow / taint analysis via PythonTaintAnalyzer.
+Existing static rules remain intact; M12 adds taint findings on top.
 """
 
 import ast
@@ -19,6 +22,14 @@ from agentos_swe.models import (
 from agentos_swe.context import RepositoryContext
 from agentos_swe.semantic import SemanticProviderRegistry
 
+# M12: Taint analysis
+try:
+    from agentos_swe.security.taint.python_analyzer import PythonTaintAnalyzer
+    from agentos_swe.security.taint.models import TaintSeverity, TaintFinding
+    _TAINT_AVAILABLE = True
+except ImportError:
+    _TAINT_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 SECRET_PATTERNS = [
@@ -31,6 +42,8 @@ SECRET_PATTERNS = [
 class SecurityAgent(BaseInvestigatorAgent):
     """
     Agent identifying security flaws, hardcoded credentials, unsafe deserialization, and dangerous subprocesses.
+
+    M12: Combines existing static security rules with deterministic data-flow / taint analysis.
     """
 
     def __init__(self, **kwargs: Any):
@@ -42,6 +55,8 @@ class SecurityAgent(BaseInvestigatorAgent):
             **kwargs,
         )
         self.semantic_registry = SemanticProviderRegistry()
+        # M12: Initialize taint analyzer
+        self._taint_analyzer = PythonTaintAnalyzer() if _TAINT_AVAILABLE else None
 
     def investigate(self, context: RepositoryContext) -> List[Finding]:
         findings: List[Finding] = []
@@ -60,7 +75,11 @@ class SecurityAgent(BaseInvestigatorAgent):
                 ast_findings = self._analyze_ast_security(rel_file, snippet)
                 findings.extend(ast_findings)
 
-            # 3. Polyglot Security Analysis (JS/TS/Vue/React)
+                # 3. M12: Taint / Data-Flow Analysis (Python only)
+                taint_findings = self._run_taint_analysis(rel_file, snippet, context)
+                findings.extend(taint_findings)
+
+            # 4. Polyglot Security Analysis (JS/TS/Vue/React)
             ext = os.path.splitext(rel_file)[1].lower()
             if ext in (".js", ".jsx", ".ts", ".tsx", ".vue"):
                 poly_sec = self.semantic_registry.analyze_security_patterns(rel_file, snippet)
@@ -83,6 +102,136 @@ class SecurityAgent(BaseInvestigatorAgent):
                     findings.append(finding)
 
         return findings
+
+    def _run_taint_analysis(
+        self, rel_file: str, snippet: str, context: RepositoryContext
+    ) -> List[Finding]:
+        """
+        M12: Run deterministic taint/data-flow analysis on a Python source file.
+        Returns Finding objects for each confirmed taint path.
+        Does NOT replace existing _analyze_ast_security results.
+        """
+        if not _TAINT_AVAILABLE or self._taint_analyzer is None:
+            return []
+
+        # Read the full file for taint analysis (not limited snippet)
+        full_path = os.path.join(context.repository_path, rel_file)
+        try:
+            with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception:
+            content = snippet
+
+        try:
+            result = self._taint_analyzer.analyze(rel_file, content)
+        except Exception as ex:
+            logger.debug(f"[SecurityAgent/Taint] Analysis failed for {rel_file}: {ex}")
+            return []
+
+        if result.unsupported or result.error:
+            return []
+
+        findings: List[Finding] = []
+
+        for taint_finding in result.findings:
+            # Skip sanitized paths — they are not security issues
+            if taint_finding.is_sanitized:
+                continue
+
+            # Skip UNKNOWN severity with low confidence (insufficient evidence)
+            if taint_finding.severity == TaintSeverity.UNKNOWN and taint_finding.confidence < 0.65:
+                continue
+
+            path = taint_finding.path
+            source = path.source
+            sink = path.sink
+
+            # Build evidence chain
+            ev_source = Evidence(
+                source=EvidenceSource.STATIC_ANALYSIS,
+                kind=EvidenceKind.OBSERVED,
+                description=f"Taint source detected: {source.label()}",
+                payload={
+                    "taint_source": source.to_dict(),
+                    "file": rel_file,
+                    "line": source.line_no,
+                },
+            )
+            ev_sink = Evidence(
+                source=EvidenceSource.STATIC_ANALYSIS,
+                kind=EvidenceKind.OBSERVED,
+                description=f"Dangerous sink detected: {sink.label()}",
+                payload={
+                    "taint_sink": sink.to_dict(),
+                    "file": rel_file,
+                    "line": sink.line_no,
+                },
+            )
+            ev_taint = Evidence(
+                source=EvidenceSource.SEMANTIC_ANALYSIS,
+                kind=EvidenceKind.INFERRED,
+                description=(
+                    f"Taint propagation chain: {path.chain_description()}\n"
+                    f"Propagation steps: {len(path.propagation_steps)}"
+                ),
+                payload={
+                    "taint_finding": taint_finding.to_dict(),
+                    "chain": path.chain_description(),
+                },
+            )
+            evidence = [ev_source, ev_sink, ev_taint]
+
+            # Add sanitizer evidence if any (explains why path is medium/low)
+            for san in path.sanitizers:
+                ev_san = Evidence(
+                    source=EvidenceSource.SEMANTIC_ANALYSIS,
+                    kind=EvidenceKind.OBSERVED,
+                    description=f"Sanitizer evidence: {san.label()}",
+                    payload=san.to_dict(),
+                )
+                evidence.append(ev_san)
+
+            # Map TaintSeverity → Finding severity string
+            severity_map = {
+                TaintSeverity.CRITICAL: "critical",
+                TaintSeverity.HIGH: "high",
+                TaintSeverity.MEDIUM: "medium",
+                TaintSeverity.LOW: "low",
+                TaintSeverity.UNKNOWN: "medium",
+            }
+            severity_str = severity_map.get(taint_finding.severity, "high")
+
+            finding = self.create_finding(
+                category="security",
+                severity=severity_str,
+                title=taint_finding.title,
+                description=(
+                    f"{taint_finding.explanation}\n\n"
+                    f"Source: {source.code_snippet.strip()}\n"
+                    f"Propagation:\n{path.chain_description()}\n"
+                    f"Sink: {sink.code_snippet.strip()}\n"
+                    f"Severity: {taint_finding.severity.value}\n"
+                    f"Confidence: {taint_finding.confidence:.2f}"
+                ),
+                file=rel_file,
+                line_range=(source.line_no, sink.line_no),
+                evidence=evidence,
+                confidence=taint_finding.confidence,
+                graph_context={
+                    "taint_finding": True,
+                    "taint_severity": taint_finding.severity.value,
+                    "source_kind": source.source_kind.value,
+                    "sink_kind": sink.sink_kind.value,
+                    "propagation_depth": len(path.propagation_steps),
+                    "source_line": source.line_no,
+                    "sink_line": sink.line_no,
+                    "chain": path.chain_description(),
+                },
+            )
+            findings.append(finding)
+
+        return findings
+
 
     def _scan_secrets(self, rel_file: str, snippet: str) -> List[Finding]:
         findings: List[Finding] = []

@@ -26,75 +26,55 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M8** | Benchmarking | **COMPLETE** | Ground truth dataset (`BenchmarkFixtures`), precision/recall/F1 evaluator (`BenchmarkEvaluator`), resilience experiments, and ablation matrix (`BenchmarkRunner`). |
 | **M9** | Final Release | **COMPLETE** | System integration validation, security audits, complete documentation, release checklist, and 63/63 passing tests on canonical `SWE` branch. |
 | **M10** | Semantic Code Intelligence | **COMPLETE** | Provider-agnostic semantic intelligence layer (`PythonSemanticResolver`). Eliminates dict `.get()` false positives, analyzes exception intent (`INTENTIONAL_FALLBACK`), classifies module roles (`ENTRYPOINT_LAUNCHER`), and performs semantic verification. |
+| **M11** | Polyglot Semantic Intelligence | **COMPLETE** | Extends semantic analysis to JavaScript, TypeScript, React, and Vue. Added `ModuleRole.TEST_HARNESS` (M11.1) classification and cross-language API contract checking. |
+| **M12** | Security Data-Flow & Taint Analysis | **COMPLETE** | Deterministic, provider-agnostic taint tracking engine (`agentos_swe/security/taint/`). Tracks untrusted data from `SOURCE → PROPAGATION → SINK` with inter-procedural flow, sanitizer awareness (`shlex.quote`, parameterized SQL, `html.escape`), and evidence-driven severity scoring. |
 
 ---
 
-## M10 — Semantic Code Intelligence Architecture
+## M12 — Security Data-Flow & Taint Analysis Architecture
 
-M10 enhances AgentOS-SWE from syntactic pattern matching to **semantic code understanding**:
-
-```
-AST / Code Graph
-       ↓
-Semantic Resolver (PythonSemanticResolver)
- ├── Symbol & Type Resolution (dict.get vs requests.get)
- ├── Call Categorization (DICT_LOOKUP, HTTP_NETWORK_CALL, FILE_IO_CALL, DATABASE_QUERY)
- ├── Exception Intent Analysis (INTENTIONAL_FALLBACK vs POSSIBLE_ERROR_SWALLOW)
- └── Module Role Classification (ENTRYPOINT_LAUNCHER vs LIBRARY_MODULE)
-       ↓
-Semantic Evidence (EvidenceSource.SEMANTIC_ANALYSIS)
-       ↓
-Investigation Agents & Semantic Verification (StaticVerificationStrategy)
-       ↓
-Confirmed / Rejected / Inconclusive Findings
-```
-
-Key M10 Capabilities:
-1. **Dict `.get()` Resolution**: Disambiguates receiver types so standard dictionary key lookups (e.g. `job.get("title")`) are recognized as `DICT_LOOKUP` and excluded from loop network I/O analysis.
-2. **Exception Intent Analysis**: Evaluates surrounding AST context to detect intentional fallback blocks (`ImportError`, multi-stage parsing, DB init fallback, compatibility branches) and skip false-positive bug reports.
-3. **Module Role Classification**: Identifies application entrypoints (`main.py`, `server.py`, `streamlit_app.py`, `cli.py`) to prevent false-positive high fan-out coupling reports on composition roots.
-4. **Semantic Verification**: `StaticVerificationStrategy` validates semantic evidence to reject syntactic false positives before confirmation.
-
-## M11 — Polyglot Semantic Intelligence & Advanced Analysis
-
-M11 extends AgentOS-SWE beyond Python-only semantic intelligence to support multi-language repositories containing **Python, JavaScript, TypeScript, React, and Vue** frontend code.
+M12 introduces deterministic, provider-agnostic **security data-flow and taint analysis**:
 
 ```
-                  Polyglot Source Code (.py, .js, .jsx, .ts, .tsx, .vue)
-                                            ↓
-                                 SemanticProviderRegistry
-  ┌───────────────────────┬──────────────────────────┬────────────────────────┬───────────────────────┐
-  │                       │                          │                        │                       │
-PythonResolver    JavaScriptResolver         TypeScriptResolver          VueResolver            ReactResolver
- (Python AST)     (JS / HTTP fetch)        (TS Typed ApiClient)     (<script setup> Vue)     (Hooks & JSX XSS)
-  │                       │                          │                        │                       │
-  └───────────────────────┴──────────────────────────┴────────────────────────┴───────────────────────┘
-                                            ↓
-                              Cross-Language API Contract Analyzer
-                      (Frontend fetch/axios <-> Backend FastAPI/Flask routes)
-                                            ↓
-                          Semantic Confidence & Provenance Model
-                            (0.90-1.00 = Strong, 0.70-0.89 = Inferred)
-                                            ↓
-                        Investigation Squad & Verification Integration
+                          Source Code (.py / JS / TS)
+                                       ↓
+                             SemanticTaintProvider
+                                       ↓
+   ┌───────────────────────────────────┼───────────────────────────────────┐
+   │                                   │                                   │
+Taint Source Detector        Propagation Tracker                  Taint Sink Detector
+ (HTTP, env, CLI, input)   (Intra- & Inter-Procedural)       (Shell, eval, SQL, Deser)
+   │                                   │                                   │
+   └───────────────────────────────────┼───────────────────────────────────┘
+                                       ↓
+                               Sanitizer Detector
+                 (shlex.quote, html.escape, parameterized SQL)
+                                       ↓
+                             Taint Path & Finding
+                 (Source → Propagation Chain → Sink + Evidence)
+                                       ↓
+                           Evidence Severity Model
+                      (CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN)
+                                       ↓
+                    StaticVerificationStrategy Integration
+                     (Structural Path & Line Verification)
 ```
 
-### Key M11 Architectural Components:
-1. **`SemanticProviderRegistry`**: Central registry matching file extensions (`.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.vue`) to language-specific semantic providers with graceful `UNKNOWN` fallback on unsupported extensions or parser errors.
-2. **`JavaScriptSemanticResolver` & `TypeScriptSemanticResolver`**: Static resolvers distinguishing network requests (`fetch`, `axios.get`, `client.get`, `apiClient.get<T>()`) from standard object key lookups (`job.get("title")`, `map.get()`, `config.get()`). Also audits JS security risks (`dangerouslySetInnerHTML`, `eval`, `new Function`, `child_process.exec`).
-3. **`VueSemanticResolver` & `ReactSemanticResolver`**: Vue SFC script block parser (<script setup>, lifecycle hooks `onMounted`, SFC imports) and React Hook/JSX analyzer (`useEffect`, `useState`, API calls).
-4. **`APIContractAnalyzer`**: Cross-language contract auditing matching frontend request paths (`fetch("/api/users")`) against backend Python routes (`@app.get("/api/user")`), reporting path mismatches (singular/plural), HTTP method mismatches, and missing backend endpoints as `INFERRED` contract findings with confidence scores.
-5. **Semantic Confidence & Provenance Model**: All semantic findings maintain provenance fields (`language`, `provider`, `rule`, `confidence`), using 0.90–1.00 for deterministic evidence, 0.70–0.89 for strong inferences, and 0.40–0.69 for weak inferences.
-6. **`ModuleRole.TEST_HARNESS` (M11.1)**: Extends module role classification to identify test harness files (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`, `pytest`/`unittest` fixtures). Excludes test harness files from production architectural coupling / fan-out alerts while preserving full architectural investigation of production modules.
+### Key M12 Architectural Components:
 
----
+1. **`SemanticTaintProvider`**: Provider-agnostic interface enabling multi-language taint engines (`PythonTaintAnalyzer` for Python, `UnsupportedTaintProvider` stub for JS/TS returning UNSUPPORTED without false positives).
+2. **`SourceDetector`**: Identifies untrusted entrypoints across HTTP requests (`request.args`, `request.form`, `request.get_json()`), environment variables (`os.environ`, `os.getenv`), CLI arguments (`sys.argv`, `argparse`), and user input (`input()`).
+3. **`SinkDetector`**: Detects dangerous endpoints including shell execution (`subprocess` with `shell=True`, `os.system`), dynamic evaluation (`eval`, `exec`), SQL injection (`cursor.execute`), unsafe deserialization (`pickle.loads`, `yaml.load`), and template rendering (`render_template_string`).
+4. **`PropagationTracker` & `InterProceduralTracker`**: Tracks taint flow through assignments, string concatenation (`+`), f-strings, format strings (`%`), container construction, and bounded inter-procedural wrapper function calls (`MAX_TAINT_DEPTH = 8`).
+5. **`SanitizerDetector`**: Recognizes deterministic sanitizers (`shlex.quote`, `html.escape`, `markupsafe.escape`, `bleach.clean`, parameterized SQL placeholders, primitive type casts `int`/`float`/`bool`) to mark safe paths as `is_sanitized=True` and avoid false positives.
+6. **`StaticVerificationStrategy` Integration**: Performs structural validation of taint findings (line existence, snippet presence, chain validity) and rejects broken or incomplete paths as `REJECTED` or `INCONCLUSIVE`.
 
-## AgentOS Framework Integration Matrix
+### Static Analysis Limitations:
 
-- **`Agent` & `Squad`**: Investigation squad agents inherit from `agentos.core.agent.Agent` and execute under `agentos.core.squad.Squad` mission orchestration.
-- **`GovernanceEngine` & `Policy`**: `GovernanceGate` registers `PolicyType.ACTION` policies to enforce risk thresholds before PR creation.
-- **`SQLiteCheckpointStore`**: `VerificationPipeline`, `RepairPipeline`, and `PRPipeline` persist task checkpoints for seamless interruption recovery.
-- **`LLMClient` & Multi-Provider Router**: Fallback chains automatically re-route requests across OpenAI, Anthropic, and Ollama providers during outages.
+Static taint analysis is deterministic and bounded. It has explicit limitations:
+- Whole-program symbolic execution is not performed; inter-procedural depth is bounded at 8 hops.
+- Dynamic reflection or `getattr` string manipulation outside static resolution cannot be fully tracked.
+- High confidence is reserved for deterministic evidence; ambiguous paths become `INCONCLUSIVE`.
 
 ---
 
@@ -111,4 +91,5 @@ PythonResolver    JavaScriptResolver         TypeScriptResolver          VueReso
 ## Known Limitations
 
 1. **Remote Git Commit Push**: Requires valid `GITHUB_TOKEN` and setting `AGENTOS_SWE_DRY_RUN=0`.
-2. **Language Support**: Polyglot static analysis available for Python, JavaScript, TypeScript, Vue, and React. Dynamic runtime analysis requires dedicated language sandboxes.
+2. **Language Support**: Polyglot static analysis available for Python, JavaScript, TypeScript, Vue, and React. Taint analysis engine fully implemented for Python with JS/TS provider interface prepared for future expansion.
+
