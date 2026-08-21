@@ -28,8 +28,87 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M10** | Semantic Code Intelligence | **COMPLETE** | Provider-agnostic semantic intelligence layer (`PythonSemanticResolver`). Eliminates dict `.get()` false positives, analyzes exception intent (`INTENTIONAL_FALLBACK`), classifies module roles (`ENTRYPOINT_LAUNCHER`), and performs semantic verification. |
 | **M11** | Polyglot Semantic Intelligence | **COMPLETE** | Extends semantic analysis to JavaScript, TypeScript, React, and Vue. Added `ModuleRole.TEST_HARNESS` (M11.1) classification and cross-language API contract checking. |
 | **M12** | Security Data-Flow & Taint Analysis | **COMPLETE** | Deterministic, provider-agnostic taint tracking engine (`SWE/agentos_swe/security/taint/`). Tracks untrusted data from `SOURCE → PROPAGATION → SINK` with inter-procedural flow, sanitizer awareness (`shlex.quote`, parameterized SQL, `html.escape`), and evidence-driven severity scoring. |
+| **M12.5** | Single-File Unified UI | **COMPLETE** | Complete user-facing Streamlit dashboard implemented in ONE single file (`SWE/agentos_swe/ui.py`). Connects live SWE engine pipeline with 11 navigation pages, interactive Graphviz code graph, findings explorer, security/taint flow visualizer, stage timeline, markdown/JSON/HTML report exports, and safety indicators. |
+| **M12.6** | Test-Harness Exception Semantic Hardening | **COMPLETE** | Hardened deterministic exception intent resolver (`PythonSemanticResolver.analyze_exception_block`). Combines exception variable binding, logging/print diagnostics detection, controlled fallback analysis (`return`, `assign`, `continue`, `break`), and module role context (`TEST_HARNESS`). Eliminates CLI smoke test logging false positives while preserving genuine silent `except Exception: pass` detections. |
 
 ---
+
+## M12.6 — Test-Harness Exception Semantic Hardening Architecture
+
+M12.6 enhances the semantic exception analysis pipeline in `PythonSemanticResolver`:
+
+```
+                       Exception Block Analysis (analyze_exception_block)
+                                       ↓
+           ┌───────────────────────────┴───────────────────────────┐
+           │                                                       │
+  Signal 1: Exception Type & Variable Binding        Signal 2: Logging / Diagnostic Calls
+   (except Exception as e / bare except)               (print, logger.error, logging)
+           │                                                       │
+           └───────────────────────────┬───────────────────────────┘
+                                       ↓
+           ┌───────────────────────────┴───────────────────────────┐
+           │                                                       │
+  Signal 3: Controlled Fallback Check                Signal 4: Module Role Context
+   (return None, assign, continue, break)             (ModuleRole.TEST_HARNESS)
+           │                                                       │
+           └───────────────────────────┬───────────────────────────┘
+                                       ↓
+                             Semantic Intent Decision:
+   ├── Logged Diagnostic Exception + Fallback ───→ INTENTIONAL_FALLBACK (No Bug)
+   └── Generic Silent `except Exception: pass` ──→ POSSIBLE_ERROR_SWALLOW (Confirmed Bug)
+```
+
+### Semantic Exception Handling Rationale:
+- **Diagnostic Exception Handler** (`INTENTIONAL_FALLBACK`):
+  ```python
+  except Exception as e:
+      print(f"GET {path} failed: {e}")
+      return None
+  ```
+  *Reasoning*: Exception is bound, printed to stdout as diagnostic test feedback, and returns a controlled fallback value (`None`).
+
+- **Silent Exception Handler** (`POSSIBLE_ERROR_SWALLOW`):
+  ```python
+  except Exception:
+      pass
+  ```
+  *Reasoning*: Catches all exceptions blindly without logging, reporting, or fallback value. Correctly reported as a bug regardless of whether it resides in production code or a test harness.
+
+---
+
+## M12.5 — AgentOS-SWE Single-File Unified UI
+
+M12.5 introduces a single-file Streamlit developer & security platform UI (`SWE/agentos_swe/ui.py`):
+
+```
+                                  Streamlit UI (agentos_swe/ui.py)
+                                                ↓
+                    ┌───────────────────────────┴───────────────────────────┐
+                    │                                                       │
+             Scan Controls & Sidebar                               11 Navigation Pages
+     (Repo, Branch, Commit, Mode, [Run Scan])              (Overview, Agents, Graph, Findings,
+                    │                                       Security/Taint, Arch, Perf,
+                    ↓                                       Verif, Pipeline, Report, Safety)
+             run_swe_scan_engine()                                          │
+                    ↓                                                       │
+    ┌───────────────┴───────────────────────┐                               │
+    │  Intake → Graph Build → Investigation │                               │
+    │  → Taint → Verification → Repair     │ ──────────────────────────────┘
+    │  → Governance → PR → Observability   │ (Reads Session State Scan Results)
+    └───────────────────────────────────────┘
+```
+
+### Key Architectural Invariants:
+1. **Single-File Architecture**: The complete user-facing UI is fully contained in `SWE/agentos_swe/ui.py` without external frontend dependencies (`ui/components/`, `frontend/`, React, or Node).
+2. **Actual SWE Execution**: The UI invokes the real SWE pipeline (`RepositoryIntake`, `build_repository_context`, `InvestigationSquad`, `PythonTaintAnalyzer`, `VerificationPipeline`, `RepairPipeline`, `PRPipeline`, `ReportGenerator`).
+3. **No Terminal Scraping / No Hardcoding**: All metrics, graphs, findings, taint paths, evidence chains, and stage timings are derived dynamically from typed backend scan objects.
+4. **Safety & Immutability**: Enforces `AGENTOS_SWE_DRY_RUN=1` and `IsolatedSandbox` execution guarantees.
+
+### UI Launch Command:
+```bash
+streamlit run SWE/agentos_swe/ui.py
+```
 
 ## M12 — Security Data-Flow & Taint Analysis Architecture
 

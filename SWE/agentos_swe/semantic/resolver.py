@@ -159,8 +159,15 @@ class PythonSemanticResolver(SemanticCodeProvider):
         context_tree: Optional[ast.AST] = None
     ) -> ExceptionAnalysisResult:
         """
-        Analyze exception handler for intentional fallback vs swallowed bug.
+        Analyze exception handler for intentional fallback vs swallowed bug (M12.6 Hardened).
+        Combines exception type qualification, variable binding, logging/diagnostic calls,
+        controlled fallbacks (return/assign/continue/break), and module role context.
         """
+        # 1. Module role analysis
+        role_res = self.analyze_module_role(file_path)
+        is_test_harness = (role_res.role == ModuleRole.TEST_HARNESS)
+
+        # 2. Extract caught exception types
         caught_types: List[str] = []
         if handler_node.type:
             if isinstance(handler_node.type, ast.Name):
@@ -174,17 +181,21 @@ class PythonSemanticResolver(SemanticCodeProvider):
             elif isinstance(handler_node.type, ast.Attribute):
                 caught_types.append(handler_node.type.attr)
 
-        # 0. Check for bare except: (no exception type specified)
-        if not handler_node.type:
+        body = handler_node.body
+        is_generic = not handler_node.type or any(t in ("Exception", "BaseException", "bare") for t in caught_types)
+        is_pure_pass = len(body) == 1 and isinstance(body[0], ast.Pass)
+
+        # 3. Pure `pass` body with generic/bare Exception -> POSSIBLE_ERROR_SWALLOW (even in test harness)
+        if is_pure_pass and is_generic:
             return ExceptionAnalysisResult(
                 intent=ExceptionIntent.POSSIBLE_ERROR_SWALLOW,
-                confidence=0.90,
-                reason="Bare 'except:' handler catches all system exceptions and interrupts without type qualification.",
-                caught_exceptions=["bare"],
+                confidence=0.90 if is_test_harness else 0.95,
+                reason=f"Generic exception handler containing only 'pass' without explicit fallback or logging ({'in test harness' if is_test_harness else 'in production module'}).",
+                caught_exceptions=caught_types or ["bare"],
                 has_fallback_value=False,
             )
 
-        # 1. Check for ImportError / ModuleNotFoundError (Optional dependency fallback)
+        # 4. Optional dependency fallback (ImportError / ModuleNotFoundError)
         if any(t in ("ImportError", "ModuleNotFoundError") for t in caught_types):
             return ExceptionAnalysisResult(
                 intent=ExceptionIntent.INTENTIONAL_FALLBACK,
@@ -194,46 +205,105 @@ class PythonSemanticResolver(SemanticCodeProvider):
                 has_fallback_value=True,
             )
 
-        # Inspect handler body statements
-        body = handler_node.body
-        has_return = any(isinstance(stmt, ast.Return) for stmt in body)
-        has_assign = any(isinstance(stmt, (ast.Assign, ast.AugAssign)) for stmt in body)
+        # 5. Inspect handler body statements for signals
+        exc_var_name = handler_node.name  # Bound exception variable name e.g. except Exception as e
+
+        has_return = False
+        has_assign = False
+        has_control_flow = False  # continue / break
         has_logging = False
+        var_used_in_logging = False
 
         for stmt in body:
-            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-                call = stmt.value
-                fn_str = ""
-                if isinstance(call.func, ast.Name):
-                    fn_str = call.func.id
-                elif isinstance(call.func, ast.Attribute):
-                    fn_str = call.func.attr
-                if fn_str in ("info", "warning", "error", "exception", "warn", "print", "log", "debug"):
-                    has_logging = True
+            if isinstance(stmt, ast.Return):
+                has_return = True
+            elif isinstance(stmt, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+                has_assign = True
+            elif isinstance(stmt, (ast.Continue, ast.Break)):
+                has_control_flow = True
 
-        # 2. If handler body has return value or assignment or logging, it's an intentional fallback
-        if has_return or has_assign or has_logging:
+            # Walk all subnodes to check for logging/printing calls
+            for subnode in ast.walk(stmt):
+                if isinstance(subnode, ast.Call):
+                    fn_str = ""
+                    if isinstance(subnode.func, ast.Name):
+                        fn_str = subnode.func.id
+                    elif isinstance(subnode.func, ast.Attribute):
+                        fn_str = subnode.func.attr
+
+                    if fn_str in ("info", "warning", "error", "exception", "warn", "print", "log", "debug", "write"):
+                        has_logging = True
+                        if exc_var_name:
+                            for arg in subnode.args:
+                                for arg_sub in ast.walk(arg):
+                                    if isinstance(arg_sub, ast.Name) and arg_sub.id == exc_var_name:
+                                        var_used_in_logging = True
+                                        break
+
+        has_fallback = has_return or has_assign or has_control_flow
+
+        # 6. Apply Semantic Classification Rules:
+        # Rule A: TEST_HARNESS + logged exception + fallback -> INTENTIONAL_FALLBACK (Very High confidence)
+        if is_test_harness and has_logging and has_fallback:
             return ExceptionAnalysisResult(
                 intent=ExceptionIntent.INTENTIONAL_FALLBACK,
-                confidence=0.92,
-                reason=f"Exception handler provides explicit fallback behavior ({'return' if has_return else ''} {'assign' if has_assign else ''} {'logging' if has_logging else ''}).",
-                caught_exceptions=caught_types,
-                has_fallback_value=has_return or has_assign,
+                confidence=0.98,
+                reason=f"Test harness diagnostic exception handler ({file_path}): Exception is explicitly logged/printed and controlled fallback is provided.",
+                caught_exceptions=caught_types or ["generic"],
+                has_fallback_value=True,
             )
 
-        # 3. Check post-try control flow for multi-stage fallback patterns
+        # Rule B: Logged exception + fallback (Production or Test Harness) -> INTENTIONAL_FALLBACK (High confidence)
+        if has_logging and has_fallback:
+            return ExceptionAnalysisResult(
+                intent=ExceptionIntent.INTENTIONAL_FALLBACK,
+                confidence=0.95,
+                reason=f"Diagnostic exception handler: Exception is logged ({'with bound exception var' if var_used_in_logging else 'via logger/print'}) and provides controlled fallback value/control-flow.",
+                caught_exceptions=caught_types or ["generic"],
+                has_fallback_value=True,
+            )
+
+        # Rule C: Specific exception handler with fallback -> INTENTIONAL_FALLBACK
+        if has_fallback and not is_generic:
+            return ExceptionAnalysisResult(
+                intent=ExceptionIntent.INTENTIONAL_FALLBACK,
+                confidence=0.90,
+                reason="Specific exception handler provides explicit fallback value or assignment.",
+                caught_exceptions=caught_types,
+                has_fallback_value=True,
+            )
+
+        if has_fallback and is_generic and (has_return or has_assign):
+            return ExceptionAnalysisResult(
+                intent=ExceptionIntent.INTENTIONAL_FALLBACK,
+                confidence=0.88,
+                reason="Generic exception handler provides explicit fallback return or assignment.",
+                caught_exceptions=caught_types or ["generic"],
+                has_fallback_value=True,
+            )
+
+        # Rule D: Logging exists without fallback or recovery -> UNKNOWN
+        if has_logging and not has_fallback:
+            return ExceptionAnalysisResult(
+                intent=ExceptionIntent.UNKNOWN,
+                confidence=0.60,
+                reason="Exception is logged but handler contains no explicit return, assignment, or control-flow fallback.",
+                caught_exceptions=caught_types or ["generic"],
+                has_fallback_value=False,
+            )
+
+        # Rule E: Multi-stage post-try control flow check
         if context_tree:
             control_flow_res = self._analyze_post_try_control_flow(handler_node, context_tree)
             if control_flow_res:
                 return control_flow_res
 
-        # 4. Pure `pass` body with generic/bare Exception and no surrounding fallback -> POSSIBLE_ERROR_SWALLOW
-        is_generic = not caught_types or any(t in ("Exception", "BaseException") for t in caught_types)
-        if len(body) == 1 and isinstance(body[0], ast.Pass) and is_generic:
+        # Default fallback for generic exception handler with no logging or fallback
+        if is_generic:
             return ExceptionAnalysisResult(
                 intent=ExceptionIntent.POSSIBLE_ERROR_SWALLOW,
-                confidence=0.85,
-                reason="Generic exception handler containing only 'pass' without explicit fallback or logging.",
+                confidence=0.80,
+                reason="Generic exception handler without explicit logging or fallback recovery.",
                 caught_exceptions=caught_types or ["bare"],
                 has_fallback_value=False,
             )
