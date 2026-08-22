@@ -1,5 +1,5 @@
 """
-ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7 & M13).
+ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """
     Generates structured JSON and Markdown execution run reports from a TraceCollector,
-    including M13 Vulnerability Intelligence, Root Cause Analysis, and Patch Validation metrics.
+    including M13 Vulnerability Intelligence and M13.1 Repair Validation metrics.
     """
 
     def generate_run_report(
@@ -56,6 +56,7 @@ class ReportGenerator:
         report: RunReport,
         correlated_findings: Optional[List[Dict[str, Any]]] = None,
         repair_proposals: Optional[List[Dict[str, Any]]] = None,
+        repair_validations: Optional[List[Dict[str, Any]]] = None,
         regression_results: Optional[List[Dict[str, Any]]] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
@@ -82,15 +83,17 @@ class ReportGenerator:
                 corr_rows.append(f"| `{fid}` | `{rc}` | `{sev}` | `{conf:.2f}` | `{aff_file}` |")
         corr_table = "\n".join(corr_rows) if corr_rows else "| None | N/A | N/A | N/A | N/A |"
 
-        # Repair proposals table
-        repair_rows = []
-        if repair_proposals:
-            for rp in repair_proposals:
-                fid = rp.get("finding_id", "")
-                strat = rp.get("strategy", "")
-                tf = rp.get("target_file", "")
-                repair_rows.append(f"| `{fid}` | `{strat}` | `{tf}` |")
-        repair_table = "\n".join(repair_rows) if repair_rows else "| None | N/A | N/A |"
+        # M13.1 Repair Validations table
+        val_rows = []
+        if repair_validations:
+            for rv in repair_validations:
+                fid = rv.get("finding_id", "")
+                rc = rv.get("vulnerability_type", "UNKNOWN")
+                tf = rv.get("target_file", "")
+                verdict = rv.get("final_verdict", "INCONCLUSIVE")
+                qual = rv.get("patch_quality", {}).get("quality_score", "N/A")
+                val_rows.append(f"| `{fid}` | `{rc}` | `{tf}` | `{qual}` | `{verdict}` |")
+        val_table = "\n".join(val_rows) if val_rows else "| None | N/A | N/A | N/A | NO_REPAIR_REQUIRED |"
 
         # Governance table
         gov_rows = []
@@ -130,10 +133,10 @@ class ReportGenerator:
 
 ---
 
-### 🛠️ Repair Proposals & Patch Validation
-| Finding ID | Strategy | Target File |
-| :--- | :--- | :--- |
-{repair_table}
+### 🛠️ M13.1 Real-World Repair Validation Summary
+| Finding ID | Root Cause | Target File | Patch Quality | Final Repair Verdict |
+| :--- | :--- | :--- | :--- | :--- |
+{val_table}
 
 - **Patches Generated**: `{r_m.patches_generated}`
 - **Reproduction Tests Passed**: `{r_m.reproduction_pass}`

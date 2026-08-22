@@ -90,12 +90,15 @@ class IntelligentRepairEngine:
             strategy = "NARROW_EXCEPTION_AND_LOG"
             rationale = "Bare except clauses hide operational bugs, key errors, and system failures. Logging diagnostics and returning controlled fallback preserves observability."
             risk_reduction = "Restores error visibility while handling expected failures gracefully."
-            if "except:" in original_snippet:
-                proposed_snippet = original_snippet.replace("except:", "except Exception as err:\n        logger.warning(f'Handled exception: {err}')")
+            if "except:" in original_snippet and "pass" in original_snippet:
+                proposed_snippet = original_snippet.replace("except:\n    pass", "except Exception as err:\n    logger.warning(f'Handled exception: {err}')").replace("except:", "except Exception as err:\n    logger.warning(f'Handled exception: {err}')")
+            elif "except:" in original_snippet:
+                proposed_snippet = original_snippet.replace("except:", "except Exception as err:\n    logger.warning(f'Handled exception: {err}')")
             elif "pass" in original_snippet:
-                proposed_snippet = original_snippet.replace("pass", "logger.warning('Exception occurred')\n        return None")
+                proposed_snippet = original_snippet.replace("pass", "logger.warning('Exception occurred')\n    return None")
             else:
                 proposed_snippet = original_snippet
+
 
         else:
             strategy = "SAFE_CODING_SANITIZATION"

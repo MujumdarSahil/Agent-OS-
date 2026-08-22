@@ -1,11 +1,12 @@
 """
-M4 & M13 Autonomous Repair Package.
+M4, M13 & M13.1 Autonomous Repair Package.
 """
 
 from agentos_swe.repair.models import (
     RepairStatus,
     ReviewStatus,
     RegressionStatus,
+    RepairVerdict,
     ImpactReport,
     FixPlan,
     PatchResult,
@@ -14,6 +15,8 @@ from agentos_swe.repair.models import (
     RepairProposal,
     ValidationResult,
     SecurityRegressionResult,
+    PatchQualityMetrics,
+    RepairValidationResult,
 )
 from agentos_swe.repair.impact import ImpactAnalyzer
 from agentos_swe.repair.planner import FixPlanner
@@ -23,11 +26,13 @@ from agentos_swe.repair.pipeline import RepairPipeline
 from agentos_swe.repair.repair_strategy import IntelligentRepairEngine
 from agentos_swe.repair.security_regression import SecurityRegressionAnalyzer
 from agentos_swe.repair.patch_validator import SandboxedPatchValidator
+from agentos_swe.repair.repair_validator import RealWorldRepairValidator
 
 __all__ = [
     "RepairStatus",
     "ReviewStatus",
     "RegressionStatus",
+    "RepairVerdict",
     "ImpactReport",
     "FixPlan",
     "PatchResult",
@@ -36,6 +41,8 @@ __all__ = [
     "RepairProposal",
     "ValidationResult",
     "SecurityRegressionResult",
+    "PatchQualityMetrics",
+    "RepairValidationResult",
     "ImpactAnalyzer",
     "FixPlanner",
     "FixAgent",
@@ -44,4 +51,5 @@ __all__ = [
     "IntelligentRepairEngine",
     "SecurityRegressionAnalyzer",
     "SandboxedPatchValidator",
+    "RealWorldRepairValidator",
 ]

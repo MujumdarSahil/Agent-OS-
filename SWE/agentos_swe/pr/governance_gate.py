@@ -1,6 +1,6 @@
 """
-GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation & M13 Security Correlation.
-Evaluates RiskAssessment and CorrelatedFinding against registered AgentOS Governance Policies.
+GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation, M13 & M13.1 Repair Validation.
+Evaluates RiskAssessment, CorrelatedFinding, and RepairValidationResult against registered AgentOS Governance Policies.
 """
 
 import logging
@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from agentos.core.governance import GovernanceEngine, Policy, PolicyType
 from agentos_swe.pr.models import RiskLevel, RiskAssessment, GovernanceDecision
 from agentos_swe.correlation.models import CorrelatedFinding
+from agentos_swe.repair.models import RepairValidationResult, RepairVerdict
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,6 @@ class GovernanceGate:
     def evaluate_correlated_finding(self, correlated_finding: CorrelatedFinding) -> GovernanceDecision:
         """
         Evaluate M13 CorrelatedFinding against governance policies.
-        LOW -> ALLOW
-        MEDIUM -> REVIEW_REQUIRED
-        HIGH / CRITICAL -> REVIEW_REQUIRED or DENY per policy context
         """
         severity_str = (correlated_finding.severity or "medium").upper()
         if severity_str in ("HIGH", "CRITICAL"):
@@ -96,3 +94,19 @@ class GovernanceGate:
 
         logger.info(f"[GovernanceGate] M13 Decision for correlated finding '{correlated_finding.finding_id}': {decision.value} (Severity: {severity_str})")
         return decision
+
+    def evaluate_repair_validation(self, validation_result: RepairValidationResult) -> GovernanceDecision:
+        """
+        Evaluate M13.1 RepairValidationResult against governance policies.
+        """
+        if validation_result.final_verdict == RepairVerdict.REGRESSION_DETECTED:
+            return GovernanceDecision.DENY
+        elif validation_result.final_verdict == RepairVerdict.NO_REPAIR_REQUIRED:
+            return GovernanceDecision.ALLOW
+        elif validation_result.final_verdict == RepairVerdict.REPAIRED:
+            sev = (validation_result.original_severity or "MEDIUM").upper()
+            if sev in ("HIGH", "CRITICAL"):
+                return GovernanceDecision.REVIEW_REQUIRED
+            return GovernanceDecision.ALLOW
+        else:
+            return GovernanceDecision.REVIEW_REQUIRED

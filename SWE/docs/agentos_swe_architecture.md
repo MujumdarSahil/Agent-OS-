@@ -31,6 +31,39 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M12.5** | Single-File Unified UI | **COMPLETE** | Complete user-facing Streamlit dashboard implemented in ONE single file (`SWE/agentos_swe/ui.py`). Connects live SWE engine pipeline with 11 navigation pages, interactive Graphviz code graph, findings explorer, security/taint flow visualizer, stage timeline, markdown/JSON/HTML report exports, and safety indicators. |
 | **M12.6** | Test-Harness Exception Semantic Hardening | **COMPLETE** | Hardened deterministic exception intent resolver (`PythonSemanticResolver.analyze_exception_block`). Combines exception variable binding, logging/print diagnostics detection, controlled fallback analysis (`return`, `assign`, `continue`, `break`), and module role context (`TEST_HARNESS`). Eliminates CLI smoke test logging false positives while preserving genuine silent `except Exception: pass` detections. |
 | **M13** | Vulnerability Correlation & Intelligent Repair | **COMPLETE** | Evidence-driven correlation engine (`EvidenceCorrelator`), deterministic root-cause analyzer (`RootCauseAnalyzer`), explainable confidence scoring, vulnerability-specific repair engine (`IntelligentRepairEngine`), sandboxed patch validator (`SandboxedPatchValidator`), security regression analyzer (`SecurityRegressionAnalyzer`), governance integration (`GovernanceGate`), single-file UI dashboard (Page 12: Vulnerability Intelligence), and executive reporting. |
+| **M13.1** | Real-World Repair Validation & Regression Hardening | **COMPLETE** | Empirical repair validation engine (`RealWorldRepairValidator`), sandboxed re-analysis, differential before/after finding comparison (`FIXED`, `REMAINING`, `NEW`), patch quality metrics (`PatchQualityMetrics`), regression detection (`REGRESSION_DETECTED`), intentional pattern preservation (`NO_REPAIR_REQUIRED`), single-file UI repair validation section, and executive report summaries. |
+
+---
+
+## M13.1 — Real-World Repair Validation & Security Regression Hardening Architecture
+
+M13.1 introduces empirical sandboxed validation proving that generated patches eliminate targeted vulnerabilities without introducing security regressions:
+
+```
+Original Repository → M13 Detection → Correlated Finding → Root Cause → Repair Proposal → Minimal Patch 
+    → IsolatedSandbox → Syntax Check → Repro Test → Security Re-Scan → Taint Re-Analysis 
+    → Finding Differential → Regression Status → Governance Decision → Final Repair Verdict 
+    → Report & Single-File UI
+```
+
+### Key Architectural Invariants & Components:
+
+1. **`RealWorldRepairValidator` (`SWE/agentos_swe/repair/repair_validator.py`)**:
+   - Executes pre-patch baseline analysis and checks intentional pattern signals (`INTENTIONAL_FALLBACK`, `TEST_HARNESS`, `DICT_LOOKUP`). Returns `RepairVerdict.NO_REPAIR_REQUIRED` for safe diagnostic patterns.
+   - Applies candidate patches strictly inside `IsolatedSandbox`, validating syntax (`py_compile`) and reproduction test execution.
+   - Performs post-patch security re-scanning and taint re-analysis on patched workspace code.
+
+2. **Differential Finding Comparison (`SecurityRegressionAnalyzer`)**:
+   - Computes structural finding sets: `Removed Findings`, `Remaining Findings`, and `Newly Introduced Findings`.
+   - Assigns `RegressionStatus.NEW_VULNERABILITY_INTRODUCED` and `RepairVerdict.REGRESSION_DETECTED` if any new `CRITICAL` or `HIGH` vulnerability appears.
+
+3. **`PatchQualityMetrics`**:
+   - Evaluates modified file count, line diff size, API signature preservation, and formatting noise to score patch quality (`HIGH`, `MEDIUM`, `LOW`).
+
+4. **Single-File UI & Executive Report Integration (`SWE/agentos_swe/ui.py` & `report.py`)**:
+   - Extends Page 12 `"Vulnerability Intelligence"` with a dedicated subsection **"Repair Validation & Security Regression Hardening"**.
+   - Displays `BEFORE → VULNERABILITY → PROPOSED PATCH → SANDBOX VALIDATION → AFTER → REGRESSION → VERDICT` cards and differential comparison tables.
+
 
 ---
 
