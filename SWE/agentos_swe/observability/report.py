@@ -65,13 +65,21 @@ class ReportGenerator:
         remediation_plan: Optional[Any] = None,
         monitoring_result: Optional[Any] = None,
         release_decision: Optional[Any] = None,
+        orchestration_result: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
         f_m = report.finding_metrics
         r_m = report.repair_metrics
 
-        # M19 Release telemetry formatting
+        # M20 Orchestration telemetry
+        orc_dict = orchestration_result.to_dict() if hasattr(orchestration_result, "to_dict") else (orchestration_result or {})
+        wf_state = orc_dict.get("current_state", "COMPLETED")
+        next_act = orc_dict.get("next_action", "NO_ACTION_REQUIRED")
+        act_reason = orc_dict.get("next_action_reason", "Clean repository pass.")
+        hr_req = orc_dict.get("human_review") is not None
+
+        # M19 Release telemetry
         rel_dict = release_decision.to_dict() if hasattr(release_decision, "to_dict") else (release_decision or {})
         rel_dec = rel_dict.get("decision", "GO")
         rel_gate = rel_dict.get("release_status", "ALLOW_RELEASE")
@@ -88,7 +96,7 @@ class ReportGenerator:
                 blocker_rows.append(f"| `{sev}` | `{cat}` | {ttl} | `{aff}` | {act} |")
         blocker_table = "\n".join(blocker_rows) if blocker_rows else "| `NONE` | `CLEAN` | Zero Release Blockers | `N/A` | Repository release ready |"
 
-        # M18 Monitoring telemetry formatting
+        # M18 Monitoring telemetry
         mon_dict = monitoring_result.to_dict() if hasattr(monitoring_result, "to_dict") else (monitoring_result or {})
         reg_sev = mon_dict.get("regression_severity", "NO_REGRESSION")
         risk_trend = mon_dict.get("risk_trend", "STABLE")
@@ -234,12 +242,22 @@ class ReportGenerator:
 - **Total Trace Events**: `{report.trace_events_count}`
 - **Current Security Score**: `{curr_score} / 100`
 - **Projected Security Score**: `{proj_score} / 100 (+{tot_red} Points)`
+- **Workflow State**: `{wf_state}`
+- **Next Action Decision**: `{next_act}`
 - **Release Decision State**: `{rel_dec}`
 - **Security Gate Verdict**: `{rel_gate}`
 - **Regression Severity**: `{reg_sev}`
-- **Risk Trend**: `{risk_trend}`
+- **Human Review Escalation**: `{hr_req}`
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
+
+---
+
+### ⚙️ M20 Security Engineering Workflow Report
+- **Workflow State**: `{wf_state}`
+- **Next Action Decision**: `{next_act}`
+- **Action Reason**: {act_reason}
+- **Human Review Escalation**: `{hr_req}`
 
 ---
 
@@ -255,12 +273,6 @@ class ReportGenerator:
 
 ---
 
-### 📡 M18 Continuous Security Monitoring & Regression Report
-- **Score Before**: `{score_b} / 100`
-- **Score After**: `{score_a} / 100`
-- **Score Delta**: `{s_delta:+d}`
-- **Regression Classification**: `{reg_sev}`
-- **Summary**: {mon_dict.get("summary_explanation", "Zero security regressions detected.")}
 
 #### 🚨 Active Security Alerts
 | Severity | Category | Title | Action |

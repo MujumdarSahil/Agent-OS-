@@ -183,3 +183,24 @@ class GovernanceGate:
             return GovernanceDecision.REVIEW_REQUIRED
         else:
             return GovernanceDecision.ALLOW
+
+    def evaluate_security_workflow(self, workflow_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M20 SecurityOrchestrationResult against governance policies.
+        """
+        if getattr(workflow_result, "human_review", None) is not None:
+            return GovernanceDecision.REVIEW_REQUIRED
+
+        cur_state = str(getattr(workflow_result, "current_state", "")).upper()
+        if "BLOCKED" in cur_state:
+            return GovernanceDecision.DENY
+        elif "FAILED" in cur_state or "GOVERNANCE" in cur_state:
+            return GovernanceDecision.REVIEW_REQUIRED
+
+        next_act = str(getattr(workflow_result, "next_action", "")).upper()
+        if next_act == "BLOCK_RELEASE":
+            return GovernanceDecision.DENY
+        elif next_act in ("REQUIRE_HUMAN_REVIEW", "REPLAN_REMEDIATION"):
+            return GovernanceDecision.REVIEW_REQUIRED
+
+        return GovernanceDecision.ALLOW

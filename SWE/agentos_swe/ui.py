@@ -244,6 +244,14 @@ from agentos_swe.release import (
     SecurityGateVerdict,
     ReleaseDeltaState,
 )
+from agentos_swe.orchestration import (
+    SecurityEngineeringOrchestrator,
+    WorkflowState,
+    NextActionDecision,
+    SecurityCaseStatus,
+    SecurityOrchestrationResult,
+    SecurityEngineeringSummary,
+)
 
 
 
@@ -859,6 +867,26 @@ def run_swe_scan_engine(
 
         record_stage("RELEASE READINESS", t0, f"Evaluated release readiness (Decision: {release_decision.decision.value}, Blockers: {len(release_decision.blockers)})")
 
+        # 11.11 M20 Security Engineering Orchestration Workflow
+        t0 = time.time()
+        orchestrator = SecurityEngineeringOrchestrator()
+        orchestration_result = orchestrator.orchestrate_repository(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            release_decision=release_decision,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            commit_sha=resolved_commit,
+            governance_status=g_rel_dec.value,
+        )
+
+        g_orc_dec = gov_gate.evaluate_security_workflow(orchestration_result)
+        governance_decisions.append({"finding_id": "security_orchestration_workflow", "decision": g_orc_dec.value})
+
+        record_stage("SECURITY ORCHESTRATION", t0, f"Orchestrated workflow (State: {orchestration_result.current_state.value}, Next Action: {orchestration_result.next_action.value})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -882,10 +910,10 @@ def run_swe_scan_engine(
             remediation_plan=remediation_plan,
             monitoring_result=monitoring_result,
             release_decision=release_decision,
+            orchestration_result=orchestration_result,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
-
 
         record_stage("FINAL REPORT", t0, "Generated execution report & telemetry")
 
@@ -893,6 +921,7 @@ def run_swe_scan_engine(
 
         # Update Session State
         data["status"] = "COMPLETE"
+        data["orchestration_result"] = orchestration_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
@@ -1029,7 +1058,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (18 Pages)
+    # Navigation Menu (19 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -1049,6 +1078,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "16. Remediation Center",
         "17. Security Monitoring",
         "18. Release Readiness",
+        "19. Security Engineering",
     ]
 
     
@@ -2497,6 +2527,119 @@ def render_release_readiness(data: Dict[str, Any]):
         st.info("Baseline release evaluation active.")
 
 
+def render_security_engineering(data: Dict[str, Any]):
+    """Render Page 19 — Security Engineering Workflow & Decision Pipeline Dashboard."""
+    st.title("⚙️ M20 Security Engineering Workflow & Decision Pipeline")
+    st.caption("Deterministic Security Engineering Orchestration, Bounded Remediation Loop & Next Action Engine")
+
+    res: Optional[SecurityOrchestrationResult] = data.get("orchestration_result")
+
+    if not res:
+        st.info("ℹ️ No active security workflow. Repository is currently release-ready.")
+        return
+
+    cur_state = res.current_state.value if hasattr(res.current_state, "value") else str(res.current_state)
+    next_act = res.next_action.value if hasattr(res.next_action, "value") else str(res.next_action)
+    hr_req = res.human_review is not None
+
+    # Section A: Executive Workflow Status Banner
+    banner_class = "alert-pass"
+    if cur_state == "BLOCKED" or next_act in ("BLOCK_RELEASE", "REQUIRE_HUMAN_REVIEW"):
+        banner_class = "alert-failed"
+    elif cur_state in ("GOVERNANCE", "FAILED") or next_act in ("REPLAN_REMEDIATION", "INVESTIGATE_FINDING"):
+        banner_class = "alert-investigate"
+
+    st.markdown(
+        f"""
+        <div class="alert-banner {banner_class}">
+            <h3 style="margin:0; padding:0; color:inherit;">
+                WORKFLOW STATE: {cur_state} | NEXT ACTION: {next_act}
+            </h3>
+            <p style="margin:4px 0 0 0; color:inherit;">{res.next_action_reason}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### 📊 Workflow Execution Metrics")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Workflow ID", res.workflow_id)
+    with c2:
+        st.metric("Current State", cur_state)
+    with c3:
+        st.metric("Next Action", next_act)
+    with c4:
+        st.metric("Human Review Requested", "YES ⚠️" if hr_req else "NO ✅")
+
+    st.markdown("---")
+
+    # Section B: Current Security Case Details
+    st.markdown("### 🎯 Current Security Cases")
+    if res.cases:
+        case_rows = []
+        for case in res.cases:
+            case_rows.append({
+                "Case ID": f"`{case.case_id}`",
+                "Priority": f"`{case.priority}`",
+                "Root Cause": f"`{case.root_cause}`",
+                "Status": f"`{case.current_status.value if hasattr(case.current_status, 'value') else case.current_status}`",
+                "Remediation Attempts": case.remediation_attempts,
+                "Release Decision": f"`{case.release_decision or 'N/A'}`",
+            })
+        st.table(case_rows)
+    else:
+        st.success("Zero active security cases.")
+
+    st.markdown("---")
+
+    # Section C: Workflow Timeline
+    st.markdown("### ⏱️ Security Case Timeline")
+    if res.cases and res.cases[0].timeline:
+        tl_rows = []
+        for entry in res.cases[0].timeline:
+            tl_rows.append({
+                "Timestamp": entry.timestamp[:19],
+                "Event": entry.event,
+                "State": f"`{entry.state.value if hasattr(entry.state, 'value') else entry.state}`",
+                "Details": entry.details,
+            })
+        st.table(tl_rows)
+    else:
+        st.info("Workflow timeline cleanly executed.")
+
+    st.markdown("---")
+
+    # Section D: Human Review Escalation Card (if active)
+    if res.human_review:
+        hr = res.human_review
+        st.markdown("### ⚠️ Human Review Escalation Card")
+        st.error(f"**Escalation Reason**: {hr.reason}")
+        st.markdown(f"- **Review ID**: `{hr.review_id}`")
+        st.markdown(f"- **Severity**: `{hr.severity}`")
+        st.markdown(f"- **Affected Files**: `{', '.join(hr.affected_files)}` ")
+        st.markdown(f"- **Recommended Next Step**: {hr.recommended_next_step}")
+        st.markdown("---")
+
+    # Section E: Global Security Engineering Posture
+    st.markdown("### 🌐 Global Security Engineering Posture Summary")
+    if res.summary:
+        s = res.summary
+        sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+        with sc1:
+            st.metric("Repos Scanned", s.repositories_scanned)
+        with sc2:
+            st.metric("Critical Findings", s.critical_findings)
+        with sc3:
+            st.metric("Active Attack Paths", s.active_attack_paths)
+        with sc4:
+            st.metric("Blocked Releases", s.blocked_releases)
+        with sc5:
+            st.metric("Review Required", s.review_required)
+    else:
+        st.info("Batch posture summary ready for multi-repository runs.")
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -2556,6 +2699,8 @@ def main():
         render_security_monitoring(data)
     elif nav_selection.startswith("18."):
         render_release_readiness(data)
+    elif nav_selection.startswith("19."):
+        render_security_engineering(data)
 
 
 if __name__ == "__main__":
