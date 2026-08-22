@@ -1,6 +1,6 @@
 """
-GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation, M13 & M13.1 Repair Validation.
-Evaluates RiskAssessment, CorrelatedFinding, and RepairValidationResult against registered AgentOS Governance Policies.
+GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation, M13 Repair Validation & M14 Historical Intelligence.
+Evaluates RiskAssessment, CorrelatedFinding, RepairValidationResult, and ScanComparisonResult against registered policies.
 """
 
 import logging
@@ -10,13 +10,14 @@ from agentos.core.governance import GovernanceEngine, Policy, PolicyType
 from agentos_swe.pr.models import RiskLevel, RiskAssessment, GovernanceDecision
 from agentos_swe.correlation.models import CorrelatedFinding
 from agentos_swe.repair.models import RepairValidationResult, RepairVerdict
+from agentos_swe.history.models import ScanComparisonResult, RiskTrend
 
 logger = logging.getLogger(__name__)
 
 
 class GovernanceGate:
     """
-    Evaluates PR creation and correlated repair proposals against AgentOS GovernanceEngine policies.
+    Evaluates PR creation, correlated repairs, and historical security comparisons against policies.
     """
 
     def __init__(self, governance_engine: Optional[GovernanceEngine] = None):
@@ -110,3 +111,14 @@ class GovernanceGate:
             return GovernanceDecision.ALLOW
         else:
             return GovernanceDecision.REVIEW_REQUIRED
+
+    def evaluate_historical_comparison(self, comparison: ScanComparisonResult) -> GovernanceDecision:
+        """
+        Evaluate M14 ScanComparisonResult against governance policies.
+        """
+        if comparison.risk_trend == RiskTrend.DEGRADING or len(comparison.reopened_findings) > 0:
+            return GovernanceDecision.REVIEW_REQUIRED
+        elif comparison.score_delta < 0:
+            return GovernanceDecision.REVIEW_REQUIRED
+        else:
+            return GovernanceDecision.ALLOW

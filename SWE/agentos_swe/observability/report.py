@@ -1,5 +1,5 @@
 """
-ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1).
+ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """
     Generates structured JSON and Markdown execution run reports from a TraceCollector,
-    including M13 Vulnerability Intelligence and M13.1 Repair Validation metrics.
+    including M13 Vulnerability Intelligence, M13.1 Repair Validation, and M14 Historical Intelligence.
     """
 
     def generate_run_report(
@@ -57,6 +57,7 @@ class ReportGenerator:
         correlated_findings: Optional[List[Dict[str, Any]]] = None,
         repair_proposals: Optional[List[Dict[str, Any]]] = None,
         repair_validations: Optional[List[Dict[str, Any]]] = None,
+        historical_comparison: Optional[Dict[str, Any]] = None,
         regression_results: Optional[List[Dict[str, Any]]] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
@@ -95,6 +96,31 @@ class ReportGenerator:
                 val_rows.append(f"| `{fid}` | `{rc}` | `{tf}` | `{qual}` | `{verdict}` |")
         val_table = "\n".join(val_rows) if val_rows else "| None | N/A | N/A | N/A | NO_REPAIR_REQUIRED |"
 
+        # M14 Historical Comparison Summary
+        hist_section = ""
+        if historical_comparison:
+            score_b = historical_comparison.get("score_before", 100)
+            score_a = historical_comparison.get("score_after", 100)
+            delta = historical_comparison.get("score_delta", 0)
+            trend = historical_comparison.get("risk_trend", "STABLE")
+            n_new = len(historical_comparison.get("new_findings", []))
+            n_fixed = len(historical_comparison.get("fixed_findings", []))
+            n_reopened = len(historical_comparison.get("reopened_findings", []))
+
+            hist_section = f"""
+---
+
+### 📈 M14 Historical Security Intelligence & Risk Trend
+- **Security Score Before**: `{score_b} / 100`
+- **Current Security Score**: `{score_a} / 100`
+- **Score Delta**: `{delta:+d}`
+- **Risk Trend**: `{trend}`
+- **New Vulnerabilities**: `{n_new}`
+- **Fixed Vulnerabilities**: `{n_fixed}`
+- **Reopened Vulnerabilities**: `{n_reopened}`
+- **Trend Explanation**: {historical_comparison.get("explanation", "N/A")}
+"""
+
         # Governance table
         gov_rows = []
         if governance_decisions:
@@ -104,7 +130,7 @@ class ReportGenerator:
                 gov_rows.append(f"| `{fid}` | `{dec}` |")
         gov_table = "\n".join(gov_rows) if gov_rows else "| None | ALLOW |"
 
-        md = f"""# 📊 AgentOS-SWE Execution Run Report & Vulnerability Intelligence
+        md = f"""# 📊 AgentOS-SWE Execution Run Report & Historical Security Intelligence
 
 ### 📌 Executive Summary
 - **Repository**: `{report.repository_name}`
@@ -115,7 +141,7 @@ class ReportGenerator:
 - **Total Trace Events**: `{report.trace_events_count}`
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
-
+{hist_section}
 ---
 
 ### 🔍 Finding Summary & Metrics

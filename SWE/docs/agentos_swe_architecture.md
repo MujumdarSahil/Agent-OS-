@@ -32,6 +32,30 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M12.6** | Test-Harness Exception Semantic Hardening | **COMPLETE** | Hardened deterministic exception intent resolver (`PythonSemanticResolver.analyze_exception_block`). Combines exception variable binding, logging/print diagnostics detection, controlled fallback analysis (`return`, `assign`, `continue`, `break`), and module role context (`TEST_HARNESS`). Eliminates CLI smoke test logging false positives while preserving genuine silent `except Exception: pass` detections. |
 | **M13** | Vulnerability Correlation & Intelligent Repair | **COMPLETE** | Evidence-driven correlation engine (`EvidenceCorrelator`), deterministic root-cause analyzer (`RootCauseAnalyzer`), explainable confidence scoring, vulnerability-specific repair engine (`IntelligentRepairEngine`), sandboxed patch validator (`SandboxedPatchValidator`), security regression analyzer (`SecurityRegressionAnalyzer`), governance integration (`GovernanceGate`), single-file UI dashboard (Page 12: Vulnerability Intelligence), and executive reporting. |
 | **M13.1** | Real-World Repair Validation & Regression Hardening | **COMPLETE** | Empirical repair validation engine (`RealWorldRepairValidator`), sandboxed re-analysis, differential before/after finding comparison (`FIXED`, `REMAINING`, `NEW`), patch quality metrics (`PatchQualityMetrics`), regression detection (`REGRESSION_DETECTED`), intentional pattern preservation (`NO_REPAIR_REQUIRED`), single-file UI repair validation section, and executive report summaries. |
+| **M14** | Repository Security Intelligence & Historical Regression | **COMPLETE** | Persistent local SQLite scan store (`HistoricalScanStore`), deterministic SHA-256 finding fingerprinter (`FindingFingerprinter`), finding lifecycle states (`NEW`, `FIXED`, `UNCHANGED`, `REOPENED`, `REGRESSION`), security score formula ($0 - 100$), risk trend analyzer (`SecurityScorer`), read-only git diff impact analyzer (`ChangedCodeImpactAnalyzer`), historical scan comparator (`HistoricalScanComparator`), single-file UI Page 13 ("Security History"), and executive reports. |
+
+---
+
+## M14 — Repository Security Intelligence & Historical Regression Architecture
+
+M14 transforms AgentOS-SWE from a single-snapshot security scanner into a historical repository security intelligence system:
+
+```
+Repository / Commit → Repository Baseline → Current Scan → Finding Fingerprinting 
+    → Historical Correlation → Finding Lifecycles (NEW | FIXED | UNCHANGED | REOPENED | REGRESSION) 
+    → Security Score & Risk Trend → Changed-Code Impact → Historical Timeline 
+    → Executive Report & Single-File UI
+```
+
+### Key Architectural Components:
+
+1. **`HistoricalScanStore` (`agentos_swe/history/store.py`)**: Persistent SQLite database store (`agentos_swe_history.db`) operating 100% locally. Manages historical `ScanRecord` snapshots with secret redaction and multi-repository isolation.
+2. **`FindingFingerprinter` (`agentos_swe/history/fingerprint.py`)**: Line-number-invariant SHA-256 fingerprinter based on root cause, category, affected function, sink/source, and normalized code context.
+3. **`SecurityScorer` (`agentos_swe/history/scoring.py`)**: Computes explainable internal security score ($0 - 100$) based on severity weights ($\text{CRITICAL}=25, \text{HIGH}=15, \text{MEDIUM}=5, \text{LOW}=1$), score deltas, and `RiskTrend` (`IMPROVING`, `DEGRADING`, `STABLE`).
+4. **`ChangedCodeImpactAnalyzer` (`agentos_swe/history/impact.py`)**: Read-only Git diff analyzer correlating recently changed files/functions with security findings.
+5. **`HistoricalScanComparator` (`agentos_swe/history/comparator.py`)**: Structural comparator evaluating finding lifecycle transitions (`FOUND → UNCHANGED → FIXED → REOPENED`).
+6. **Single-File UI Integration (`agentos_swe/ui.py`)**: Enforces single-file UI invariant with Page 13 ("Security History & Risk Trend Analysis").
+
 
 ---
 

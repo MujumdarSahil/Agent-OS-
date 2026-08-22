@@ -192,6 +192,16 @@ from agentos_swe.repair.models import (
     PatchQualityMetrics,
     RepairValidationResult,
 )
+from agentos_swe.history import (
+    HistoricalScanStore,
+    HistoricalScanComparator,
+    ScanRecord,
+    RiskTrend,
+    FindingFingerprinter,
+    SecurityScorer,
+    FindingLifecycleState,
+)
+
 
 
 
@@ -412,6 +422,8 @@ def run_swe_scan_engine(
     data = session_data if session_data is not None else init_session_state()
     data["status"] = "PREPARING"
     data["error"] = None
+    data.setdefault("metadata", {})
+
 
 
     if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
@@ -655,7 +667,51 @@ def run_swe_scan_engine(
                     pr_res = pr_pipeline.execute_pr_pipeline(match_f, patch, context)
                     pr_results.append(pr_res)
 
-        record_stage("GOVERNANCE", t0, f"Evaluated governance for {len(governance_decisions)} correlated findings")
+        # 11.5 M14 Historical Repository Security Intelligence
+        t0 = time.time()
+        hist_store = HistoricalScanStore()
+        hist_comparator = HistoricalScanComparator()
+        repo_key = repo_name or os.path.basename(scan_target_path)
+
+        current_scan_rec = ScanRecord(
+            scan_id=scan_id,
+            repository=repo_key,
+            repository_url=resolved_target if source_type == "GITHUB" else "",
+            owner=owner,
+            branch=branch,
+            commit_sha=resolved_commit,
+            timestamp=start_time_iso,
+            scan_mode=scan_mode,
+            files_analyzed=len(context.source_files),
+            graph_nodes=context.graph_metadata.get("nodes_count", 0) if hasattr(context, "graph_metadata") and isinstance(context.graph_metadata, dict) else 0,
+            graph_edges=context.graph_metadata.get("edges_count", 0) if hasattr(context, "graph_metadata") and isinstance(context.graph_metadata, dict) else 0,
+
+            findings=[f.to_dict() for f in verified_findings],
+            correlated_findings=[cf.to_dict() for cf in correlated_findings],
+            security_findings=[f.to_dict() for f in verified_findings if f.category == "security"],
+            taint_findings=[tf.to_dict() for tf in taint_findings],
+            repair_results=[pr.to_dict() for pr in repair_results],
+            repair_validations=[rv.to_dict() for rv in repair_validations],
+            runtime=round(time.time() - t_start, 3),
+            final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
+        )
+
+        prev_scan_rec = hist_store.get_latest_scan(repo_key)
+        all_hist_scans = hist_store.list_scans(repo_key)
+
+        hist_comparison = hist_comparator.compare_scans(
+            current_scan=current_scan_rec,
+            previous_scan=prev_scan_rec,
+            historical_scans=all_hist_scans,
+            repository_path=scan_target_path,
+        )
+
+        # Save current scan to SQLite store
+        hist_store.save_scan(current_scan_rec)
+        g_hist_dec = gov_gate.evaluate_historical_comparison(hist_comparison)
+        governance_decisions.append({"finding_id": "historical_trend", "decision": g_hist_dec.value})
+
+        record_stage("HISTORICAL INTELLIGENCE", t0, f"Score: {hist_comparison.score_after}/100 ({hist_comparison.score_delta:+d}), Trend: {hist_comparison.risk_trend.value}")
 
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
@@ -672,6 +728,7 @@ def run_swe_scan_engine(
             correlated_findings=[cf.to_dict() for cf in correlated_findings],
             repair_proposals=[rp.to_dict() for rp in repair_proposals],
             repair_validations=[rv.to_dict() for rv in repair_validations],
+            historical_comparison=hist_comparison.to_dict(),
             regression_results=[rr.to_dict() for rr in regression_results],
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
@@ -705,6 +762,8 @@ def run_swe_scan_engine(
         data["correlated_findings"] = correlated_findings
         data["repair_proposals"] = repair_proposals
         data["repair_validations"] = repair_validations
+        data["historical_comparison"] = hist_comparison
+        data["current_scan_record"] = current_scan_rec
         data["regression_results"] = regression_results
         data["governance_decisions"] = governance_decisions
         data["repair_results"] = repair_results
@@ -715,6 +774,7 @@ def run_swe_scan_engine(
         data["report_markdown"] = report_md
         data["report_json"] = json.dumps(run_report.to_dict(), indent=2)
         data["report_html"] = f"<html><body><pre>{html.escape(report_md)}</pre></body></html>"
+
 
 
         data["safety_state"] = {
@@ -808,7 +868,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (12 Pages)
+    # Navigation Menu (13 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -822,6 +882,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "10. Report",
         "11. Safety",
         "12. Vulnerability Intelligence",
+        "13. Security History",
     ]
 
     
@@ -1621,6 +1682,137 @@ def render_vulnerability_intelligence(data: Dict[str, Any]):
                 st.error(f"**Validation Diagnostic Note**: {rv.failure_reason}")
 
 
+# ---------------------------------------------------------------------------
+# M14 — Security History & Risk Trend Panel
+# ---------------------------------------------------------------------------
+
+def render_security_history(data: Dict[str, Any]):
+    """Render Repository Security Intelligence & Historical Regression Panel."""
+    st.title("📈 Repository Security Intelligence & Historical Trend")
+    st.caption("Cross-Commit Security Scoring, Finding Lifecycle Tracking, Reopened Vulnerability Detection, and Git Impact Intersections")
+
+    hist_comp = data.get("historical_comparison")
+    meta = data.get("metadata", {})
+    repo_name = meta.get("repo_name") or "Unknown Repo"
+
+    hist_store = HistoricalScanStore()
+
+    if not hist_comp:
+        st.info("No historical comparison data available for the current scan yet.")
+        scans = hist_store.list_scans(repo_name)
+        if scans:
+            st.markdown(f"**Saved Historical Scans for `{repo_name}`**: {len(scans)}")
+        return
+
+    score_before = getattr(hist_comp, "score_before", 100)
+    score_after = getattr(hist_comp, "score_after", 100)
+    score_delta = getattr(hist_comp, "score_delta", 0)
+    trend = getattr(hist_comp, "risk_trend", RiskTrend.STABLE)
+    trend_val = trend.value if hasattr(trend, "value") else str(trend)
+
+    # Prominent Security Score Card
+    st.markdown("### 🏆 Security Score & Risk Trend")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("CURRENT SCORE", f"{score_after} / 100", f"{score_delta:+d}")
+    c2.metric("BASELINE SCORE", f"{score_before} / 100")
+    c3.metric("RISK TREND", trend_val)
+    c4.metric("BASELINE SCAN ID", getattr(hist_comp, "baseline_scan_id", "Initial Baseline") or "Initial Baseline")
+
+    trend_class = "pass" if trend_val == "IMPROVING" else ("failed" if trend_val == "DEGRADING" else "investigate")
+    st.markdown(
+        f"""
+        <div class="alert-banner alert-{trend_class}">
+            <h4 style="margin:0;">RISK TREND: {trend_val}</h4>
+            <p style="margin:5px 0 0 0;">{getattr(hist_comp, 'explanation', '')}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("---")
+
+    # Finding Lifecycle Explorer Tabs
+    st.markdown("### 🔄 Finding Lifecycle Breakdown")
+    new_f = getattr(hist_comp, "new_findings", [])
+    fixed_f = getattr(hist_comp, "fixed_findings", [])
+    unchanged_f = getattr(hist_comp, "unchanged_findings", [])
+    reopened_f = getattr(hist_comp, "reopened_findings", [])
+
+    tab_new, tab_fixed, tab_unchanged, tab_reopened = st.tabs([
+        f"🔴 New ({len(new_f)})",
+        f"🟢 Fixed ({len(fixed_f)})",
+        f"🟡 Unchanged ({len(unchanged_f)})",
+        f"⚠️ Reopened ({len(reopened_f)})",
+    ])
+
+    with tab_new:
+        if new_f:
+            for item in new_f:
+                st.error(f"**[NEW]** `{item.get('finding_id') or item.get('id')}` — Root Cause: `{item.get('root_cause') or item.get('category')}` | File: `{item.get('affected_file') or item.get('file')}`")
+        else:
+            st.success("Zero new vulnerabilities introduced in this scan.")
+
+    with tab_fixed:
+        if fixed_f:
+            for item in fixed_f:
+                st.success(f"**[FIXED]** `{item.get('finding_id') or item.get('id')}` — Root Cause: `{item.get('root_cause') or item.get('category')}` | File: `{item.get('affected_file') or item.get('file')}`")
+        else:
+            st.info("Zero vulnerabilities fixed in this scan cycle.")
+
+    with tab_unchanged:
+        if unchanged_f:
+            for item in unchanged_f:
+                st.warning(f"**[UNCHANGED]** `{item.get('finding_id') or item.get('id')}` — Root Cause: `{item.get('root_cause') or item.get('category')}` | File: `{item.get('affected_file') or item.get('file')}`")
+        else:
+            st.caption("No unchanged findings.")
+
+    with tab_reopened:
+        if reopened_f:
+            for item in reopened_f:
+                st.error(f"**[REOPENED]** `{item.get('finding_id') or item.get('id')}` — Root Cause: `{item.get('root_cause') or item.get('category')}` | File: `{item.get('affected_file') or item.get('file')}`")
+        else:
+            st.success("Zero reopened vulnerabilities detected.")
+
+    st.markdown("---")
+
+    # Changed-Code Impact Analysis Table
+    st.markdown("### ⚡ Changed-Code Impact & Security Intersection")
+    impacts = getattr(hist_comp, "changed_code_impacts", [])
+    if impacts:
+        for imp in impacts:
+            f_file = getattr(imp, "file", "N/A")
+            f_fn = getattr(imp, "function_name") or "Module Scope"
+            f_sev = getattr(imp, "severity") or "LOW"
+            f_desc = getattr(imp, "description", "")
+            f_intersect = getattr(imp, "intersects_finding_id")
+
+            if f_intersect:
+                st.error(f"🚨 **Security Intersection**: `{f_file}` (`{f_fn}`) — {f_desc}")
+            else:
+                st.caption(f"📝 Modified File: `{f_file}` (+{getattr(imp, 'lines_added', 0)}/-{getattr(imp, 'lines_removed', 0)} lines)")
+    else:
+        st.info("No changed-code security intersections detected for current commit range.")
+
+    st.markdown("---")
+
+    # Baseline & Repository Management Controls
+    st.markdown("### 🗄️ Baseline & Scan History Controls")
+    all_scans = hist_store.list_scans(repo_name)
+
+    ctrl1, ctrl2 = st.columns(2)
+    with ctrl1:
+        st.markdown(f"**Stored Scans for `{repo_name}`**: {len(all_scans)}")
+        if st.button("Save Current Scan as Baseline"):
+            curr_rec = data.get("current_scan_record")
+            if curr_rec:
+                hist_store.save_scan(curr_rec)
+                st.success("Current scan record updated in persistent SQLite store.")
+
+    with ctrl2:
+        if st.button("Clear Repository History"):
+            hist_store.delete_repository_history(repo_name)
+            st.warning(f"Cleared historical scans for `{repo_name}`.")
+
 
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
@@ -1669,8 +1861,11 @@ def main():
         render_safety(data)
     elif nav_selection.startswith("12."):
         render_vulnerability_intelligence(data)
+    elif nav_selection.startswith("13."):
+        render_security_history(data)
 
 
 if __name__ == "__main__":
     main()
+
 
