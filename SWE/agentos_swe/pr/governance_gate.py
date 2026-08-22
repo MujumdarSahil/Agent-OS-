@@ -204,3 +204,24 @@ class GovernanceGate:
             return GovernanceDecision.REVIEW_REQUIRED
 
         return GovernanceDecision.ALLOW
+
+    def evaluate_knowledge_insights(self, knowledge_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M21 Knowledge Insights against governance policies.
+        """
+        cross_patterns = getattr(knowledge_result, "cross_patterns", []) or (knowledge_result.get("cross_patterns", []) if isinstance(knowledge_result, dict) else [])
+        for cp in cross_patterns:
+            reg_rate = cp.get("regression_rate", 0.0) if isinstance(cp, dict) else getattr(cp, "regression_rate", 0.0)
+            if reg_rate > 0.25:
+                return GovernanceDecision.REVIEW_REQUIRED
+
+        return GovernanceDecision.ALLOW
+
+    def evaluate_simulation_results(self, simulation_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M22 Simulation Results against governance policies.
+        """
+        repro_count = simulation_result.get("reproduced_count", 0) if isinstance(simulation_result, dict) else getattr(simulation_result, "reproduced_count", 0)
+        if repro_count > 0:
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW

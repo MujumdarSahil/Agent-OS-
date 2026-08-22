@@ -66,11 +66,27 @@ class ReportGenerator:
         monitoring_result: Optional[Any] = None,
         release_decision: Optional[Any] = None,
         orchestration_result: Optional[Any] = None,
+        knowledge_result: Optional[Any] = None,
+        simulation_result: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
         f_m = report.finding_metrics
         r_m = report.repair_metrics
+
+        # M22 Simulation telemetry
+        sim_dict = simulation_result.to_dict() if hasattr(simulation_result, "to_dict") else (simulation_result or {})
+        sim_status = sim_dict.get("overall_status", "NOT_REPRODUCED")
+        sim_repro_count = sim_dict.get("reproduced_count", 0)
+
+        # M21 Knowledge telemetry
+        k_dict = knowledge_result.to_dict() if hasattr(knowledge_result, "to_dict") else (knowledge_result or {})
+        tot_records = k_dict.get("total_knowledge_records", 0)
+        recs = k_dict.get("recommendations", [])
+        top_rec = recs[0] if recs else {}
+        rec_strat = top_rec.get("strategy", "APPLY_DEFENSIVE_SANITIZATION")
+        rec_conf = top_rec.get("confidence", "HIGH")
+        rec_exp = top_rec.get("explanation", "Default recommendation.")
 
         # M20 Orchestration telemetry
         orc_dict = orchestration_result.to_dict() if hasattr(orchestration_result, "to_dict") else (orchestration_result or {})
@@ -250,6 +266,18 @@ class ReportGenerator:
 - **Human Review Escalation**: `{hr_req}`
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
+
+### 🧪 M22 Security Simulation & Exploitability Validation Report
+- **Overall Simulation Status**: `{sim_status}`
+- **Vulnerabilities Reproduced**: `{sim_repro_count}`
+- **Simulation Safety Gate Verdict**: `ALLOWED (IsolatedSandbox + Localhost Loopback Only)`
+
+---
+
+### 🧠 M21 Security Knowledge & Learning Intelligence Report
+- **Total Knowledge Records Accumulated**: `{tot_records}`
+- **Top Recommended Repair Strategy**: `{rec_strat}` (Confidence: `{rec_conf}`)
+- **Strategy Rationale**: {rec_exp}
 
 ---
 

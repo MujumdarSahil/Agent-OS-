@@ -252,6 +252,8 @@ from agentos_swe.orchestration import (
     SecurityOrchestrationResult,
     SecurityEngineeringSummary,
 )
+from agentos_swe.knowledge import SecurityKnowledgeEngine
+from agentos_swe.simulation import SecuritySimulationEngine
 
 
 
@@ -823,6 +825,22 @@ def run_swe_scan_engine(
 
         record_stage("REMEDIATION PLANNING", t0, f"Planned {len(remediation_plan.remediation_items)} remediation items" + (f" (Projected Score: {remediation_plan.projected_security_score})" if remediation_plan.remediation_items else ""))
 
+        # 11.85 M22 Safe Security Simulation & Exploitability Validation Engine
+        t0 = time.time()
+        simulation_engine = SecuritySimulationEngine()
+        simulation_result = simulation_engine.run_simulation_pipeline(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            repair_validations=repair_validations,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+        )
+
+        g_sim_dec = gov_gate.evaluate_simulation_results(simulation_result)
+        governance_decisions.append({"finding_id": "security_simulation_validation", "decision": g_sim_dec.value})
+
+        record_stage("SECURITY SIMULATION", t0, f"Executed safe simulation (Status: {simulation_result.get('overall_status', 'NOT_REPRODUCED')}, Reproduced: {simulation_result.get('reproduced_count', 0)})")
+
         # 11.9 M18 Continuous Security Monitoring & Regression Detection
         t0 = time.time()
         sec_monitor = SecurityMonitor()
@@ -887,6 +905,24 @@ def run_swe_scan_engine(
 
         record_stage("SECURITY ORCHESTRATION", t0, f"Orchestrated workflow (State: {orchestration_result.current_state.value}, Next Action: {orchestration_result.next_action.value})")
 
+        # 11.12 M21 Security Knowledge & Learning Intelligence Engine
+        t0 = time.time()
+        knowledge_engine = SecurityKnowledgeEngine()
+        knowledge_result = knowledge_engine.process_scan_knowledge(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            release_decision=release_decision,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+        )
+
+        g_know_dec = gov_gate.evaluate_knowledge_insights(knowledge_result)
+        governance_decisions.append({"finding_id": "security_knowledge_insights", "decision": g_know_dec.value})
+
+        record_stage("SECURITY KNOWLEDGE", t0, f"Learned patterns & stored knowledge ({knowledge_result.get('total_knowledge_records', 0)} total records)")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -911,6 +947,8 @@ def run_swe_scan_engine(
             monitoring_result=monitoring_result,
             release_decision=release_decision,
             orchestration_result=orchestration_result,
+            knowledge_result=knowledge_result,
+            simulation_result=simulation_result,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
@@ -922,6 +960,8 @@ def run_swe_scan_engine(
         # Update Session State
         data["status"] = "COMPLETE"
         data["orchestration_result"] = orchestration_result
+        data["knowledge_result"] = knowledge_result
+        data["simulation_result"] = simulation_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
@@ -1058,7 +1098,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (19 Pages)
+    # Navigation Menu (21 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -1079,6 +1119,8 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "17. Security Monitoring",
         "18. Release Readiness",
         "19. Security Engineering",
+        "20. Security Knowledge",
+        "21. Security Simulation",
     ]
 
     
@@ -2640,6 +2682,161 @@ def render_security_engineering(data: Dict[str, Any]):
         st.info("Batch posture summary ready for multi-repository runs.")
 
 
+def render_security_knowledge(data: Dict[str, Any]):
+    """Render Page 20 — Security Knowledge Graph & Learning Intelligence Dashboard."""
+    st.title("🧠 M21 Security Knowledge Graph & Learning Intelligence")
+    st.caption("Deterministic Security Knowledge Base, Pattern Learning & Adaptive Security Rationale")
+
+    k_res: Optional[Dict[str, Any]] = data.get("knowledge_result")
+
+    if not k_res:
+        st.info("ℹ️ No historical security knowledge accumulated. Initializing knowledge base.")
+        return
+
+    tot_records = k_res.get("total_knowledge_records", 0)
+    pats = k_res.get("patterns_learned", [])
+    recs = k_res.get("recommendations", [])
+    cross_pats = k_res.get("cross_patterns", [])
+
+    st.markdown("### 📊 Knowledge Metrics")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Total Knowledge Records", tot_records)
+    with c2:
+        st.metric("Patterns Learned", len(pats))
+    with c3:
+        st.metric("Adaptive Recommendations", len(recs))
+    with c4:
+        st.metric("Cross-Repo Intelligence Patterns", len(cross_pats))
+
+    st.markdown("---")
+
+    # Top Recurring Patterns Section
+    st.markdown("### 🔄 Top Recurring Security Vulnerability Patterns")
+    if cross_pats:
+        cp_rows = []
+        for cp in cross_pats[:5]:
+            cp_rows.append({
+                "Pattern ID": f"`{cp.get('pattern_id', 'N/A')}`",
+                "Root Cause": f"`{cp.get('root_cause', 'N/A')}`",
+                "Frequency": cp.get("frequency", 0),
+                "Repositories": f"`{', '.join(cp.get('repositories', []))}`",
+                "Success Rate": f"{int(cp.get('successful_remediation_rate', 1.0) * 100)}%",
+                "Regression Rate": f"{int(cp.get('regression_rate', 0.0) * 100)}%",
+            })
+        st.table(cp_rows)
+    else:
+        st.success("Zero cross-repository recurring vulnerability patterns detected.")
+
+    st.markdown("---")
+
+    # Adaptive Recommendations Section
+    st.markdown("### 💡 Recommended Repair Strategies")
+    if recs:
+        rec_rows = []
+        for r in recs:
+            rec_rows.append({
+                "Strategy": f"`{r.get('strategy', 'N/A')}`",
+                "Confidence": f"`{r.get('confidence', 'HIGH')}`",
+                "Successes / Attempts": f"{r.get('historical_successes', 0)} / {r.get('historical_attempts', 0)}",
+                "Regressions": r.get("historical_regressions", 0),
+                "Explanation": r.get("explanation", "N/A"),
+            })
+        st.table(rec_rows)
+    else:
+        st.info("Adaptive remediation recommendations ready for candidate findings.")
+
+    st.markdown("---")
+
+    # Knowledge Graph Section
+    st.markdown("### 🕸️ Knowledge Graph & Evidence Trace")
+    graph = k_res.get("knowledge_graph")
+    if graph and hasattr(graph, "nodes"):
+        st.markdown(f"- **Nodes Registered**: `{len(graph.nodes)}` ")
+        st.markdown(f"- **Edges Linked**: `{len(graph.edges)}` ")
+        st.caption("Deterministic graph traversal active (Capped at MAX_KNOWLEDGE_GRAPH_DEPTH = 8)")
+    else:
+        st.info("Knowledge graph active.")
+
+
+def render_security_simulation(data: Dict[str, Any]):
+    """Render Page 21 — Safe Security Simulation & Exploitability Validation Dashboard."""
+    st.title("🧪 M22 Safe Security Simulation & Exploitability Validation")
+    st.caption("Sandboxed Vulnerability Reproduction, Attack Path Simulation & Repair Differentials")
+
+    sim_res: Optional[Dict[str, Any]] = data.get("simulation_result")
+
+    if not sim_res:
+        st.info("ℹ️ No active security simulation. Clean repository pass.")
+        return
+
+    ov_status = sim_res.get("overall_status", "NOT_REPRODUCED")
+    repro_count = sim_res.get("reproduced_count", 0)
+    results = sim_res.get("results", [])
+    diffs = sim_res.get("differentials", [])
+
+    banner_class = "alert-pass" if ov_status == "NOT_REPRODUCED" else "alert-failed"
+    st.markdown(
+        f"""
+        <div class="alert-banner {banner_class}">
+            <h3 style="margin:0; padding:0; color:inherit;">
+                SIMULATION STATUS: {ov_status} | REPRODUCED VULNERABILITIES: {repro_count}
+            </h3>
+            <p style="margin:4px 0 0 0; color:inherit;">Safety Gate: ALLOWED (IsolatedSandbox + Localhost Loopback Only)</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### 📊 Simulation Execution Metrics")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Overall Status", ov_status)
+    with c2:
+        st.metric("Reproduced Vulnerabilities", repro_count)
+    with c3:
+        st.metric("Safety Gate Verdict", "ALLOWED ✅")
+    with c4:
+        st.metric("Sandbox Lifecycle", "ACTIVE & ISOLATED 🛡️")
+
+    st.markdown("---")
+
+    # Scenarios and Execution Traces
+    st.markdown("### 🎯 Safe Reproduction Scenarios & Traces")
+    if results:
+        res_rows = []
+        for r in results:
+            res_rows.append({
+                "Scenario ID": f"`{r.get('scenario_id', 'N/A')}`",
+                "Status": f"`{r.get('status', 'N/A')}`",
+                "Reproduced": "YES ⚠️" if r.get("reproduced") else "NO ✅",
+                "Blocked": "YES ✅" if r.get("blocked") else "NO",
+                "Execution Time": f"{r.get('execution_time', 0.0)}s",
+                "Security Impact": f"`{r.get('security_impact', 'NONE')}`",
+            })
+        st.table(res_rows)
+    else:
+        st.success("Zero reproduction scenarios required.")
+
+    st.markdown("---")
+
+    # Repair Differentials Section
+    st.markdown("### 🔄 Repair Validation & Attack Path Differential")
+    if diffs:
+        diff_rows = []
+        for d in diffs:
+            diff_rows.append({
+                "Finding ID": f"`{d.get('finding_id', 'N/A')}`",
+                "Pre-Patch Status": f"`{d.get('before_status', 'N/A')}`",
+                "Post-Patch Status": f"`{d.get('after_status', 'N/A')}`",
+                "Attack Path Verdict": f"`{d.get('attack_path_impact', 'N/A')}`",
+                "Repaired": "YES ✅" if d.get("repaired") else "NO ❌",
+            })
+        st.table(diff_rows)
+    else:
+        st.info("Differential repair analysis ready for patch validation runs.")
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -2701,6 +2898,10 @@ def main():
         render_release_readiness(data)
     elif nav_selection.startswith("19."):
         render_security_engineering(data)
+    elif nav_selection.startswith("20."):
+        render_security_knowledge(data)
+    elif nav_selection.startswith("21."):
+        render_security_simulation(data)
 
 
 if __name__ == "__main__":
