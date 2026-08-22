@@ -1,5 +1,5 @@
 """
-ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14).
+ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14, M15).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """
     Generates structured JSON and Markdown execution run reports from a TraceCollector,
-    including M13 Vulnerability Intelligence, M13.1 Repair Validation, and M14 Historical Intelligence.
+    including M13 Vulnerability Intelligence, M13.1 Repair Validation, M14 History, and M15 Security Intelligence.
     """
 
     def generate_run_report(
@@ -58,6 +58,8 @@ class ReportGenerator:
         repair_proposals: Optional[List[Dict[str, Any]]] = None,
         repair_validations: Optional[List[Dict[str, Any]]] = None,
         historical_comparison: Optional[Dict[str, Any]] = None,
+        prioritized_findings: Optional[List[Dict[str, Any]]] = None,
+        cross_repository_patterns: Optional[List[Dict[str, Any]]] = None,
         regression_results: Optional[List[Dict[str, Any]]] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
@@ -71,6 +73,21 @@ class ReportGenerator:
                 f"| `{name}` | {a.execution_count} | {a.success_count} | {a.failure_count} | {a.fallback_count} | {a.total_tokens} | {a.total_duration_sec:.2f}s |"
             )
         agent_table = "\n".join(agent_rows) if agent_rows else "| None | 0 | 0 | 0 | 0 | 0 | 0s |"
+
+        # M15 Prioritized Remediation Queue Table
+        prio_rows = []
+        if prioritized_findings:
+            for pf in prioritized_findings[:5]:
+                rk = pf.get("rank", "#")
+                tier = pf.get("priority_tier", "P3")
+                score = pf.get("priority_score", 0)
+                rc = pf.get("root_cause", "UNKNOWN")
+                aff = pf.get("affected_file", "N/A")
+                exp = pf.get("exploitability", "UNKNOWN")
+                expo = pf.get("exposure", "UNKNOWN")
+                act = pf.get("recommended_action", "Apply defensive sanitization.")
+                prio_rows.append(f"| `#{rk}` | `{tier}` | `{score}` | `{rc}` | `{aff}` | `{exp}` | `{expo}` | {act} |")
+        prio_table = "\n".join(prio_rows) if prio_rows else "| #1 | `P4` | `0` | `NONE` | `N/A` | `LOW` | `INTERNAL` | Zero priority findings detected |"
 
         # Correlated Findings table
         corr_rows = []
@@ -130,7 +147,7 @@ class ReportGenerator:
                 gov_rows.append(f"| `{fid}` | `{dec}` |")
         gov_table = "\n".join(gov_rows) if gov_rows else "| None | ALLOW |"
 
-        md = f"""# 📊 AgentOS-SWE Execution Run Report & Historical Security Intelligence
+        md = f"""# 📊 AgentOS-SWE Execution Run Report & Security Intelligence
 
 ### 📌 Executive Summary
 - **Repository**: `{report.repository_name}`
@@ -142,6 +159,13 @@ class ReportGenerator:
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
 {hist_section}
+---
+
+### 🎯 M15 Top Remediation Queue (What Should I Fix First?)
+| Rank | Tier | Score | Root Cause | Affected File | Exploitability | Exposure | Recommended Action |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{prio_table}
+
 ---
 
 ### 🔍 Finding Summary & Metrics

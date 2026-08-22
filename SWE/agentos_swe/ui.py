@@ -201,6 +201,16 @@ from agentos_swe.history import (
     SecurityScorer,
     FindingLifecycleState,
 )
+from agentos_swe.intelligence import (
+    SecurityPriorityEngine,
+    CrossRepositoryIntelligenceEngine,
+    PrioritizedFinding,
+    PriorityTier,
+    ExploitabilityLevel,
+    ExposureLevel,
+    BlastRadiusLevel,
+)
+
 
 
 
@@ -713,6 +723,32 @@ def run_swe_scan_engine(
 
         record_stage("HISTORICAL INTELLIGENCE", t0, f"Score: {hist_comparison.score_after}/100 ({hist_comparison.score_delta:+d}), Trend: {hist_comparison.risk_trend.value}")
 
+        # 11.6 M15 Intelligent Security Prioritization & Cross-Repository Intelligence
+        t0 = time.time()
+        prio_engine = SecurityPriorityEngine()
+        cross_repo_engine = CrossRepositoryIntelligenceEngine()
+
+        corr_dicts = [cf.to_dict() for cf in correlated_findings] if correlated_findings else [f.to_dict() for f in verified_findings]
+        taint_dicts = [tf.to_dict() for tf in taint_findings]
+
+        prioritized_findings = prio_engine.prioritize_findings(
+            findings=corr_dicts,
+            historical_comparison=hist_comparison,
+            context=context,
+            taint_findings=taint_dicts,
+        )
+
+        cross_patterns = cross_repo_engine.analyze_cross_repository_patterns(
+            store=hist_store,
+            current_repository=repo_key,
+            current_findings=corr_dicts,
+        )
+
+        g_intel_dec = gov_gate.evaluate_security_intelligence(prioritized_findings)
+        governance_decisions.append({"finding_id": "security_prioritization", "decision": g_intel_dec.value})
+
+        record_stage("SECURITY INTELLIGENCE", t0, f"Prioritized {len(prioritized_findings)} findings" + (f" (Top: {prioritized_findings[0].priority_tier.value} Score: {prioritized_findings[0].priority_score})" if prioritized_findings else ""))
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -729,10 +765,13 @@ def run_swe_scan_engine(
             repair_proposals=[rp.to_dict() for rp in repair_proposals],
             repair_validations=[rv.to_dict() for rv in repair_validations],
             historical_comparison=hist_comparison.to_dict(),
+            prioritized_findings=[pf.to_dict() for pf in prioritized_findings],
+            cross_repository_patterns=[cp.to_dict() for cp in cross_patterns],
             regression_results=[rr.to_dict() for rr in regression_results],
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
+
         record_stage("FINAL REPORT", t0, "Generated execution report & telemetry")
 
         duration_sec = round(time.time() - t_start, 3)
@@ -764,7 +803,10 @@ def run_swe_scan_engine(
         data["repair_validations"] = repair_validations
         data["historical_comparison"] = hist_comparison
         data["current_scan_record"] = current_scan_rec
+        data["prioritized_findings"] = prioritized_findings
+        data["cross_repository_patterns"] = cross_patterns
         data["regression_results"] = regression_results
+
         data["governance_decisions"] = governance_decisions
         data["repair_results"] = repair_results
         data["pr_results"] = pr_results
@@ -868,7 +910,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (13 Pages)
+    # Navigation Menu (14 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -883,6 +925,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "11. Safety",
         "12. Vulnerability Intelligence",
         "13. Security History",
+        "14. Security Intelligence",
     ]
 
     
@@ -1815,6 +1858,101 @@ def render_security_history(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
+# M15 — Intelligent Security Prioritization & Cross-Repository Risk Panel
+# ---------------------------------------------------------------------------
+
+def render_security_intelligence(data: Dict[str, Any]):
+    """Render Intelligent Security Prioritization & Cross-Repository Risk Intelligence Panel."""
+    st.title("🎯 Intelligent Security Prioritization & Risk Intelligence")
+    st.caption("Evidence-Driven Remediation Ranking (P0–P4), Exploitability Analysis, Internet Exposure, Blast Radius, and Cross-Repository Patterns")
+
+    prioritized = data.get("prioritized_findings", [])
+    cross_patterns = data.get("cross_repository_patterns", [])
+    meta = data.get("metadata", {})
+    repo_name = meta.get("repo_name") or "Unknown Repo"
+
+    if not prioritized:
+        st.info("Zero priority security findings detected for the current scan cycle.")
+        return
+
+    # Section A: Overall Security Posture
+    st.markdown("### 🏆 Overall Security Posture & Risk Metrics")
+    p0_cnt = sum(1 for p in prioritized if getattr(p, 'priority_tier') == PriorityTier.P0 or getattr(p, 'priority_tier') == "P0")
+    p1_cnt = sum(1 for p in prioritized if getattr(p, 'priority_tier') == PriorityTier.P1 or getattr(p, 'priority_tier') == "P1")
+    expo_cnt = sum(1 for p in prioritized if getattr(p, 'exposure') == ExposureLevel.INTERNET_EXPOSED or getattr(p, 'exposure') == "INTERNET_EXPOSED")
+    crit_exp_cnt = sum(1 for p in prioritized if getattr(p, 'exploitability') == ExploitabilityLevel.CRITICAL or getattr(p, 'exploitability') == "CRITICAL")
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("TOP REMEDIATION RANK", f"#{prioritized[0].rank}" if prioritized else "#1")
+    m2.metric("TOP SCORE", f"{prioritized[0].priority_score} / 100" if prioritized else "0/100")
+    m3.metric("P0 / P1 FINDINGS", f"{p0_cnt + p1_cnt}")
+    m4.metric("INTERNET EXPOSED", f"{expo_cnt}")
+    m5.metric("CRITICAL EXPLOITABLE", f"{crit_exp_cnt}")
+
+    st.markdown("---")
+
+    # Section B: Top Remediation Queue (#1 - #5)
+    st.markdown("### 🛠️ Top Remediation Queue (What Should I Fix First?)")
+    top_5 = prioritized[:5]
+    for pf in top_5:
+        tier_str = pf.priority_tier.value if hasattr(pf.priority_tier, "value") else str(pf.priority_tier)
+        exp_str = pf.exploitability.value if hasattr(pf.exploitability, "value") else str(pf.exploitability)
+        expo_str = pf.exposure.value if hasattr(pf.exposure, "value") else str(pf.exposure)
+        blast_str = pf.blast_radius.value if hasattr(pf.blast_radius, "value") else str(pf.blast_radius)
+
+        badge_class = "critical" if tier_str in ("P0", "P1") else ("high" if tier_str == "P2" else "medium")
+        with st.expander(f"Rank #{pf.rank} [{tier_str}] Score: {pf.priority_score}/100 — {pf.root_cause} in `{pf.affected_file}`", expanded=(pf.rank == 1)):
+            c_a, c_b = st.columns([2, 1])
+            with c_a:
+                st.markdown(f"**Vulnerability Root Cause**: `{pf.root_cause}`")
+                st.markdown(f"**Target File / Function**: `{pf.affected_file}` (`{pf.affected_function or 'module scope'}`)")
+                st.markdown(f"**Why Prioritized**: {pf.why_it_is_prioritized}")
+                st.markdown(f"**Why This Matters**: {pf.why_this_matters}")
+                st.success(f"**Recommended Action**: {pf.recommended_action}")
+                st.info(f"**Expected Risk Reduction**: {pf.expected_risk_reduction}")
+            with c_b:
+                st.markdown(f"**Priority Score**: `{pf.priority_score} / 100`")
+                st.markdown(f"**Priority Tier**: `{tier_str}`")
+                st.markdown(f"**Exploitability**: `{exp_str}`")
+                st.markdown(f"**Exposure**: `{expo_str}`")
+                st.markdown(f"**Blast Radius**: `{blast_str}`")
+                if pf.repair_strategy:
+                    st.caption(f"**M13 Strategy**: `{pf.repair_strategy}`")
+
+    st.markdown("---")
+
+    # Section C: Cross-Repository Pattern Intelligence
+    st.markdown("### 🌐 Cross-Repository Risk Intelligence & Vulnerability Patterns")
+    if cross_patterns:
+        pattern_rows = []
+        for cp in cross_patterns:
+            pattern_rows.append({
+                "Vulnerability Family": cp.vulnerability_family,
+                "Affected Repositories": cp.affected_repositories_count,
+                "Total Occurrences": cp.total_occurrences,
+                "Highest Severity": cp.highest_severity,
+                "Most Common Sink": cp.most_common_sink,
+                "Pattern Trend": cp.trend,
+            })
+        st.table(pattern_rows)
+    else:
+        st.info("No cross-repository pattern data available.")
+
+    st.markdown("---")
+
+    # Section D: Evidence Inspector Flow
+    st.markdown("### 🔬 Interactive Evidence Inspector")
+    selected_fid = st.selectbox("Select Finding to Inspect Evidence Flow:", [p.finding_id for p in prioritized])
+    sel_p = next((p for p in prioritized if p.finding_id == selected_fid), prioritized[0])
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.markdown(f"**1. Root Cause**\n`{sel_p.root_cause}`")
+    e2.markdown(f"**2. Exploitability**\n`{sel_p.exploitability.value if hasattr(sel_p.exploitability, 'value') else sel_p.exploitability}`")
+    e3.markdown(f"**3. Exposure**\n`{sel_p.exposure.value if hasattr(sel_p.exposure, 'value') else sel_p.exposure}`")
+    e4.markdown(f"**4. Recommended Fix Strategy**\n`{sel_p.repair_strategy or 'DEFENSIVE_SANITIZATION'}`")
+
+
+# ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
 
@@ -1863,9 +2001,12 @@ def main():
         render_vulnerability_intelligence(data)
     elif nav_selection.startswith("13."):
         render_security_history(data)
+    elif nav_selection.startswith("14."):
+        render_security_intelligence(data)
 
 
 if __name__ == "__main__":
     main()
+
 
 

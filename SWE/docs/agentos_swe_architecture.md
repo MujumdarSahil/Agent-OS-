@@ -33,6 +33,31 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M13** | Vulnerability Correlation & Intelligent Repair | **COMPLETE** | Evidence-driven correlation engine (`EvidenceCorrelator`), deterministic root-cause analyzer (`RootCauseAnalyzer`), explainable confidence scoring, vulnerability-specific repair engine (`IntelligentRepairEngine`), sandboxed patch validator (`SandboxedPatchValidator`), security regression analyzer (`SecurityRegressionAnalyzer`), governance integration (`GovernanceGate`), single-file UI dashboard (Page 12: Vulnerability Intelligence), and executive reporting. |
 | **M13.1** | Real-World Repair Validation & Regression Hardening | **COMPLETE** | Empirical repair validation engine (`RealWorldRepairValidator`), sandboxed re-analysis, differential before/after finding comparison (`FIXED`, `REMAINING`, `NEW`), patch quality metrics (`PatchQualityMetrics`), regression detection (`REGRESSION_DETECTED`), intentional pattern preservation (`NO_REPAIR_REQUIRED`), single-file UI repair validation section, and executive report summaries. |
 | **M14** | Repository Security Intelligence & Historical Regression | **COMPLETE** | Persistent local SQLite scan store (`HistoricalScanStore`), deterministic SHA-256 finding fingerprinter (`FindingFingerprinter`), finding lifecycle states (`NEW`, `FIXED`, `UNCHANGED`, `REOPENED`, `REGRESSION`), security score formula ($0 - 100$), risk trend analyzer (`SecurityScorer`), read-only git diff impact analyzer (`ChangedCodeImpactAnalyzer`), historical scan comparator (`HistoricalScanComparator`), single-file UI Page 13 ("Security History"), and executive reports. |
+| **M15** | Intelligent Security Prioritization & Cross-Repository Risk Intelligence | **COMPLETE** | Evidence-driven priority scoring engine (`SecurityPriorityEngine`), priority tiers (`P0`–`P4`), exploitability analyzer (`ExploitabilityAnalyzer`), internet exposure analyzer (`ExposureAnalyzer`), blast radius analyzer (`BlastRadiusAnalyzer`), historical recurrence analyzer (`HistoricalRecurrenceAnalyzer`), cross-repository intelligence engine (`CrossRepositoryIntelligenceEngine`), security recommendation engine (`SecurityRecommendationEngine`), single-file UI Page 14 ("Security Intelligence"), and executive report summaries. |
+
+---
+
+## M15 — Intelligent Security Prioritization & Cross-Repository Risk Intelligence Architecture
+
+M15 builds an evidence-driven intelligence layer on top of M0–M14, prioritizing findings by exploitability, internet exposure, blast radius, historical recurrence, and cross-repository patterns:
+
+```
+Repository / Commit → Taint Analysis & Code Graph → Historical Scan History 
+    → Exploitability Engine → Internet Exposure Engine → Blast Radius Engine 
+    → Recurrence Engine → Security Priority Engine (P0–P4, Score 0–100) 
+    → Cross-Repository Engine → Recommendation Engine → Report & Single-File UI
+```
+
+### Key Architectural Components:
+
+1. **`SecurityPriorityEngine` (`agentos_swe/intelligence/prioritizer.py`)**: Computes explainable priority score ($0 - 100$) and assigns priority tiers (`P0`: 90-100, `P1`: 75-89, `P2`: 60-74, `P3`: 40-59, `P4`: 0-39) based on documented evidence weights.
+2. **`ExploitabilityAnalyzer` (`agentos_swe/intelligence/exploitability.py`)**: Evaluates M12 taint sources, sinks, propagation paths, and sanitizers (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `NOT_EXPLOITABLE`).
+3. **`ExposureAnalyzer` (`agentos_swe/intelligence/exposure.py`)**: Analyzes AST & Code Graph decorators (`@app.get`, `@app.post`, `@router.get`, `request.args`, `argparse`) to classify reachability (`INTERNET_EXPOSED`, `USER_CONTROLLED`, `INTERNAL`).
+4. **`BlastRadiusAnalyzer` (`agentos_swe/intelligence/blast_radius.py`)**: Analyzes Code Graph callers and dependents to estimate system impact scope (`SYSTEM_WIDE`, `BROAD`, `LIMITED`, `LOCAL`).
+5. **`CrossRepositoryIntelligenceEngine` (`agentos_swe/intelligence/cross_repository.py`)**: Groups stored multi-repository historical findings into normalized vulnerability families (`COMMAND_INJECTION`, `SQL_INJECTION`, etc.) and calculates cross-repo occurrence metrics.
+6. **`SecurityRecommendationEngine` (`agentos_swe/intelligence/recommendation.py`)**: Generates explainable remediation guidance (`WHY_THIS_MATTERS`, `WHAT_TO_FIX`, `WHY_IT_IS_PRIORITIZED`, `RECOMMENDED_ACTION`, `EXPECTED_RISK_REDUCTION`) connected to M13/M13.1 repair strategies.
+7. **Single-File UI Integration (`agentos_swe/ui.py`)**: Enforces single-file UI invariant with Page 14 ("Security Intelligence & Remediation Queue").
+
 
 ---
 
