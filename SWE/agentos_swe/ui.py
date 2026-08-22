@@ -210,6 +210,16 @@ from agentos_swe.intelligence import (
     ExposureLevel,
     BlastRadiusLevel,
 )
+from agentos_swe.attackpath import (
+    AttackPathCorrelator,
+    AttackGraphBuilder,
+    AutonomousSecurityInvestigator,
+    AttackPath,
+    PathClassification,
+    EntrypointType,
+    AuthStatus,
+)
+
 
 
 
@@ -749,6 +759,20 @@ def run_swe_scan_engine(
 
         record_stage("SECURITY INTELLIGENCE", t0, f"Prioritized {len(prioritized_findings)} findings" + (f" (Top: {prioritized_findings[0].priority_tier.value} Score: {prioritized_findings[0].priority_score})" if prioritized_findings else ""))
 
+        # 11.7 M16 Autonomous Attack-Path Reasoning & Security Investigation
+        t0 = time.time()
+        path_correlator = AttackPathCorrelator()
+        attack_paths = path_correlator.correlate_attack_paths(
+            findings=corr_dicts,
+            taint_findings=taint_dicts,
+            context=context,
+        )
+
+        g_path_dec = gov_gate.evaluate_attack_paths(attack_paths)
+        governance_decisions.append({"finding_id": "attack_path_reasoning", "decision": g_path_dec.value})
+
+        record_stage("ATTACK PATH REASONING", t0, f"Correlated {len(attack_paths)} attack paths" + (f" (Top Risk Score: {attack_paths[0].risk_score})" if attack_paths else ""))
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -767,10 +791,12 @@ def run_swe_scan_engine(
             historical_comparison=hist_comparison.to_dict(),
             prioritized_findings=[pf.to_dict() for pf in prioritized_findings],
             cross_repository_patterns=[cp.to_dict() for cp in cross_patterns],
+            attack_paths=[ap.to_dict() for ap in attack_paths],
             regression_results=[rr.to_dict() for rr in regression_results],
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
+
 
         record_stage("FINAL REPORT", t0, "Generated execution report & telemetry")
 
@@ -805,7 +831,9 @@ def run_swe_scan_engine(
         data["current_scan_record"] = current_scan_rec
         data["prioritized_findings"] = prioritized_findings
         data["cross_repository_patterns"] = cross_patterns
+        data["attack_paths"] = attack_paths
         data["regression_results"] = regression_results
+
 
         data["governance_decisions"] = governance_decisions
         data["repair_results"] = repair_results
@@ -910,7 +938,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (14 Pages)
+    # Navigation Menu (15 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -926,6 +954,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "12. Vulnerability Intelligence",
         "13. Security History",
         "14. Security Intelligence",
+        "15. Attack Paths",
     ]
 
     
@@ -1953,6 +1982,90 @@ def render_security_intelligence(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
+# M16 — Autonomous Attack-Path Reasoning & Security Panel
+# ---------------------------------------------------------------------------
+
+def render_attack_paths(data: Dict[str, Any]):
+    """Render Autonomous Attack-Path Reasoning Panel."""
+    st.title("🌐 Autonomous Attack-Path Reasoning & Security Investigation")
+    st.caption("End-to-End Attack Surface Analysis: Entrypoints → Trust Boundaries → Propagation → Sanitizers → Dangerous Sinks")
+
+    attack_paths = data.get("attack_paths", [])
+    if not attack_paths:
+        st.info("Zero active attack paths detected for current repository scan cycle.")
+        return
+
+    # Section A: Attack Surface Summary Metrics
+    st.markdown("### 🛡️ Attack Surface Summary")
+    total_paths = len(attack_paths)
+    exploitable_cnt = sum(1 for p in attack_paths if getattr(p, "classification") == PathClassification.EXPLOITABLE or getattr(p, "classification") == "EXPLOITABLE")
+    blocked_cnt = sum(1 for p in attack_paths if getattr(p, "classification") in (PathClassification.BLOCKED, PathClassification.NOT_EXPLOITABLE, "BLOCKED", "NOT_EXPLOITABLE"))
+    crit_high_cnt = sum(1 for p in attack_paths if getattr(p, "severity") in ("CRITICAL", "HIGH"))
+    internet_ep_cnt = sum(1 for p in attack_paths if getattr(p, "entrypoint_type") == EntrypointType.INTERNET or getattr(p, "entrypoint_type") == "INTERNET")
+
+    a1, a2, a3, a4, a5 = st.columns(5)
+    a1.metric("TOTAL ATTACK PATHS", f"{total_paths}")
+    a2.metric("EXPLOITABLE PATHS", f"{exploitable_cnt}")
+    a3.metric("BLOCKED / MITIGATED", f"{blocked_cnt}")
+    a4.metric("CRITICAL / HIGH RISK", f"{crit_high_cnt}")
+    a5.metric("INTERNET ENTRYPOINTS", f"{internet_ep_cnt}")
+
+    st.markdown("---")
+
+    # Section B: Attack Path Explorer Table
+    st.markdown("### 🗺️ Attack Path Explorer")
+    path_table_data = []
+    for ap in attack_paths:
+        path_table_data.append({
+            "Path ID": ap.id,
+            "Risk Score": ap.risk_score,
+            "Severity": ap.severity,
+            "Root Cause": ap.root_cause,
+            "Entrypoint": ap.entrypoint,
+            "Source Type": ap.source_type,
+            "Sink Type": ap.sink_type,
+            "Classification": ap.classification.value if hasattr(ap.classification, "value") else str(ap.classification),
+            "Auth Status": ap.auth_status.value if hasattr(ap.auth_status, "value") else str(ap.auth_status),
+        })
+    st.table(path_table_data)
+
+    st.markdown("---")
+
+    # Section C: Attack Graph Visualizer
+    st.markdown("### 🕸️ Interactive Attack Graph Visualizer")
+    selected_pid = st.selectbox("Select Attack Path to Visualize Graph:", [p.id for p in attack_paths])
+    sel_path = next((p for p in attack_paths if p.id == selected_pid), attack_paths[0])
+
+    graph_builder = AttackGraphBuilder()
+    attack_graph = graph_builder.build_attack_graph(sel_path)
+
+    try:
+        st.graphviz_chart(attack_graph.to_dot())
+    except Exception as ex:
+        st.code(attack_graph.to_dot(), language="dot")
+
+    st.markdown("---")
+
+    # Section D: Autonomous Security Investigation & Break Point Narrative
+    st.markdown("### 🔬 Autonomous Security Investigation & Remediation Break Point")
+    investigator = AutonomousSecurityInvestigator()
+    investigation = investigator.investigate_attack_path(sel_path)
+
+    c_inv1, c_inv2 = st.columns(2)
+    with c_inv1:
+        st.markdown("#### 🚨 Why is this Dangerous?")
+        st.warning(investigation.why_dangerous_narrative)
+        st.markdown(f"**Exploitability**: `{investigation.exploitability}`")
+        st.markdown(f"**Exposure Scope**: `{investigation.exposure}`")
+        st.markdown(f"**Blast Radius**: `{investigation.blast_radius}`")
+    with c_inv2:
+        st.markdown("#### 🛠️ How to Break the Attack Path")
+        st.success(investigation.how_to_break_narrative)
+        st.markdown(f"**Recommended Repair Strategy**: `{investigation.repair_strategy or 'DEFENSIVE_SANITIZATION'}`")
+        st.markdown(f"**Sandboxed Validation Status**: `{investigation.validation_status}`")
+
+
+# ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
 
@@ -2003,10 +2116,13 @@ def main():
         render_security_history(data)
     elif nav_selection.startswith("14."):
         render_security_intelligence(data)
+    elif nav_selection.startswith("15."):
+        render_attack_paths(data)
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -1,5 +1,5 @@
 """
-ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14, M15).
+ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14, M15, M16).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """
     Generates structured JSON and Markdown execution run reports from a TraceCollector,
-    including M13 Vulnerability Intelligence, M13.1 Repair Validation, M14 History, and M15 Security Intelligence.
+    including M13 Vulnerability Intelligence, M13.1 Repair Validation, M14 History, M15 Prioritization, and M16 Attack Paths.
     """
 
     def generate_run_report(
@@ -60,6 +60,7 @@ class ReportGenerator:
         historical_comparison: Optional[Dict[str, Any]] = None,
         prioritized_findings: Optional[List[Dict[str, Any]]] = None,
         cross_repository_patterns: Optional[List[Dict[str, Any]]] = None,
+        attack_paths: Optional[List[Dict[str, Any]]] = None,
         regression_results: Optional[List[Dict[str, Any]]] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
@@ -73,6 +74,21 @@ class ReportGenerator:
                 f"| `{name}` | {a.execution_count} | {a.success_count} | {a.failure_count} | {a.fallback_count} | {a.total_tokens} | {a.total_duration_sec:.2f}s |"
             )
         agent_table = "\n".join(agent_rows) if agent_rows else "| None | 0 | 0 | 0 | 0 | 0 | 0s |"
+
+        # M16 Attack Surface Summary Table
+        attack_rows = []
+        if attack_paths:
+            for ap in attack_paths[:5]:
+                pid = ap.get("id", "path_#")
+                score = ap.get("risk_score", 0)
+                rc = ap.get("root_cause", "UNKNOWN")
+                ep = ap.get("entrypoint", "Internal")
+                src = ap.get("source_type", "UNKNOWN")
+                snk = ap.get("sink_type", "UNKNOWN")
+                cls_type = ap.get("classification", "EXPLOITABLE")
+                act = ap.get("repair_strategy", "Apply defensive sanitization.")
+                attack_rows.append(f"| `{pid}` | `{score}` | `{rc}` | `{ep}` | `{src}` | `{snk}` | `{cls_type}` | {act} |")
+        attack_table = "\n".join(attack_rows) if attack_rows else "| path_1 | `0` | `NONE` | `Internal` | `NONE` | `NONE` | `NOT_EXPLOITABLE` | Zero attack paths detected |"
 
         # M15 Prioritized Remediation Queue Table
         prio_rows = []
@@ -159,6 +175,13 @@ class ReportGenerator:
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
 {hist_section}
+---
+
+### 🌐 M16 Autonomous Attack Surface & Attack Paths Summary
+| Path ID | Risk Score | Root Cause | Entrypoint | Source Type | Sink Type | Classification | Recommended Break Strategy |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{attack_table}
+
 ---
 
 ### 🎯 M15 Top Remediation Queue (What Should I Fix First?)

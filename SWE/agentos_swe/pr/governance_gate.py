@@ -1,6 +1,6 @@
 """
-GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation, M13 Repair Validation, M14 History, and M15 Security Intelligence.
-Evaluates RiskAssessment, CorrelatedFinding, RepairValidationResult, ScanComparisonResult, and PrioritizedFinding against registered policies.
+GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation, M13 Repair Validation, M14 History, M15 Intelligence, and M16 Attack Paths.
+Evaluates RiskAssessment, CorrelatedFinding, RepairValidationResult, ScanComparisonResult, PrioritizedFinding, and AttackPath against registered policies.
 """
 
 import logging
@@ -12,13 +12,14 @@ from agentos_swe.correlation.models import CorrelatedFinding
 from agentos_swe.repair.models import RepairValidationResult, RepairVerdict
 from agentos_swe.history.models import ScanComparisonResult, RiskTrend
 from agentos_swe.intelligence.models import PrioritizedFinding, PriorityTier
+from agentos_swe.attackpath.models import AttackPath, PathClassification
 
 logger = logging.getLogger(__name__)
 
 
 class GovernanceGate:
     """
-    Evaluates PR creation, correlated repairs, historical comparisons, and priority security findings against policies.
+    Evaluates PR creation, correlated repairs, historical comparisons, priority security findings, and attack paths against policies.
     """
 
     def __init__(self, governance_engine: Optional[GovernanceEngine] = None):
@@ -124,10 +125,19 @@ class GovernanceGate:
         else:
             return GovernanceDecision.ALLOW
 
+
     def evaluate_security_intelligence(self, prioritized_findings: List[PrioritizedFinding]) -> GovernanceDecision:
         """
         Evaluate M15 PrioritizedFindings against governance policies.
         """
         if any(p.priority_tier in (PriorityTier.P0, PriorityTier.P1) for p in prioritized_findings):
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW
+
+    def evaluate_attack_paths(self, attack_paths: List[AttackPath]) -> GovernanceDecision:
+        """
+        Evaluate M16 AttackPaths against governance policies.
+        """
+        if any(p.classification == PathClassification.EXPLOITABLE and p.risk_score >= 70 for p in attack_paths):
             return GovernanceDecision.REVIEW_REQUIRED
         return GovernanceDecision.ALLOW

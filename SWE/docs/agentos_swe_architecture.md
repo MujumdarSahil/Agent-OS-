@@ -34,6 +34,31 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M13.1** | Real-World Repair Validation & Regression Hardening | **COMPLETE** | Empirical repair validation engine (`RealWorldRepairValidator`), sandboxed re-analysis, differential before/after finding comparison (`FIXED`, `REMAINING`, `NEW`), patch quality metrics (`PatchQualityMetrics`), regression detection (`REGRESSION_DETECTED`), intentional pattern preservation (`NO_REPAIR_REQUIRED`), single-file UI repair validation section, and executive report summaries. |
 | **M14** | Repository Security Intelligence & Historical Regression | **COMPLETE** | Persistent local SQLite scan store (`HistoricalScanStore`), deterministic SHA-256 finding fingerprinter (`FindingFingerprinter`), finding lifecycle states (`NEW`, `FIXED`, `UNCHANGED`, `REOPENED`, `REGRESSION`), security score formula ($0 - 100$), risk trend analyzer (`SecurityScorer`), read-only git diff impact analyzer (`ChangedCodeImpactAnalyzer`), historical scan comparator (`HistoricalScanComparator`), single-file UI Page 13 ("Security History"), and executive reports. |
 | **M15** | Intelligent Security Prioritization & Cross-Repository Risk Intelligence | **COMPLETE** | Evidence-driven priority scoring engine (`SecurityPriorityEngine`), priority tiers (`P0`–`P4`), exploitability analyzer (`ExploitabilityAnalyzer`), internet exposure analyzer (`ExposureAnalyzer`), blast radius analyzer (`BlastRadiusAnalyzer`), historical recurrence analyzer (`HistoricalRecurrenceAnalyzer`), cross-repository intelligence engine (`CrossRepositoryIntelligenceEngine`), security recommendation engine (`SecurityRecommendationEngine`), single-file UI Page 14 ("Security Intelligence"), and executive report summaries. |
+| **M16** | Autonomous Attack-Path Reasoning & Security Investigation | **COMPLETE** | End-to-end attack path builder (`AttackPathBuilder`), entrypoint detector (`EntrypointDetector`), trust boundary analyzer (`TrustBoundaryAnalyzer`), auth analyzer (`AuthenticationAnalyzer`), attack graph generator (`AttackGraphBuilder`), attack path scorer (`AttackPathScorer`), autonomous investigator (`AutonomousSecurityInvestigator`), single-file UI Page 15 ("Attack Paths"), and executive reports. |
+
+---
+
+## M16 — Autonomous Attack-Path Reasoning & Security Investigation Architecture
+
+M16 transforms AgentOS-SWE into an autonomous evidence-driven attack-path reasoning and security investigation engine:
+
+```
+Repository / Commit → Entrypoint Discovery → Trust Boundary & Auth Verification 
+    → Inter-Procedural Path Construction (Bounded Depth <= 12) → Sanitizer & Defense Tracking 
+    → Attack Graph Builder → Attack Path Correlation & Deduplication → Risk Scoring (0–100) 
+    → Autonomous Security Investigator → M13/M13.1 Repair Strategy Connection → UI Page 15
+```
+
+### Key Architectural Components:
+
+1. **`AttackPathBuilder` (`agentos_swe/attackpath/path_builder.py`)**: Connects Code Graph, Taint flows, and Entrypoints into end-to-end `AttackPath` models with bounded depth (`MAX_ATTACK_PATH_DEPTH = 12`).
+2. **`EntrypointDetector` (`agentos_swe/attackpath/entrypoints.py`)**: Structural entrypoint discovery across FastAPI, Flask, Django, CLI, WebSocket, and MCP (`INTERNET`, `AUTHENTICATED_HTTP`, `USER_CLI`, `INTERNAL_API`, `SCHEDULED`, `UNKNOWN`).
+3. **`TrustBoundaryAnalyzer` (`agentos_swe/attackpath/trust_boundaries.py`)**: Detects cross-boundary transitions (`INTERNET → APPLICATION → OPERATING_SYSTEM / DATABASE`).
+4. **`AuthenticationAnalyzer` (`agentos_swe/attackpath/auth_analyzer.py`)**: Verifies structural auth controls (`Depends(get_current_user)`, `@login_required`) $\rightarrow$ (`AUTHENTICATED`, `AUTHORIZATION_REQUIRED`, `UNAUTHENTICATED`).
+5. **`AttackGraphBuilder` (`agentos_swe/attackpath/attack_graph.py`)**: Generates directed `AttackGraph` node-edge models and renders Graphviz DOT strings.
+6. **`AutonomousSecurityInvestigator` (`agentos_swe/attackpath/investigation.py`)**: Produces "Why is this dangerous?" narratives and "How to break the attack path" remediation instructions connected to M13/M13.1 repair strategies.
+7. **Single-File UI Integration (`agentos_swe/ui.py`)**: Enforces single-file UI invariant with Page 15 ("Attack Paths").
+
 
 ---
 
