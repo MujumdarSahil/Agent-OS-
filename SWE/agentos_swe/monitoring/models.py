@@ -1,8 +1,8 @@
 """
-M18 Continuous Security Monitoring & Regression Models.
+M18 & M23 Security Monitoring Models.
 
 Defines domain models, enums, dataclasses, and data structures for continuous security monitoring,
-regression classification, attack-path changes, remediation plan validity, alerts, timelines, and cross-repository posture.
+regression classification, attack-path changes, security drift detection, change impact, alerts, and snapshots.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -10,6 +10,8 @@ from enum import Enum
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+
+# --- M18 Enums ---
 
 class RegressionSeverity(str, Enum):
     """Classification of security regression severity between scans."""
@@ -67,28 +69,56 @@ class TrendDirection(str, Enum):
     VOLATILE = "VOLATILE"
 
 
+# --- Reconciled Models ---
+
 @dataclass
 class SecurityAlert:
-    """Actionable security monitoring alert entry."""
+    """Actionable security monitoring alert entry supporting both M18 and M23."""
     alert_id: str
-    category: AlertCategory
-    severity: AlertSeverity
-    title: str
-    repository: str
-    commit: str
-    reason: str
-    evidence: str
+    category: Optional[Any] = None
+    severity: Optional[Any] = None
+    title: str = "Security Alert"
+    repository: str = "UNKNOWN"
+    commit: str = "N/A"
+    reason: str = ""
+    evidence: Any = ""
     affected_files: List[str] = field(default_factory=list)
     affected_findings: List[str] = field(default_factory=list)
     affected_attack_paths: List[str] = field(default_factory=list)
     recommended_action: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    alert_type: Optional[str] = None
+    commit_sha: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
-        d["category"] = self.category.value if isinstance(self.category, Enum) else self.category
-        d["severity"] = self.severity.value if isinstance(self.severity, Enum) else self.severity
+        if self.category and isinstance(self.category, Enum):
+            d["category"] = self.category.value
+        if self.severity and isinstance(self.severity, Enum):
+            d["severity"] = self.severity.value
         return d
+
+
+@dataclass
+class SecurityChangeImpact:
+    """Correlates git code changes with affected findings and attack paths for both M18 and M23."""
+    commit: str = ""
+    file: str = ""
+    affected_findings_count: int = 0
+    affected_attack_paths_count: int = 0
+    affected_remediation_items_count: int = 0
+    risk_score_delta: int = 0
+    status_description: str = ""
+    modified_files: List[str] = field(default_factory=list)
+    security_sensitive_files: List[str] = field(default_factory=list)
+    added_lines: int = 0
+    removed_lines: int = 0
+    affected_findings: List[Dict[str, Any]] = field(default_factory=list)
+    affected_attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    rationale: str = "No code change impact detected."
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
@@ -123,21 +153,6 @@ class RemediationImpact:
         d = asdict(self)
         d["status"] = self.status.value if isinstance(self.status, Enum) else self.status
         return d
-
-
-@dataclass
-class SecurityChangeImpact:
-    """Detailed security impact assessment for a git commit or diff."""
-    commit: str
-    file: str
-    affected_findings_count: int = 0
-    affected_attack_paths_count: int = 0
-    affected_remediation_items_count: int = 0
-    risk_score_delta: int = 0
-    status_description: str = ""
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
 
 
 @dataclass
@@ -217,3 +232,93 @@ class CrossRepositoryMonitoringResult:
             "degrading_repositories_count": self.degrading_repositories_count,
             "critical_regressions_count": self.critical_regressions_count,
         }
+
+
+# --- M23 Models ---
+
+class DriftScoreCategory(str, Enum):
+    """Categorization for security drift scores."""
+    NO_DRIFT = "NO_DRIFT"
+    LOW_DRIFT = "LOW_DRIFT"
+    MEDIUM_DRIFT = "MEDIUM_DRIFT"
+    HIGH_DRIFT = "HIGH_DRIFT"
+    CRITICAL_DRIFT = "CRITICAL_DRIFT"
+
+
+@dataclass
+class SecuritySnapshot:
+    """Serializable security posture snapshot for a repository commit."""
+    snapshot_id: str
+    repository: str
+    commit_sha: str
+    branch: str = "main"
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    files_analyzed: int = 0
+    findings: List[Dict[str, Any]] = field(default_factory=list)
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    security_score: float = 100.0
+    risk_score: float = 0.0
+    attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    exploitable_paths: List[Dict[str, Any]] = field(default_factory=list)
+    simulation_results: Optional[Dict[str, Any]] = None
+    repair_results: List[Dict[str, Any]] = field(default_factory=list)
+    release_blockers: List[Dict[str, Any]] = field(default_factory=list)
+    knowledge_patterns: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SecurityDrift:
+    """Calculated drift between baseline and current security snapshots."""
+    drift_id: str
+    repository: str
+    baseline_commit: str
+    current_commit: str
+    drift_score: float = 0.0
+    category: DriftScoreCategory = DriftScoreCategory.NO_DRIFT
+    new_findings: List[Dict[str, Any]] = field(default_factory=list)
+    fixed_findings: List[Dict[str, Any]] = field(default_factory=list)
+    reopened_findings: List[Dict[str, Any]] = field(default_factory=list)
+    severity_increases: List[Dict[str, Any]] = field(default_factory=list)
+    severity_decreases: List[Dict[str, Any]] = field(default_factory=list)
+    new_attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    removed_attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    new_exploitable_paths: List[Dict[str, Any]] = field(default_factory=list)
+    security_score_delta: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["category"] = self.category.value if isinstance(self.category, Enum) else self.category
+        return d
+
+
+@dataclass
+class ReleaseDriftAssessment:
+    """Release drift assessment outcome."""
+    release_safe: bool
+    drift_level: DriftScoreCategory
+    blockers: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    required_actions: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["drift_level"] = self.drift_level.value if isinstance(self.drift_level, Enum) else self.drift_level
+        return d
+
+
+@dataclass
+class HistoricalDriftContext:
+    """M14/M21 historical context for security drift occurrences."""
+    previous_occurrence_found: bool = False
+    previous_commit: Optional[str] = None
+    previous_remediation: Optional[str] = None
+    historical_success_rate: float = 1.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)

@@ -225,3 +225,28 @@ class GovernanceGate:
         if repro_count > 0:
             return GovernanceDecision.REVIEW_REQUIRED
         return GovernanceDecision.ALLOW
+
+    def evaluate_security_drift(self, drift_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M23 Security Drift against governance policies.
+        """
+        drift_dict = drift_result.get("drift", {}) if isinstance(drift_result, dict) else getattr(drift_result, "drift", {})
+        cat = drift_dict.get("category", "NO_DRIFT") if isinstance(drift_dict, dict) else getattr(drift_dict, "category", "NO_DRIFT")
+
+        if str(cat).upper() in ("CRITICAL_DRIFT", "HIGH_DRIFT"):
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW
+
+    def evaluate_orchestration_decision(self, orchestration_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M24 Autonomous Decision Orchestration against governance policies.
+        """
+        outcome = orchestration_result.get("governance_outcome", "ALLOW") if isinstance(orchestration_result, dict) else getattr(orchestration_result, "governance_outcome", "ALLOW")
+        global_dec = orchestration_result.get("global_decision", "ALLOW") if isinstance(orchestration_result, dict) else getattr(orchestration_result, "global_decision", "ALLOW")
+
+        g_str = str(global_dec).upper()
+        if outcome == "DENY" or "BLOCK_RELEASE" in g_str:
+            return GovernanceDecision.DENY
+        elif outcome == "REVIEW_REQUIRED" or "HUMAN_REVIEW" in g_str:
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW

@@ -35,6 +35,55 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M14** | Repository Security Intelligence & Historical Regression | **COMPLETE** | Persistent local SQLite scan store (`HistoricalScanStore`), deterministic SHA-256 finding fingerprinter (`FindingFingerprinter`), finding lifecycle states (`NEW`, `FIXED`, `UNCHANGED`, `REOPENED`, `REGRESSION`), security score formula ($0 - 100$), risk trend analyzer (`SecurityScorer`), read-only git diff impact analyzer (`ChangedCodeImpactAnalyzer`), historical scan comparator (`HistoricalScanComparator`), single-file UI Page 13 ("Security History"), and executive reports. |
 | **M15** | Intelligent Security Prioritization & Cross-Repository Risk Intelligence | **COMPLETE** | Evidence-driven priority scoring engine (`SecurityPriorityEngine`), priority tiers (`P0`–`P4`), exploitability analyzer (`ExploitabilityAnalyzer`), internet exposure analyzer (`ExposureAnalyzer`), blast radius analyzer (`BlastRadiusAnalyzer`), historical recurrence analyzer (`HistoricalRecurrenceAnalyzer`), cross-repository intelligence engine (`CrossRepositoryIntelligenceEngine`), security recommendation engine (`SecurityRecommendationEngine`), single-file UI Page 14 ("Security Intelligence"), and executive report summaries. |
 | **M16** | Autonomous Attack-Path Reasoning & Security Investigation | **COMPLETE** | End-to-end attack path builder (`AttackPathBuilder`), entrypoint detector (`EntrypointDetector`), trust boundary analyzer (`TrustBoundaryAnalyzer`), auth analyzer (`AuthenticationAnalyzer`), attack graph generator (`AttackGraphBuilder`), attack path scorer (`AttackPathScorer`), autonomous investigator (`AutonomousSecurityInvestigator`), single-file UI Page 15 ("Attack Paths"), and executive reports. |
+| **M17** | Intelligent Security Remediation Orchestration | **COMPLETE** | Fix ordering engine (`RemediationPlanner`), patch impact analyzer, security score projection, single-file UI Page 16 ("Remediation Center"). |
+| **M18** | Continuous Security Monitoring & Regression Detection | **COMPLETE** | Posture snapshot manager (`SnapshotManager`), commit diff change detector, regression classification (`RegressionDetector`), alert engine, single-file UI Page 17 ("Security Monitoring"). |
+| **M19** | Security Release Readiness & Risk Decision Engine | **COMPLETE** | Release readiness evaluator (`SecurityReleaseReadinessEngine`), decision engine (`GO_FOR_RELEASE`, `CONDITIONAL_GO`, `NO_GO_BLOCKED`), release gate verdict, single-file UI Page 18 ("Release Readiness"). |
+| **M20** | Security Engineering Orchestration Workflow | **COMPLETE** | Master engineering workflow orchestrator (`SecurityEngineeringOrchestrator`), adaptive plan generator, security case manager (`SecurityCase`), decision pipeline, single-file UI Page 19 ("Security Engineering"). |
+| **M21** | Security Knowledge Graph & Learning Intelligence | **COMPLETE** | Persistent SQLite pattern store (`KnowledgeStore`), pattern learner (`SecurityPatternLearner`), cross-scan knowledge graph (`KnowledgeGraph`), adaptive recommender, single-file UI Page 20 ("Security Knowledge"). |
+| **M22** | Safe Security Simulation & Exploitability Validation | **COMPLETE** | Safe simulation engine (`SecuritySimulationEngine`), safety gate (`SafetyGate`), reachability analyzer, scenario builder, sandboxed executor (`IsolatedSandbox`), differential before/after analysis, single-file UI Page 21 ("Security Simulation"). |
+| **M23** | Continuous Security Monitoring & Security Drift Intelligence | **COMPLETE** | Posture snapshot engine (`SecuritySnapshotEngine`), deterministic drift analyzer & scorer (`SecurityDriftAnalyzer`, `SecurityDriftScorer`), read-only git diff change analyzer (`SecurityChangeAnalyzer`), impact correlator (`SecurityChangeImpactCorrelator`), alert engine, release drift assessment, single-file UI Page 22 ("Security Drift Monitoring"). |
+| **M24** | Autonomous Security Decision & Remediation Orchestration | **COMPLETE** | Deterministic security decision engine (`SecurityDecisionEngine`), policy engine (`SecurityPolicyEngine`, rules `P01`–`P09`), weighted decision confidence model (`DecisionConfidenceEngine`), action selector (`ActionSelector`), local in-memory approval engine (`HumanApprovalEngine`), ranked remediation queue (`RemediationQueue`), decision explainability (`DecisionExplainabilityEngine`), single-file UI Page 23 ("Security Decision Center"), and executive reporting. |
+
+---
+
+## M24 — Autonomous Security Decision & Remediation Orchestration Architecture
+
+M24 introduces an autonomous decision orchestration layer on top of M0–M23 that deterministically decides:
+> **Given a verified vulnerability, what should AgentOS-SWE recommend doing next?**
+
+```
+Repository Scan → Investigation Squad → Semantic Intelligence → Taint Analysis → Evidence Correlation
+     → Root Cause → Priority Intelligence → Attack Path → Historical + Drift Intelligence
+     → Decision Orchestrator (M24) → Policy Engine (P01–P09) → Confidence Engine → Action Selector
+     → Remediation Queue → Human Approval Engine → Governance Gate → Report + Single-File UI (Page 23)
+```
+
+### Key Architectural Components:
+
+1. **`SecurityPolicyEngine` (`agentos_swe/orchestration/policy_engine.py`)**: Evaluates deterministic security rules (`P01` to `P09`):
+   - `P01`: Critical + Exploitable Taint + Internet Exposed -> `BLOCK_RELEASE`
+   - `P02`: High Severity + Reachable Attack Path -> `GENERATE_REPAIR`
+   - `P03`: Medium Severity + Recurring History -> `INVESTIGATE`
+   - `P04`: Reopened Vulnerability -> `HUMAN_REVIEW`
+   - `P05`: Intentional Fallback -> `IGNORE`
+   - `P06`: Test Harness Exception -> `IGNORE`
+   - `P07`: Sanitized Taint Flow -> `MONITOR`
+   - `P08`: Low Confidence Finding -> `HUMAN_REVIEW`
+   - `P09`: Degrading Drift -> `BLOCK_RELEASE`
+
+2. **`DecisionConfidenceEngine` (`agentos_swe/orchestration/confidence_engine.py`)**: Computes weighted deterministic confidence scores (0.0 to 1.0) with contributions: Verification (+0.25), Taint (+0.25), Attack Path (+0.15), Drift (+0.15), History (+0.10), Semantic (+0.10).
+
+3. **`ActionSelector` (`agentos_swe/orchestration/action_selector.py`)**: Maps policy rule evaluations and confidence metrics to concrete `DecisionRecommendation` objects (`IGNORE`, `MONITOR`, `INVESTIGATE`, `HUMAN_REVIEW`, `GENERATE_REPAIR`, `VALIDATE_REPAIR`, `BLOCK_RELEASE`).
+
+4. **`HumanApprovalEngine` (`agentos_swe/orchestration/approval_engine.py`)**: Manages local, in-memory `ApprovalRequest` objects (`PENDING`, `APPROVED`, `DECLINED`, `EXPIRED`) for Streamlit session simulation with 0 automatic repository modifications.
+
+5. **`RemediationQueue` (`agentos_swe/orchestration/remediation_queue.py`)**: Constructs and ranks the autonomous remediation queue sorted by priority score, severity, exploitability, exposure, and confidence.
+
+6. **`DecisionExplainabilityEngine` (`agentos_swe/orchestration/explainability.py`)**: Generates step-by-step trace explanations for every decision and policy rule trigger.
+
+7. **`SecurityDecisionOrchestrator` (`agentos_swe/orchestration/orchestrator.py`)**: Master facade orchestrating data intake from all preceding stages (M0–M23) and outputting `OrchestrationResult`.
+
+8. **Single-File UI Integration (`agentos_swe/ui.py`)**: Enforces single-file UI invariant with Page 23 ("Security Decision Center").
 
 ---
 

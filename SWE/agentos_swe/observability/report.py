@@ -68,11 +68,27 @@ class ReportGenerator:
         orchestration_result: Optional[Any] = None,
         knowledge_result: Optional[Any] = None,
         simulation_result: Optional[Any] = None,
+        monitoring_drift_result: Optional[Any] = None,
+        decision_orchestration_result: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
         f_m = report.finding_metrics
         r_m = report.repair_metrics
+
+        # M24 Decision Orchestration telemetry
+        dec_dict = decision_orchestration_result.to_dict() if hasattr(decision_orchestration_result, "to_dict") else (decision_orchestration_result or {})
+        global_dec = dec_dict.get("global_decision", "NO_ACTION_REQUIRED")
+        global_conf = dec_dict.get("confidence", {}).get("score", 1.0)
+        rem_queue = dec_dict.get("remediation_queue", [])
+        policy_rules = dec_dict.get("policy_trace", [])
+
+        # M23 Drift telemetry
+        m_dict = monitoring_drift_result.to_dict() if hasattr(monitoring_drift_result, "to_dict") else (monitoring_drift_result or {})
+        d_sub = m_dict.get("drift", {})
+        drift_cat = d_sub.get("category", "NO_DRIFT")
+        drift_score = d_sub.get("drift_score", 0.0)
+        score_delta = d_sub.get("security_score_delta", 0.0)
 
         # M22 Simulation telemetry
         sim_dict = simulation_result.to_dict() if hasattr(simulation_result, "to_dict") else (simulation_result or {})
@@ -267,6 +283,14 @@ class ReportGenerator:
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
 
+### 📉 M23 Continuous Security Monitoring & Drift Intelligence Report
+- **Security Drift Category**: `{drift_cat}`
+- **Calculated Drift Score**: `{drift_score} / 100`
+- **Security Score Delta**: `{score_delta}`
+- **Monitoring Mode**: `BASELINE_COMPARISON (Read-Only Git Analysis)`
+
+---
+
 ### 🧪 M22 Security Simulation & Exploitability Validation Report
 - **Overall Simulation Status**: `{sim_status}`
 - **Vulnerabilities Reproduced**: `{sim_repro_count}`
@@ -355,6 +379,14 @@ class ReportGenerator:
 - **Regression Tests Passed**: `{r_m.regression_pass}`
 - **Independent Reviews Approved**: `{r_m.independent_review_pass}`
 - **Validated Patches Produced**: `{r_m.validated_patches}`
+
+---
+
+### 🧠 M24 Security Decision Intelligence
+- **Overall Decision**: `{global_dec}`
+- **Decision Confidence**: `{int(global_conf * 100)}%`
+- **Remediation Queue Items**: `{len(rem_queue)}`
+- **Triggered Policy Rules**: `{len([p for p in policy_rules if p.get('triggered')])}`
 
 ---
 

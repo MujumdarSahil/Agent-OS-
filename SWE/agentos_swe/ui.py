@@ -246,6 +246,7 @@ from agentos_swe.release import (
 )
 from agentos_swe.orchestration import (
     SecurityEngineeringOrchestrator,
+    SecurityDecisionOrchestrator,
     WorkflowState,
     NextActionDecision,
     SecurityCaseStatus,
@@ -254,6 +255,7 @@ from agentos_swe.orchestration import (
 )
 from agentos_swe.knowledge import SecurityKnowledgeEngine
 from agentos_swe.simulation import SecuritySimulationEngine
+from agentos_swe.monitoring import SecurityMonitoringEngine
 
 
 
@@ -923,6 +925,44 @@ def run_swe_scan_engine(
 
         record_stage("SECURITY KNOWLEDGE", t0, f"Learned patterns & stored knowledge ({knowledge_result.get('total_knowledge_records', 0)} total records)")
 
+        # 11.95 M23 Continuous Security Monitoring & Security Drift Engine
+        t0 = time.time()
+        drift_engine = SecurityMonitoringEngine()
+        monitoring_drift_result = drift_engine.run_monitoring_pipeline(
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            current_commit=resolved_commit,
+            baseline_commit=f"base_{resolved_commit[:6]}",
+            current_findings=prioritized_findings,
+            baseline_findings=[],
+            attack_paths=attack_paths,
+            simulation_results=simulation_result,
+            repository_path=scan_target_path,
+            current_security_score=remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
+        )
+
+        g_drift_dec = gov_gate.evaluate_security_drift(monitoring_drift_result)
+        governance_decisions.append({"finding_id": "security_drift_monitoring", "decision": g_drift_dec.value})
+
+        record_stage("DRIFT MONITORING", t0, f"Evaluated drift posture (Category: {monitoring_drift_result.get('drift', {}).get('category', 'NO_DRIFT')}, Score: {monitoring_drift_result.get('drift', {}).get('drift_score', 0.0)})")
+
+        # 11.98 M24 Autonomous Security Decision & Remediation Orchestration Engine
+        t0 = time.time()
+        dec_orchestrator = SecurityDecisionOrchestrator()
+        decision_orchestration_result = dec_orchestrator.orchestrate_decisions(
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            commit_sha=resolved_commit,
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            drift_result=monitoring_drift_result,
+            simulation_result=simulation_result,
+        )
+
+        g_dec_dec = gov_gate.evaluate_orchestration_decision(decision_orchestration_result)
+        governance_decisions.append({"finding_id": "autonomous_decision_orchestration", "decision": g_dec_dec.value})
+
+        record_stage("DECISION ORCHESTRATION", t0, f"Orchestrated decisions (Global: {decision_orchestration_result.global_decision.value}, Queue Items: {len(decision_orchestration_result.remediation_queue)})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -949,6 +989,8 @@ def run_swe_scan_engine(
             orchestration_result=orchestration_result,
             knowledge_result=knowledge_result,
             simulation_result=simulation_result,
+            monitoring_drift_result=monitoring_drift_result,
+            decision_orchestration_result=decision_orchestration_result,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
@@ -962,6 +1004,8 @@ def run_swe_scan_engine(
         data["orchestration_result"] = orchestration_result
         data["knowledge_result"] = knowledge_result
         data["simulation_result"] = simulation_result
+        data["monitoring_drift_result"] = monitoring_drift_result
+        data["decision_orchestration_result"] = decision_orchestration_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
@@ -1098,7 +1142,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (21 Pages)
+    # Navigation Menu (22 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -1121,6 +1165,8 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "19. Security Engineering",
         "20. Security Knowledge",
         "21. Security Simulation",
+        "22. Security Drift Monitoring",
+        "23. Security Decision Center",
     ]
 
     
@@ -2837,6 +2883,269 @@ def render_security_simulation(data: Dict[str, Any]):
         st.info("Differential repair analysis ready for patch validation runs.")
 
 
+def render_security_drift_monitoring(data: Dict[str, Any]):
+    """Render Page 22 — Continuous Security Monitoring, Drift Detection & Change Impact Dashboard."""
+    st.title("📉 M23 Continuous Security Monitoring & Drift Intelligence")
+    st.caption("Baseline Posture Comparisons, Security Drift Scoring, Change Impact & Historical Commit Timelines")
+
+    drift_data: Optional[Dict[str, Any]] = data.get("monitoring_drift_result")
+
+    if not drift_data:
+        st.info("ℹ️ No active drift monitoring data. Clean repository posture.")
+        return
+
+    repo = drift_data.get("repository", "Unknown Repo")
+    cur_sha = drift_data.get("current_commit", "head_000")
+    base_sha = drift_data.get("baseline_commit", "base_000")
+    drift_dict = drift_data.get("drift", {})
+    impact_dict = drift_data.get("impact", {})
+    rel_dict = drift_data.get("release_assessment", {})
+    hist_dict = drift_data.get("historical_context", {})
+
+    drift_cat = drift_dict.get("category", "NO_DRIFT")
+    drift_score = drift_dict.get("drift_score", 0.0)
+    score_delta = drift_dict.get("security_score_delta", 0.0)
+    rel_safe = rel_dict.get("release_safe", True)
+
+    banner_class = "alert-pass" if rel_safe else "alert-failed"
+    st.markdown(
+        f"""
+        <div class="alert-banner {banner_class}">
+            <h3 style="margin:0; padding:0; color:inherit;">
+                REPOSITORY: {repo} | DRIFT CATEGORY: {drift_cat} | DRIFT SCORE: {drift_score}/100
+            </h3>
+            <p style="margin:4px 0 0 0; color:inherit;">
+                Current Commit: <code>{cur_sha}</code> | Baseline: <code>{base_sha}</code> | Security Score Delta: {score_delta} | Release Impact: {"PASS ✅" if rel_safe else "BLOCKED 🔴"}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### 📊 Security Posture & Drift Metrics")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Drift Category", drift_cat)
+    with c2:
+        st.metric("Drift Score", f"{drift_score} / 100")
+    with c3:
+        st.metric("Score Delta", f"{score_delta:+}")
+    with c4:
+        st.metric("Release Impact", "PASS ✅" if rel_safe else "BLOCKED 🔴")
+
+    st.markdown("---")
+
+    # Security Changes Breakdown
+    st.markdown("### 🔴 Security Findings Lifecycle Shifts")
+    c_new, c_reopen, c_sev, c_fix = st.columns(4)
+    with c_new:
+        st.metric("🔴 New Findings", len(drift_dict.get("new_findings", [])))
+    with c_reopen:
+        st.metric("🟠 Reopened Findings", len(drift_dict.get("reopened_findings", [])))
+    with c_sev:
+        st.metric("🟡 Severity Increases", len(drift_dict.get("severity_increases", [])))
+    with c_fix:
+        st.metric("🟢 Fixed Findings", len(drift_dict.get("fixed_findings", [])))
+
+    st.markdown("---")
+
+    # Code Change Impact
+    st.markdown("### 🔍 Code Change & Attack Path Impact Matrix")
+    st.markdown(f"**Rationale**: {impact_dict.get('rationale', 'No impact rationale available.')}")
+
+    c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+    with c_m1:
+        st.metric("Modified Files", len(impact_dict.get("modified_files", [])))
+    with c_m2:
+        st.metric("Security-Sensitive Files", len(impact_dict.get("security_sensitive_files", [])))
+    with c_m3:
+        st.metric("Affected Findings", len(impact_dict.get("affected_findings", [])))
+    with c_m4:
+        st.metric("Affected Attack Paths", len(impact_dict.get("affected_attack_paths", [])))
+
+    st.markdown("---")
+
+    # Historical Context & Timeline
+    st.markdown("### 📜 Historical Commit Timeline & Context")
+    st.markdown(
+        f"""
+        - **Previous Recurrence Found**: `{"YES" if hist_dict.get("previous_occurrence_found") else "NO"}`
+        - **Baseline Reference Commit**: `{hist_dict.get("previous_commit", base_sha)}`
+        - **Historical Remediation**: `{hist_dict.get("previous_remediation", "N/A")}`
+        - **Historical Fix Success Rate**: `{int(hist_dict.get("historical_success_rate", 1.0) * 100)}%`
+        """
+    )
+
+
+def render_security_decision_center(data: Dict[str, Any]):
+    """Render Page 23 — Autonomous Security Decision & Remediation Orchestration Dashboard."""
+    st.title("🧠 M24 Autonomous Security Decision Center")
+    st.caption("Autonomous Security Decision Engine, Weighted Decision Confidence, Policy Rule Tracing & Local Approval Simulation")
+
+    orc_data: Optional[Any] = data.get("decision_orchestration_result")
+
+    if not orc_data:
+        st.info("ℹ️ No active security decision orchestration data available.")
+        return
+
+    orc_dict = orc_data.to_dict() if hasattr(orc_data, "to_dict") else (orc_data or {})
+    repo = orc_dict.get("repository", "Unknown Repo")
+    commit_sha = orc_dict.get("commit_sha", "HEAD")
+    global_dec = orc_dict.get("global_decision", "NO_ACTION_REQUIRED")
+    conf_dict = orc_dict.get("confidence", {})
+    conf_score = conf_dict.get("score", 1.0)
+    conf_level = conf_dict.get("level", "HIGH")
+    conf_rationale = conf_dict.get("rationale", "")
+    breakdown = conf_dict.get("breakdown", {})
+    recs = orc_dict.get("recommendations", [])
+    rem_queue = orc_dict.get("remediation_queue", [])
+    policy_trace = orc_dict.get("policy_trace", [])
+    gov_outcome = orc_dict.get("governance_outcome", "ALLOW")
+    summary = orc_dict.get("summary", "")
+
+    # Banner Class
+    if global_dec in ("BLOCK_RELEASE", "DENY"):
+        banner_class = "alert-failed"
+    elif global_dec in ("HUMAN_REVIEW", "REVIEW_REQUIRED"):
+        banner_class = "alert-warning"
+    else:
+        banner_class = "alert-pass"
+
+    st.markdown(
+        f"""
+        <div class="alert-banner {banner_class}">
+            <h3 style="margin:0; padding:0; color:inherit;">
+                GLOBAL DECISION: {global_dec} | CONFIDENCE: {int(conf_score * 100)}% ({conf_level})
+            </h3>
+            <p style="margin:4px 0 0 0; color:inherit;">
+                Repository: <code>{repo}</code> | Commit: <code>{commit_sha}</code> | Governance Outcome: {gov_outcome}
+            </p>
+            <p style="margin:2px 0 0 0; font-size:13px; color:inherit;">
+                <em>{summary}</em>
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### 📊 Decision Confidence Breakdown")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    with c1:
+        st.metric("Verification", f"{int(breakdown.get('verification', 0.25) * 100)}%")
+    with c2:
+        st.metric("Semantic", f"{int(breakdown.get('semantic', 0.10) * 100)}%")
+    with c3:
+        st.metric("Taint Flow", f"{int(breakdown.get('taint', 0.25) * 100)}%")
+    with c4:
+        st.metric("Attack Path", f"{int(breakdown.get('attack_path', 0.15) * 100)}%")
+    with c5:
+        st.metric("Drift/History", f"{int((breakdown.get('drift', 0.15) + breakdown.get('history', 0.10)) * 100)}%")
+    with c6:
+        st.metric("Final Score", f"{int(conf_score * 100)}%")
+
+    st.caption(f"**Confidence Rationale**: {conf_rationale}")
+
+    st.markdown("---")
+
+    # Section C: Policy Trace
+    st.markdown("### 📋 Policy Rule Trace (Deterministic Policies P01–P09)")
+    if policy_trace:
+        rows = []
+        for pt in policy_trace:
+            rows.append({
+                "Rule ID": pt.get("rule_id", "N/A"),
+                "Rule Name": pt.get("name", "N/A"),
+                "Triggered": "✔ Triggered" if pt.get("triggered") else "✘ Not Triggered",
+                "Explanation": pt.get("reason", ""),
+            })
+        st.table(rows)
+    else:
+        st.info("No policy rules evaluated.")
+
+    st.markdown("---")
+
+    # Section D: Remediation Queue
+    st.markdown("### 📋 Autonomous Remediation Queue")
+    if rem_queue:
+        q_rows = []
+        for q in rem_queue:
+            q_rows.append({
+                "Rank": q.get("rank", 0),
+                "Finding ID": q.get("finding_id", "N/A"),
+                "Root Cause": q.get("root_cause", "UNKNOWN"),
+                "Severity": q.get("severity", "HIGH"),
+                "Recommended Action": q.get("recommended_action", "MONITOR"),
+                "Confidence": f"{int(q.get('confidence', {}).get('score', 1.0) * 100)}%",
+                "Approval Required": "YES" if q.get("human_approval_required") else "NO",
+                "Risk Reduction": q.get("estimated_risk_reduction", "UNKNOWN"),
+            })
+        st.dataframe(q_rows, use_container_width=True)
+    else:
+        st.success("✔ Remediation queue empty. Zero action required.")
+
+    st.markdown("---")
+
+    # Section E: Decision Inspector & Section F: Approval Simulation
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        st.markdown("### 🔍 Decision Trace Inspector")
+        if recs:
+            sel_fid = st.selectbox("Select Finding to Inspect", [r.get("finding_id") for r in recs])
+            sel_rec = next((r for r in recs if r.get("finding_id") == sel_fid), None)
+            if sel_rec:
+                st.json(sel_rec)
+        else:
+            st.info("No findings available for decision trace inspection.")
+
+    with col_right:
+        st.markdown("### ✍️ Human Approval Simulation Controls")
+        st.caption("Local, in-memory approval controls (No repository mutations)")
+
+        if "approval_audit_trail" not in st.session_state:
+            st.session_state["approval_audit_trail"] = []
+
+        pending_reqs = [r for r in orc_dict.get("approval_requests", []) if r.get("status") == "PENDING"]
+
+        if pending_reqs:
+            for req in pending_reqs:
+                req_id = req.get("approval_id")
+                fid = req.get("finding_id")
+                act = req.get("proposed_action")
+                exp = req.get("explanation")
+
+                st.warning(f"**Approval Request `{req_id}`**: Action `{act}` for Finding `{fid}`\n\n_{exp}_")
+                b_approve, b_decline = st.columns(2)
+                with b_approve:
+                    if st.button(f"✅ Approve ({req_id})", key=f"app_{req_id}"):
+                        st.session_state["approval_audit_trail"].append({
+                            "timestamp": datetime.now().isoformat()[:19].replace("T", " "),
+                            "request_id": req_id,
+                            "finding_id": fid,
+                            "action": "APPROVED",
+                            "user": "Security Lead (Simulated)",
+                        })
+                        st.success(f"Request {req_id} Approved.")
+                        st.rerun()
+                with b_decline:
+                    if st.button(f"❌ Decline ({req_id})", key=f"dec_{req_id}"):
+                        st.session_state["approval_audit_trail"].append({
+                            "timestamp": datetime.now().isoformat()[:19].replace("T", " "),
+                            "request_id": req_id,
+                            "finding_id": fid,
+                            "action": "DECLINED",
+                            "user": "Security Lead (Simulated)",
+                        })
+                        st.error(f"Request {req_id} Declined.")
+                        st.rerun()
+        else:
+            st.success("✔ Zero pending approval requests.")
+
+        if st.session_state["approval_audit_trail"]:
+            st.markdown("#### 📜 Approval Simulation Audit Trail")
+            st.dataframe(st.session_state["approval_audit_trail"], use_container_width=True)
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -2902,6 +3211,10 @@ def main():
         render_security_knowledge(data)
     elif nav_selection.startswith("21."):
         render_security_simulation(data)
+    elif nav_selection.startswith("22."):
+        render_security_drift_monitoring(data)
+    elif nav_selection.startswith("23."):
+        render_security_decision_center(data)
 
 
 if __name__ == "__main__":

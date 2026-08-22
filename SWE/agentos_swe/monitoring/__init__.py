@@ -1,8 +1,10 @@
 """
-M18 Continuous Security Monitoring Package.
+M18 & M23 Continuous Security Monitoring Package.
 
 Provides continuous security monitoring, security regression detection, attack-path changes tracking,
-remediation plan validity checking, alert generation, timeline building, and cross-repository posture tracking.
+remediation plan validity checking, alert generation, timeline building, cross-repository posture tracking,
+security posture snapshot creation, structural drift analysis, git change impact correlation,
+security alerts, release drift evaluation, and security regression monitoring.
 """
 
 from agentos_swe.monitoring.models import (
@@ -19,13 +21,24 @@ from agentos_swe.monitoring.models import (
     SecurityTimelineEntry,
     SecurityMonitoringResult,
     CrossRepositoryMonitoringResult,
+    DriftScoreCategory,
+    SecuritySnapshot,
+    SecurityDrift,
+    ReleaseDriftAssessment,
+    HistoricalDriftContext,
 )
 from agentos_swe.monitoring.snapshot_manager import SnapshotManager
 from agentos_swe.monitoring.change_detector import ChangeDetector
 from agentos_swe.monitoring.regression_detector import RegressionDetector
 from agentos_swe.monitoring.trend_analyzer import TrendAnalyzer
 from agentos_swe.monitoring.alert_engine import AlertEngine
-from agentos_swe.monitoring.monitor import SecurityMonitor
+from agentos_swe.monitoring.snapshot import SecuritySnapshotEngine
+from agentos_swe.monitoring.drift import SecurityDriftAnalyzer, SecurityDriftScorer
+from agentos_swe.monitoring.changes import SecurityChangeAnalyzer
+from agentos_swe.monitoring.impact import SecurityChangeImpactCorrelator
+from agentos_swe.monitoring.alerts import SecurityAlertEngine
+from agentos_swe.monitoring.scheduler import SecurityMonitorScheduler
+from agentos_swe.monitoring.monitor import SecurityMonitor, SecurityMonitoringEngine
 
 __all__ = [
     "RegressionSeverity",
@@ -47,4 +60,17 @@ __all__ = [
     "TrendAnalyzer",
     "AlertEngine",
     "SecurityMonitor",
+    "DriftScoreCategory",
+    "SecuritySnapshot",
+    "SecurityDrift",
+    "ReleaseDriftAssessment",
+    "HistoricalDriftContext",
+    "SecuritySnapshotEngine",
+    "SecurityDriftAnalyzer",
+    "SecurityDriftScorer",
+    "SecurityChangeAnalyzer",
+    "SecurityChangeImpactCorrelator",
+    "SecurityAlertEngine",
+    "SecurityMonitorScheduler",
+    "SecurityMonitoringEngine",
 ]

@@ -1,9 +1,10 @@
 """
-M20 Security Engineering Orchestration & Workflow Models.
+M20 & M24 Security Engineering Orchestration Models.
 
 Defines domain models, enums, dataclasses, and data structures for workflow states,
-action decisions, security case statuses, action items, workflow plans, timelines,
-security cases, human review requests, and global posture summaries.
+action decisions, security case statuses, action items, workflow plans, decision actions,
+decision confidence, policy rules, recommendations, approval requests, remediation queues,
+and master orchestration outputs.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -11,6 +12,8 @@ from enum import Enum
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+
+# --- M20 Models ---
 
 class WorkflowState(str, Enum):
     """Deterministic states of the security engineering workflow."""
@@ -70,7 +73,7 @@ class ActionItem:
     dependencies: List[str] = field(default_factory=list)
     required_inputs: List[str] = field(default_factory=list)
     expected_outputs: List[str] = field(default_factory=list)
-    status: str = "PENDING"  # PENDING, IN_PROGRESS, COMPLETED, SKIPPED, FAILED
+    status: str = "PENDING"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -219,3 +222,140 @@ class SecurityOrchestrationResult:
             "errors": self.errors,
             "warnings": self.warnings,
         }
+
+
+# --- M24 Models ---
+
+class DecisionAction(str, Enum):
+    """Action recommendation produced by the security decision engine."""
+    IGNORE = "IGNORE"
+    MONITOR = "MONITOR"
+    INVESTIGATE = "INVESTIGATE"
+    HUMAN_REVIEW = "HUMAN_REVIEW"
+    GENERATE_REPAIR = "GENERATE_REPAIR"
+    VALIDATE_REPAIR = "VALIDATE_REPAIR"
+    BLOCK_RELEASE = "BLOCK_RELEASE"
+
+
+class DecisionStatus(str, Enum):
+    """Lifecycle status of a security decision recommendation."""
+    PENDING = "PENDING"
+    RECOMMENDED = "RECOMMENDED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXECUTED = "EXECUTED"
+    ESCALATED = "ESCALATED"
+
+
+class DecisionReason(str, Enum):
+    """Deterministic reasons triggering a decision action."""
+    CRITICAL_EXPLOITABLE = "CRITICAL_EXPLOITABLE"
+    HIGH_ATTACK_PATH = "HIGH_ATTACK_PATH"
+    REOPENED_VULNERABILITY = "REOPENED_VULNERABILITY"
+    SECURITY_REGRESSION = "SECURITY_REGRESSION"
+    DRIFT_SPIKE = "DRIFT_SPIKE"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    SANITIZED_FLOW = "SANITIZED_FLOW"
+    INTENTIONAL_FALLBACK = "INTENTIONAL_FALLBACK"
+    TEST_HARNESS = "TEST_HARNESS"
+    GOVERNANCE_POLICY = "GOVERNANCE_POLICY"
+    HUMAN_APPROVAL_REQUIRED = "HUMAN_APPROVAL_REQUIRED"
+
+
+@dataclass
+class DecisionConfidence:
+    """Weighted deterministic decision confidence score."""
+    score: float = 0.0
+    level: str = "LOW"
+    rationale: str = ""
+    breakdown: Dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class DecisionRecommendation:
+    """Recommendation object for a specific vulnerability finding."""
+    finding_id: str
+    recommended_action: DecisionAction
+    priority: str = "HIGH"
+    confidence: DecisionConfidence = field(default_factory=DecisionConfidence)
+    reasons: List[str] = field(default_factory=list)
+    triggered_rules: List[str] = field(default_factory=list)
+    required_human_approval: bool = False
+    repair_available: bool = False
+    governance_effect: str = "ALLOW"
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["recommended_action"] = self.recommended_action.value if isinstance(self.recommended_action, Enum) else self.recommended_action
+        if self.confidence:
+            d["confidence"] = self.confidence.to_dict()
+        return d
+
+
+@dataclass
+class ApprovalRequest:
+    """Local, in-memory approval request object."""
+    approval_id: str
+    finding_id: str
+    proposed_action: DecisionAction
+    explanation: str
+    risk: str = "HIGH"
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    expires_at: Optional[str] = None
+    status: DecisionStatus = DecisionStatus.PENDING
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["proposed_action"] = self.proposed_action.value if isinstance(self.proposed_action, Enum) else self.proposed_action
+        d["status"] = self.status.value if isinstance(self.status, Enum) else self.status
+        return d
+
+
+@dataclass
+class RemediationQueueItem:
+    """Ranked item in the autonomous remediation queue."""
+    rank: int
+    finding_id: str
+    root_cause: str
+    severity: str
+    recommended_action: DecisionAction
+    priority_score: float
+    confidence: DecisionConfidence
+    human_approval_required: bool
+    repair_available: bool
+    estimated_risk_reduction: str = "UNKNOWN"
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["recommended_action"] = self.recommended_action.value if isinstance(self.recommended_action, Enum) else self.recommended_action
+        if self.confidence:
+            d["confidence"] = self.confidence.to_dict()
+        return d
+
+
+@dataclass
+class OrchestrationResult:
+    """Master output container produced by SecurityDecisionOrchestrator."""
+    repository: str
+    commit_sha: str
+    global_decision: DecisionAction
+    confidence: DecisionConfidence
+    recommendations: List[DecisionRecommendation] = field(default_factory=list)
+    remediation_queue: List[RemediationQueueItem] = field(default_factory=list)
+    approval_requests: List[ApprovalRequest] = field(default_factory=list)
+    policy_trace: List[Dict[str, Any]] = field(default_factory=list)
+    governance_outcome: str = "ALLOW"
+    summary: str = "Orchestration evaluation completed."
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["global_decision"] = self.global_decision.value if isinstance(self.global_decision, Enum) else self.global_decision
+        if self.confidence:
+            d["confidence"] = self.confidence.to_dict()
+        d["recommendations"] = [r.to_dict() for r in self.recommendations]
+        d["remediation_queue"] = [q.to_dict() for q in self.remediation_queue]
+        d["approval_requests"] = [a.to_dict() for a in self.approval_requests]
+        return d
