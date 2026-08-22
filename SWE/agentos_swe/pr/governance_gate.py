@@ -1,6 +1,6 @@
 """
-GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation.
-Evaluates RiskAssessment against registered AgentOS Governance Policies.
+GovernanceGate - AgentOS GovernanceEngine integration for M5 PR Automation & M13 Security Correlation.
+Evaluates RiskAssessment and CorrelatedFinding against registered AgentOS Governance Policies.
 """
 
 import logging
@@ -8,13 +8,14 @@ from typing import Dict, Any, Optional
 
 from agentos.core.governance import GovernanceEngine, Policy, PolicyType
 from agentos_swe.pr.models import RiskLevel, RiskAssessment, GovernanceDecision
+from agentos_swe.correlation.models import CorrelatedFinding
 
 logger = logging.getLogger(__name__)
 
 
 class GovernanceGate:
     """
-    Evaluates PR creation against AgentOS GovernanceEngine policies.
+    Evaluates PR creation and correlated repair proposals against AgentOS GovernanceEngine policies.
     """
 
     def __init__(self, governance_engine: Optional[GovernanceEngine] = None):
@@ -35,7 +36,7 @@ class GovernanceGate:
         - LOW / MEDIUM risk -> True (Allowed)
         - HIGH / CRITICAL risk -> False (Deny automatic PR creation, requires manual review)
         """
-        if action == "github_pr_create":
+        if action in ("github_pr_create", "apply_security_repair"):
             risk_level = context.get("risk_level", "LOW")
             if risk_level in ("HIGH", "CRITICAL"):
                 return False
@@ -76,4 +77,22 @@ class GovernanceGate:
                 decision = GovernanceDecision.DENY
 
         logger.info(f"[GovernanceGate] Decision for finding '{risk.finding_id}': {decision.value} (Risk: {risk.risk_level.value})")
+        return decision
+
+    def evaluate_correlated_finding(self, correlated_finding: CorrelatedFinding) -> GovernanceDecision:
+        """
+        Evaluate M13 CorrelatedFinding against governance policies.
+        LOW -> ALLOW
+        MEDIUM -> REVIEW_REQUIRED
+        HIGH / CRITICAL -> REVIEW_REQUIRED or DENY per policy context
+        """
+        severity_str = (correlated_finding.severity or "medium").upper()
+        if severity_str in ("HIGH", "CRITICAL"):
+            decision = GovernanceDecision.REVIEW_REQUIRED
+        elif severity_str == "MEDIUM":
+            decision = GovernanceDecision.REVIEW_REQUIRED
+        else:
+            decision = GovernanceDecision.ALLOW
+
+        logger.info(f"[GovernanceGate] M13 Decision for correlated finding '{correlated_finding.finding_id}': {decision.value} (Severity: {severity_str})")
         return decision

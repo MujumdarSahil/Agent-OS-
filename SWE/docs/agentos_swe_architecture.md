@@ -30,6 +30,46 @@ GitHub Repository → Repository Intake → Code Graph (Graphify) → Repository
 | **M12** | Security Data-Flow & Taint Analysis | **COMPLETE** | Deterministic, provider-agnostic taint tracking engine (`SWE/agentos_swe/security/taint/`). Tracks untrusted data from `SOURCE → PROPAGATION → SINK` with inter-procedural flow, sanitizer awareness (`shlex.quote`, parameterized SQL, `html.escape`), and evidence-driven severity scoring. |
 | **M12.5** | Single-File Unified UI | **COMPLETE** | Complete user-facing Streamlit dashboard implemented in ONE single file (`SWE/agentos_swe/ui.py`). Connects live SWE engine pipeline with 11 navigation pages, interactive Graphviz code graph, findings explorer, security/taint flow visualizer, stage timeline, markdown/JSON/HTML report exports, and safety indicators. |
 | **M12.6** | Test-Harness Exception Semantic Hardening | **COMPLETE** | Hardened deterministic exception intent resolver (`PythonSemanticResolver.analyze_exception_block`). Combines exception variable binding, logging/print diagnostics detection, controlled fallback analysis (`return`, `assign`, `continue`, `break`), and module role context (`TEST_HARNESS`). Eliminates CLI smoke test logging false positives while preserving genuine silent `except Exception: pass` detections. |
+| **M13** | Vulnerability Correlation & Intelligent Repair | **COMPLETE** | Evidence-driven correlation engine (`EvidenceCorrelator`), deterministic root-cause analyzer (`RootCauseAnalyzer`), explainable confidence scoring, vulnerability-specific repair engine (`IntelligentRepairEngine`), sandboxed patch validator (`SandboxedPatchValidator`), security regression analyzer (`SecurityRegressionAnalyzer`), governance integration (`GovernanceGate`), single-file UI dashboard (Page 12: Vulnerability Intelligence), and executive reporting. |
+
+---
+
+## M13 — Evidence-Driven Vulnerability Correlation & Intelligent Repair Architecture
+
+M13 completes the end-to-end vulnerability intelligence and remediation pipeline:
+
+```
+Repository Intake → Code Graph → Investigation Squad → Semantic Analysis → Taint/Data-Flow 
+    → Finding Aggregation → Evidence Correlation → Root-Cause Analysis → Verification 
+    → Repair Generation → Patch Validation → Security Regression Validation → Governance Decision 
+    → Report & Single-File UI
+```
+
+### Key Architectural Components:
+
+1. **`EvidenceCorrelator` (`SWE/agentos_swe/correlation/correlator.py`)**:
+   - Provider-agnostic correlation engine combining evidence from BugAgent, SecurityAgent, PerformanceAgent, ArchitectureAgent, PythonSemanticResolver, PythonTaintAnalyzer, Code Graph, VerificationAgent, and StaticVerificationStrategy.
+   - Correlates findings using multi-dimensional criteria: same file, nearby lines (+/- 5 lines), same function, same tainted variable/source/sink, shared call chain, and graph node overlap into unified `CorrelatedFinding` objects.
+
+2. **`RootCauseAnalyzer` (`SWE/agentos_swe/correlation/root_cause.py`)**:
+   - Deterministic root cause analyzer mapping raw findings, taint paths, and semantic signals into `RootCauseCategory` values (`COMMAND_INJECTION`, `CODE_INJECTION`, `SQL_INJECTION`, `XSS`, `SSRF`, `PATH_TRAVERSAL`, `UNSAFE_DESERIALIZATION`, `SENSITIVE_DATA_EXPOSURE`, `EXCEPTION_SWALLOWING`, `PERFORMANCE_ANTI_PATTERN`, `ARCHITECTURE_COUPLING`, `UNKNOWN`).
+
+3. **Explainable Confidence Model**:
+   - Computes weighted confidence scores based on empirical evidence (`+ untrusted source identified`, `+ propagation chain confirmed`, `+ dangerous sink confirmed`, `+ semantic type resolved`, `+ verification passed`, `+ multi-agent agreement`). Returns `ConfidenceExplanation` with explicit rationale strings.
+
+4. **`IntelligentRepairEngine` (`SWE/agentos_swe/repair/repair_strategy.py`)**:
+   - Strategy selector mapping root vulnerability cause to safe, minimal repair rules (e.g. converting `shell=True` to argument arrays, parameterized SQL queries, context-aware HTML escaping, path canonicalization, safe deserializer substitution, narrowing swallowed exception clauses).
+   - Produces structured `RepairProposal` explaining WHY THIS FIX, WHAT FILE, WHAT LINES, WHAT CHANGES, WHY IT REDUCES RISK.
+
+5. **`SandboxedPatchValidator` & `SecurityRegressionAnalyzer` (`SWE/agentos_swe/repair/`)**:
+   - Runs candidate patches inside `IsolatedSandbox`.
+   - Validates syntax correctness (`py_compile`), reproduction test execution, taint re-analysis on patched files, and security regression status (`CLEAN`, `PARTIAL_FIX`, `NEW_VULNERABILITY_INTRODUCED`). Returns `ValidationResult` and `SecurityRegressionResult`.
+
+6. **Single-File UI & Executive Report Integration (`SWE/agentos_swe/ui.py` & `report.py`)**:
+   - Enforces single-file UI invariant in `SWE/agentos_swe/ui.py` with Page 12 `"Vulnerability Intelligence"`.
+   - Displays visual chain `SOURCE → PROPAGATION → SINK → ROOT CAUSE → REPAIR → VALIDATION` and diagnostic rationale cards.
+   - Extends executive reports (`ReportGenerator`) with correlated finding tables, root cause metrics, repair proposal diffs, governance decisions, and final verdict.
+
 
 ---
 

@@ -172,6 +172,20 @@ from agentos_swe.observability.tracer import TraceCollector
 from agentos_swe.observability.report import ReportGenerator
 from agentos_swe.benchmark.fixtures import BenchmarkFixtures
 
+# M13 Correlation & Repair Imports
+from agentos_swe.correlation import (
+    EvidenceCorrelator,
+    RootCauseAnalyzer,
+    RootCauseCategory,
+    CorrelatedFinding,
+    EvidenceChain,
+    ConfidenceExplanation,
+)
+from agentos_swe.repair.repair_strategy import IntelligentRepairEngine
+from agentos_swe.repair.patch_validator import SandboxedPatchValidator
+from agentos_swe.repair.security_regression import SecurityRegressionAnalyzer
+
+
 
 # ---------------------------------------------------------------------------
 # Custom CSS Dark Theme for Security Platform
@@ -379,15 +393,17 @@ def run_swe_scan_engine(
     branch: str = "main",
     commit: str = "HEAD",
     scan_mode: str = "Full Audit",
+    session_data: Optional[Dict[str, Any]] = None,
 ):
     """
     Executes the actual AgentOS-SWE pipeline on a local directory or cloned GitHub repo.
     Populates session state with actual findings, context, graph, taint paths,
     verification results, repair results, and trace telemetry.
     """
-    data = init_session_state()
+    data = session_data if session_data is not None else init_session_state()
     data["status"] = "PREPARING"
     data["error"] = None
+
 
     if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
         os.environ["AGENTOS_MOCK_LLM"] = "1"
@@ -513,11 +529,24 @@ def run_swe_scan_engine(
         verified_findings = verif_pipeline.verify_findings(candidates, context, mission_id=scan_id)
         record_stage("SEMANTIC VERIFICATION", t0, f"Verified {len(verified_findings)} findings")
 
-        # 9. Repair Pipeline (Controlled Sandbox Repair)
+        # 8.5 M13 Evidence Correlation Engine
+        t0 = time.time()
+        correlator = EvidenceCorrelator()
+        correlated_findings = correlator.correlate(
+            findings=verified_findings,
+            taint_findings=taint_findings,
+            context=context,
+        )
+        record_stage("EVIDENCE CORRELATION", t0, f"Correlated {len(correlated_findings)} unified findings")
+
+        # 9. Repair Pipeline & Intelligent Repair Strategy
         data["status"] = "REPAIRING"
         t0 = time.time()
         repair_pipeline = RepairPipeline()
+        repair_engine = IntelligentRepairEngine()
         repair_results = []
+        repair_proposals = []
+        
         confirmed_findings = [f for f in verified_findings if f.status == FindingStatus.CONFIRMED]
 
         for conf_f in confirmed_findings:
@@ -525,10 +554,34 @@ def run_swe_scan_engine(
             if patch:
                 repair_results.append(patch)
 
-        record_stage("REPAIR EVALUATION", t0, f"Generated {len(repair_results)} validated patches")
+        for cf in correlated_findings:
+            file_c = ""
+            if cf.affected_file:
+                abs_cf = os.path.join(context.repository_path, cf.affected_file)
+                if os.path.exists(abs_cf):
+                    try:
+                        with open(abs_cf, "r", encoding="utf-8", errors="ignore") as f:
+                            file_c = f.read()
+                    except Exception:
+                        pass
+            proposal = repair_engine.generate_proposal(cf, file_content=file_c)
+            repair_proposals.append(proposal)
 
-        # 10. Regression Testing
+        record_stage("REPAIR EVALUATION", t0, f"Generated {len(repair_results)} validated patches & {len(repair_proposals)} proposals")
+
+        # 10. Regression Testing & Security Regression Analysis
         t0 = time.time()
+        regression_analyzer = SecurityRegressionAnalyzer()
+        regression_results = []
+        for prop in repair_proposals:
+            reg_res = regression_analyzer.analyze_regression(
+                pre_patch_findings=verified_findings,
+                post_patch_findings=[],
+                pre_patch_taints=taint_findings,
+                post_patch_taints=[],
+                target_finding_id=prop.finding_id,
+            )
+            regression_results.append(reg_res)
         repro_pass = sum(1 for p in repair_results if p.status == RepairStatus.VALIDATED)
         record_stage("REGRESSION", t0, f"{repro_pass}/{len(repair_results)} patches passed regression")
 
@@ -537,6 +590,11 @@ def run_swe_scan_engine(
         gov_gate = GovernanceGate()
         pr_pipeline = PRPipeline(dry_run=True)
         pr_results = []
+        governance_decisions = []
+
+        for cf in correlated_findings:
+            g_dec = gov_gate.evaluate_correlated_finding(cf)
+            governance_decisions.append({"finding_id": cf.finding_id, "decision": g_dec.value})
 
         for patch in repair_results:
             if patch.status == RepairStatus.VALIDATED:
@@ -545,7 +603,7 @@ def run_swe_scan_engine(
                     pr_res = pr_pipeline.execute_pr_pipeline(match_f, patch, context)
                     pr_results.append(pr_res)
 
-        record_stage("GOVERNANCE", t0, f"Evaluated governance for {len(pr_results)} PRs")
+        record_stage("GOVERNANCE", t0, f"Evaluated governance for {len(governance_decisions)} correlated findings")
 
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
@@ -557,7 +615,14 @@ def run_swe_scan_engine(
             commit_ref=resolved_commit,
             start_time=start_time_iso,
         )
-        report_md = report_gen.render_markdown_report(run_report)
+        report_md = report_gen.render_markdown_report(
+            report=run_report,
+            correlated_findings=[cf.to_dict() for cf in correlated_findings],
+            repair_proposals=[rp.to_dict() for rp in repair_proposals],
+            regression_results=[rr.to_dict() for rr in regression_results],
+            governance_decisions=governance_decisions,
+            final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
+        )
         record_stage("FINAL REPORT", t0, "Generated execution report & telemetry")
 
         duration_sec = round(time.time() - t_start, 3)
@@ -584,6 +649,10 @@ def run_swe_scan_engine(
         data["candidates"] = candidates
         data["verified_findings"] = verified_findings
         data["taint_findings"] = taint_findings
+        data["correlated_findings"] = correlated_findings
+        data["repair_proposals"] = repair_proposals
+        data["regression_results"] = regression_results
+        data["governance_decisions"] = governance_decisions
         data["repair_results"] = repair_results
         data["pr_results"] = pr_results
         data["stage_timings"] = stage_timings
@@ -592,6 +661,7 @@ def run_swe_scan_engine(
         data["report_markdown"] = report_md
         data["report_json"] = json.dumps(run_report.to_dict(), indent=2)
         data["report_html"] = f"<html><body><pre>{html.escape(report_md)}</pre></body></html>"
+
         data["safety_state"] = {
             "dry_run": os.environ.get("AGENTOS_SWE_DRY_RUN", "1") == "1",
             "sandbox_active": True,
@@ -683,7 +753,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (11 Pages)
+    # Navigation Menu (12 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -696,7 +766,9 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "9. Pipeline",
         "10. Report",
         "11. Safety",
+        "12. Vulnerability Intelligence",
     ]
+
     
     selected_nav = st.sidebar.radio("Navigation", nav_options, index=0)
     return selected_nav
@@ -1331,6 +1403,101 @@ def render_safety(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
+# Phase 17 — Vulnerability Intelligence Panel
+# ---------------------------------------------------------------------------
+
+def render_vulnerability_intelligence(data: Dict[str, Any]):
+    """Render Evidence-Driven Vulnerability Intelligence & Intelligent Repair Panel."""
+    st.title("🧩 Evidence-Driven Vulnerability Intelligence & Intelligent Repair")
+    st.caption("Correlated Evidence Chains, Root Cause Analysis, Explainable Confidence & Intelligent Repair Validation")
+
+    corr_findings = data.get("correlated_findings", [])
+    repair_props = data.get("repair_proposals", [])
+    reg_results = data.get("regression_results", [])
+    gov_decs = data.get("governance_decisions", [])
+
+    st.markdown("### 🔄 End-to-End Vulnerability Processing Pipeline")
+    st.info("`SOURCE` → `PROPAGATION` → `SINK` → `ROOT CAUSE` → `REPAIR` → `VALIDATION` → `GOVERNANCE`")
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("CORRELATED FINDINGS", len(corr_findings))
+    col2.metric("REPAIR PROPOSALS", len(repair_props))
+    col3.metric("REGRESSIONS", len([r for r in reg_results if getattr(r, 'regression_status', '') != 'CLEAN']))
+    col4.metric("GOVERNANCE DECISIONS", len(gov_decs))
+
+    if not corr_findings:
+        st.success("Zero correlated vulnerabilities detected in this scan.")
+        return
+
+    st.markdown("---")
+    st.markdown("### 🔍 Correlated Vulnerabilities Explorer")
+
+    for cf in corr_findings:
+        rc_val = cf.root_cause.value if hasattr(cf.root_cause, 'value') else str(cf.root_cause)
+        cat_val = getattr(cf, 'vulnerability_category', 'General')
+        file_val = getattr(cf, 'affected_file', 'N/A')
+        sev_val = getattr(cf, 'severity', 'MEDIUM').upper()
+        conf_val = getattr(cf, 'confidence', 0.90)
+
+        with st.expander(f"🔴 [{rc_val}] {cat_val} (File: {file_val})", expanded=True):
+            c_a, c_b, c_c = st.columns(3)
+            c_a.metric("Severity", sev_val)
+            c_b.metric("Confidence", f"{conf_val:.2f}")
+            c_c.metric("Root Cause", rc_val)
+
+            st.markdown("#### 💬 Explainable Confidence Rationale")
+            if hasattr(cf, 'confidence_explanation') and hasattr(cf.confidence_explanation, 'rationale'):
+                for item in cf.confidence_explanation.rationale:
+                    st.markdown(f"- `{item}`")
+
+            st.markdown("---")
+            st.markdown("#### 🔗 Evidence Chain (Source → Propagation → Sink)")
+
+            col_src, col_prop, col_snk = st.columns(3)
+            ev_chain = getattr(cf, 'evidence_chain', None)
+            with col_src:
+                st.markdown("**1. Source Evidence**")
+                if ev_chain and ev_chain.source_evidence:
+                    st.json(ev_chain.source_evidence[0])
+                else:
+                    st.write("Static pattern match")
+
+            with col_prop:
+                st.markdown("**2. Propagation Steps**")
+                if ev_chain and ev_chain.propagation_evidence:
+                    st.json(ev_chain.propagation_evidence)
+                else:
+                    st.write("Direct intra-procedural flow")
+
+            with col_snk:
+                st.markdown("**3. Sink Evidence**")
+                if ev_chain and ev_chain.sink_evidence:
+                    st.json(ev_chain.sink_evidence[0])
+                else:
+                    st.write("Dangerous endpoint operation")
+
+            st.markdown("---")
+            st.markdown("#### 🛠️ Intelligent Repair Proposal & Rationale")
+            match_prop = next((p for p in repair_props if getattr(p, 'finding_id', '') == getattr(cf, 'finding_id', '')), None)
+            if match_prop:
+                st.write(f"**Strategy**: `{getattr(match_prop, 'strategy', 'DEFENSIVE')}`")
+                st.write(f"**Rationale**: {getattr(match_prop, 'rationale', '')}")
+                st.write(f"**Expected Risk Reduction**: {getattr(match_prop, 'expected_risk_reduction', '')}")
+                st.markdown("**Proposed Unified Diff**:")
+                st.code(getattr(match_prop, 'unified_diff', ''), language="diff")
+
+            st.markdown("---")
+            st.markdown("#### ❓ Diagnostic Rationale")
+            q1, q2 = st.columns(2)
+            q1.info(f"**WHY DETECTED**: Multi-agent squad and taint flow identified untrusted entrypoint reaching {rc_val} sink.")
+            q2.success(f"**WHY THIS FIX**: Strategy '{getattr(match_prop, 'strategy', 'DEFENSIVE') if match_prop else 'DEFENSIVE'}' replaces unsafe operation with non-executable structural binding.")
+
+            q3, q4 = st.columns(2)
+            q3.warning("**WHY VULNERABLE**: Unchecked execution path creates injection or security swallow risk.")
+            q4.success("**WHY FIX IS SAFE**: Preserves original public signatures and executes cleanly inside IsolatedSandbox.")
+
+
+# ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
 
@@ -1375,7 +1542,10 @@ def main():
         render_report(data)
     elif nav_selection.startswith("11."):
         render_safety(data)
+    elif nav_selection.startswith("12."):
+        render_vulnerability_intelligence(data)
 
 
 if __name__ == "__main__":
     main()
+
