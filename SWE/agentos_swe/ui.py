@@ -219,6 +219,31 @@ from agentos_swe.attackpath import (
     EntrypointType,
     AuthStatus,
 )
+from agentos_swe.remediation import (
+    RemediationPlanner,
+    RemediationPlan,
+    RemediationItem,
+    RemediationStatus,
+    EffortCategory,
+    RemediationGraphBuilder,
+)
+from agentos_swe.monitoring import (
+    SecurityMonitor,
+    SecurityMonitoringResult,
+    RegressionSeverity,
+    AlertSeverity,
+    AlertCategory,
+    AttackPathChangeType,
+    RemediationPlanStatus,
+    TrendDirection,
+)
+from agentos_swe.release import (
+    SecurityReleaseReadinessEngine,
+    SecurityReleaseDecision,
+    ReleaseDecisionState,
+    SecurityGateVerdict,
+    ReleaseDeltaState,
+)
 
 
 
@@ -773,6 +798,67 @@ def run_swe_scan_engine(
 
         record_stage("ATTACK PATH REASONING", t0, f"Correlated {len(attack_paths)} attack paths" + (f" (Top Risk Score: {attack_paths[0].risk_score})" if attack_paths else ""))
 
+        # 11.8 M17 Intelligent Security Remediation Orchestration & Fix Planning
+        t0 = time.time()
+        rem_planner = RemediationPlanner()
+        remediation_plan = rem_planner.generate_remediation_plan(
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            repair_proposals=repair_proposals,
+            repair_validations=repair_validations,
+            historical_comparison=hist_comparison,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+        )
+
+        g_rem_dec = gov_gate.evaluate_remediation_plan(remediation_plan)
+        governance_decisions.append({"finding_id": "remediation_plan_orchestration", "decision": g_rem_dec.value})
+
+        record_stage("REMEDIATION PLANNING", t0, f"Planned {len(remediation_plan.remediation_items)} remediation items" + (f" (Projected Score: {remediation_plan.projected_security_score})" if remediation_plan.remediation_items else ""))
+
+        # 11.9 M18 Continuous Security Monitoring & Regression Detection
+        t0 = time.time()
+        sec_monitor = SecurityMonitor()
+        monitoring_result = sec_monitor.monitor_repository(
+            current_scan={
+                "metadata": {
+                    "scan_id": scan_id,
+                    "repo_name": repo_name or os.path.basename(scan_target_path),
+                    "commit": resolved_commit,
+                },
+                "prioritized_findings": prioritized_findings,
+                "verified_findings": verified_findings,
+                "security_score": remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
+            },
+            historical_comparison=hist_comparison,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+        )
+
+        g_mon_dec = gov_gate.evaluate_security_monitoring(monitoring_result)
+        governance_decisions.append({"finding_id": "security_monitoring_evaluation", "decision": g_mon_dec.value})
+
+        record_stage("SECURITY MONITORING", t0, f"Evaluated monitoring posture (Regression: {monitoring_result.regression_severity.value}, Alerts: {len(monitoring_result.alerts)})")
+
+        # 11.10 Security Release Readiness & Executive Gate (M19)
+        t0 = time.time()
+        release_engine = SecurityReleaseReadinessEngine()
+        release_decision = release_engine.evaluate_release_readiness(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            commit_sha=resolved_commit,
+            governance_status=g_mon_dec.value,
+        )
+
+        g_rel_dec = gov_gate.evaluate_release_readiness(release_decision)
+        governance_decisions.append({"finding_id": "release_readiness_gate", "decision": g_rel_dec.value})
+
+        record_stage("RELEASE READINESS", t0, f"Evaluated release readiness (Decision: {release_decision.decision.value}, Blockers: {len(release_decision.blockers)})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -793,6 +879,9 @@ def run_swe_scan_engine(
             cross_repository_patterns=[cp.to_dict() for cp in cross_patterns],
             attack_paths=[ap.to_dict() for ap in attack_paths],
             regression_results=[rr.to_dict() for rr in regression_results],
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            release_decision=release_decision,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
@@ -833,6 +922,8 @@ def run_swe_scan_engine(
         data["cross_repository_patterns"] = cross_patterns
         data["attack_paths"] = attack_paths
         data["regression_results"] = regression_results
+        data["remediation_plan"] = remediation_plan
+        data["monitoring_result"] = monitoring_result
 
 
         data["governance_decisions"] = governance_decisions
@@ -938,7 +1029,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         st.sidebar.error(data["error"])
     st.sidebar.markdown("---")
 
-    # Navigation Menu (15 Pages)
+    # Navigation Menu (18 Pages)
     nav_options = [
         "1. Overview",
         "2. Agents",
@@ -955,6 +1046,9 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "13. Security History",
         "14. Security Intelligence",
         "15. Attack Paths",
+        "16. Remediation Center",
+        "17. Security Monitoring",
+        "18. Release Readiness",
     ]
 
     
@@ -1992,7 +2086,7 @@ def render_attack_paths(data: Dict[str, Any]):
 
     attack_paths = data.get("attack_paths", [])
     if not attack_paths:
-        st.info("Zero active attack paths detected for current repository scan cycle.")
+        st.info("No confirmed attack paths detected.")
         return
 
     # Section A: Attack Surface Summary Metrics
@@ -2002,13 +2096,16 @@ def render_attack_paths(data: Dict[str, Any]):
     blocked_cnt = sum(1 for p in attack_paths if getattr(p, "classification") in (PathClassification.BLOCKED, PathClassification.NOT_EXPLOITABLE, "BLOCKED", "NOT_EXPLOITABLE"))
     crit_high_cnt = sum(1 for p in attack_paths if getattr(p, "severity") in ("CRITICAL", "HIGH"))
     internet_ep_cnt = sum(1 for p in attack_paths if getattr(p, "entrypoint_type") == EntrypointType.INTERNET or getattr(p, "entrypoint_type") == "INTERNET")
+    auth_cnt = sum(1 for p in attack_paths if getattr(p, "auth_status") in (AuthStatus.AUTHENTICATED, "AUTHENTICATED", AuthStatus.AUTHORIZATION_REQUIRED, "AUTHORIZATION_REQUIRED"))
+    unauth_cnt = sum(1 for p in attack_paths if getattr(p, "auth_status") in (AuthStatus.UNAUTHENTICATED, "UNAUTHENTICATED"))
 
-    a1, a2, a3, a4, a5 = st.columns(5)
+    a1, a2, a3, a4, a5, a6 = st.columns(6)
     a1.metric("TOTAL ATTACK PATHS", f"{total_paths}")
     a2.metric("EXPLOITABLE PATHS", f"{exploitable_cnt}")
     a3.metric("BLOCKED / MITIGATED", f"{blocked_cnt}")
     a4.metric("CRITICAL / HIGH RISK", f"{crit_high_cnt}")
     a5.metric("INTERNET ENTRYPOINTS", f"{internet_ep_cnt}")
+    a6.metric("AUTH / UNAUTH", f"{auth_cnt} / {unauth_cnt}")
 
     st.markdown("---")
 
@@ -2016,14 +2113,17 @@ def render_attack_paths(data: Dict[str, Any]):
     st.markdown("### 🗺️ Attack Path Explorer")
     path_table_data = []
     for ap in attack_paths:
+        bounds_str = " -> ".join([b.value if hasattr(b, "value") else str(b) for b in getattr(ap, "trust_boundaries_crossed", [])]) or "APPLICATION"
         path_table_data.append({
             "Path ID": ap.id,
             "Risk Score": ap.risk_score,
             "Severity": ap.severity,
+            "Confidence": f"{getattr(ap, 'confidence', 0.85):.2f}",
             "Root Cause": ap.root_cause,
             "Entrypoint": ap.entrypoint,
             "Source Type": ap.source_type,
             "Sink Type": ap.sink_type,
+            "Trust Boundaries": bounds_str,
             "Classification": ap.classification.value if hasattr(ap.classification, "value") else str(ap.classification),
             "Auth Status": ap.auth_status.value if hasattr(ap.auth_status, "value") else str(ap.auth_status),
         })
@@ -2058,11 +2158,343 @@ def render_attack_paths(data: Dict[str, Any]):
         st.markdown(f"**Exploitability**: `{investigation.exploitability}`")
         st.markdown(f"**Exposure Scope**: `{investigation.exposure}`")
         st.markdown(f"**Blast Radius**: `{investigation.blast_radius}`")
+        st.markdown(f"**Confidence**: `{getattr(sel_path, 'confidence', 0.85):.2f}`")
     with c_inv2:
         st.markdown("#### 🛠️ How to Break the Attack Path")
         st.success(investigation.how_to_break_narrative)
         st.markdown(f"**Recommended Repair Strategy**: `{investigation.repair_strategy or 'DEFENSIVE_SANITIZATION'}`")
         st.markdown(f"**Sandboxed Validation Status**: `{investigation.validation_status}`")
+
+
+# ---------------------------------------------------------------------------
+# M17 — Intelligent Security Remediation Center Panel
+# ---------------------------------------------------------------------------
+
+def render_remediation_center(data: Dict[str, Any]):
+    """Render M17 Intelligent Security Remediation Center Panel."""
+    st.title("🛠️ Intelligent Security Remediation Center")
+    st.caption("Remediation Planning & Fix Orchestration: Grouping → Sequencing → Dependencies → Conflict Detection → Risk Reduction")
+
+    plan = data.get("remediation_plan")
+    if not plan or not getattr(plan, "remediation_items", []):
+        st.info("No active remediation plan required for current repository state.")
+        return
+
+    # Section A: Executive Security Score Metrics
+    st.markdown("### 📊 Executive Security Score Metrics")
+    curr_score = plan.current_security_score
+    proj_score = plan.projected_security_score
+    tot_red = plan.total_risk_reduction
+    effort_str = plan.total_estimated_effort.value if hasattr(plan.total_estimated_effort, "value") else str(plan.total_estimated_effort)
+    gov_status = plan.governance_status
+
+    r1, r2, r3, r4, r5 = st.columns(5)
+    r1.metric("CURRENT SCORE", f"{curr_score} / 100")
+    r2.metric("PROJECTED SCORE", f"{proj_score} / 100", f"+{tot_red} pts")
+    r3.metric("TOTAL RISK REDUCTION", f"+{tot_red}")
+    r4.metric("CUMULATIVE EFFORT", f"{effort_str}")
+    r5.metric("GOVERNANCE STATUS", f"{gov_status}")
+
+    st.markdown("---")
+
+    # Section B: Top Remediation Plan Card
+    st.markdown("### 🎯 Top Remediation Item")
+    top_item = plan.remediation_items[0]
+    
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        st.markdown(f"#### #{top_item.item_id} — {top_item.title}")
+        st.markdown(f"**Priority Tier**: `{top_item.priority_tier}` (Score: `{top_item.priority_score}`)")
+        st.markdown(f"**Root Cause**: `{top_item.root_cause}`")
+        st.markdown(f"**Affected Files**: `{', '.join(top_item.affected_files)}`")
+        st.markdown(f"**Affected Findings**: `{len(top_item.affected_finding_ids)}` | **Attack Paths**: `{len(top_item.affected_attack_path_ids)}`")
+    with col_t2:
+        st.markdown("#### 🛠️ Recommended Action")
+        st.info(top_item.recommended_fix)
+        st.markdown(f"**Earliest Break Point**: `{top_item.earliest_break_point}`")
+        st.markdown(f"**Estimated Effort**: `{top_item.effort.value if hasattr(top_item.effort, 'value') else top_item.effort}`")
+        st.markdown(f"**Projected Risk Reduction**: `+{top_item.projected_risk_reduction} pts`")
+
+    st.markdown("---")
+
+    # Section C: Remediation Queue Table
+    st.markdown("### 📋 Remediation Execution Queue")
+    table_data = []
+    for idx, item in enumerate(plan.remediation_items, 1):
+        table_data.append({
+            "Seq": f"#{idx}",
+            "Item ID": item.item_id,
+            "Tier": item.priority_tier,
+            "Root Cause": item.root_cause,
+            "Affected Files": ", ".join(item.affected_files),
+            "Findings": len(item.affected_finding_ids),
+            "Attack Paths": len(item.affected_attack_path_ids),
+            "Effort": item.effort.value if hasattr(item.effort, "value") else str(item.effort),
+            "Projected Reduction": f"+{item.projected_risk_reduction}",
+            "Dependencies": ", ".join(item.dependencies) or "None",
+            "Status": item.governance_status.value if hasattr(item.governance_status, "value") else str(item.governance_status),
+        })
+    st.table(table_data)
+
+    st.markdown("---")
+
+    # Section D: Remediation Graph Visualizer
+    st.markdown("### 🕸️ Interactive Remediation Graph Visualizer")
+    if plan.graph:
+        try:
+            st.graphviz_chart(plan.graph.to_dot())
+        except Exception:
+            st.code(plan.graph.to_dot(), language="dot")
+
+    st.markdown("---")
+
+    # Section E: Dependency & Conflict Inspector
+    st.markdown("### ⚡ Dependency Chain & Conflict Inspector")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### 🔗 Execution Dependencies")
+        if plan.dependency_relationships and any(deps for deps in plan.dependency_relationships.values()):
+            for item_id, deps in plan.dependency_relationships.items():
+                if deps:
+                    st.write(f"- `{item_id}` depends on: `{', '.join(deps)}`")
+        else:
+            st.write("No inter-fix execution dependencies detected. Fixes can run in parallel.")
+    with c2:
+        st.markdown("#### ⚠️ Conflict Detection")
+        if plan.conflicts:
+            for conf in plan.conflicts:
+                st.error(f"**Conflict `{conf.get('conflict_id')}`**: Items `{conf.get('item_a_id')}` and `{conf.get('item_b_id')}` conflict on `{', '.join(conf.get('shared_files', []))}`: {conf.get('reason')}")
+        else:
+            st.success("Zero remediation conflicts detected across all proposed fixes.")
+
+
+# ---------------------------------------------------------------------------
+# M18 — Continuous Security Monitoring Panel
+# ---------------------------------------------------------------------------
+
+def render_security_monitoring(data: Dict[str, Any]):
+    """Render M18 Continuous Security Monitoring & Timeline Panel."""
+    st.title("📡 Continuous Security Monitoring & Timeline")
+    st.caption("Continuous Posture Tracking: Snapshot Diffing → Regression Detection → Attack Path Delta → Remediation Validity → Timeline")
+
+    res = data.get("monitoring_result")
+    if not res:
+        st.info("No security monitoring data available for current repository state.")
+        return
+
+    # Section A: Executive Security Posture Metrics
+    st.markdown("### 📊 Executive Security Posture")
+    r_sev = res.regression_severity.value if hasattr(res.regression_severity, "value") else str(res.regression_severity)
+    trend = res.risk_trend.value if hasattr(res.risk_trend, "value") else str(res.risk_trend)
+    score_b = res.security_score_before
+    score_a = res.security_score_after
+    delta = res.score_delta
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("PREVIOUS SCORE", f"{score_b} / 100")
+    m2.metric("CURRENT SCORE", f"{score_a} / 100", f"{delta:+d} pts")
+    m3.metric("SCORE DELTA", f"{delta:+d}")
+    m4.metric("RISK TREND", f"{trend}")
+    m5.metric("REGRESSION VERDICT", f"{r_sev}")
+
+    st.markdown("---")
+
+    # Section B: New Security Events & Attack Path Delta
+    c_ev1, c_ev2 = st.columns(2)
+    with c_ev1:
+        st.markdown("### 🚨 New Security Events")
+        if res.new_findings:
+            st.error(f"**{len(res.new_findings)} New Vulnerability Introduced**")
+            for nf in res.new_findings[:3]:
+                st.write(f"- `{nf.get('root_cause', 'UNKNOWN')}` in `{nf.get('affected_file') or nf.get('file', 'N/A')}` ({nf.get('severity', 'MEDIUM')})")
+        elif res.reopened_findings:
+            st.warning(f"**{len(res.reopened_findings)} Previously Fixed Finding Reopened**")
+            for rf in res.reopened_findings[:3]:
+                st.write(f"- `{rf.get('root_cause', 'UNKNOWN')}` in `{rf.get('affected_file') or rf.get('file', 'N/A')}`")
+        else:
+            st.success("Zero new or reopened vulnerabilities detected in current diff.")
+
+    with c_ev2:
+        st.markdown("### 🌐 Attack Path Changes")
+        if res.changed_attack_paths:
+            for cap in res.changed_attack_paths:
+                st.warning(f"**Path `{cap.path_id}`**: {cap.description}")
+        elif res.new_attack_paths:
+            st.error(f"**{len(res.new_attack_paths)} New Exploitable Attack Path Discovered**")
+        else:
+            st.success("Zero attack path regressions detected across entrypoint boundaries.")
+
+    st.markdown("---")
+
+    # Section C: Remediation Impact & File Diff Impact
+    c_rem1, c_rem2 = st.columns(2)
+    with c_rem1:
+        st.markdown("### 🛠️ Remediation Plan Validity")
+        if res.remediation_impact:
+            stat_val = res.remediation_impact.status.value if hasattr(res.remediation_impact.status, "value") else str(res.remediation_impact.status)
+            if stat_val == "REQUIRES_REPLAN":
+                st.warning(f"**Remediation Plan Status**: `{stat_val}`")
+                st.write(f"**Reason**: {res.remediation_impact.reason}")
+                st.write(f"**Invalidated Items**: `{', '.join(res.remediation_impact.invalidated_items)}`")
+            else:
+                st.success(f"**Remediation Plan Status**: `{stat_val}`")
+                st.write(res.remediation_impact.reason)
+        else:
+            st.info("No active M17 remediation plan requiring validation.")
+
+    with c_rem2:
+        st.markdown("### 📝 Changed-Code Security Impact")
+        if res.change_impacts:
+            for ci in res.change_impacts:
+                st.write(f"- **Commit `{ci.commit}`** (`{ci.file}`): {ci.status_description}")
+        else:
+            st.write("Zero security-sensitive code diff impacts detected.")
+
+    st.markdown("---")
+
+    # Section D: Repository Security Timeline
+    st.markdown("### ⏱️ Repository Security Timeline")
+    if res.timeline:
+        t_data = []
+        for entry in res.timeline:
+            t_data.append({
+                "Commit": f"`{entry.commit}`",
+                "Timestamp": entry.timestamp,
+                "Code Changes": entry.code_changes_summary,
+                "Finding Delta": entry.finding_changes_summary,
+                "Attack Path Delta": entry.attack_path_changes_summary,
+                "Score Delta": f"{entry.score_before} → {entry.score_after} ({entry.score_delta:+d})",
+                "Remediation": entry.remediation_status_summary,
+                "Regression Verdict": entry.regression_severity.value if hasattr(entry.regression_severity, "value") else str(entry.regression_severity),
+            })
+        st.table(t_data)
+    else:
+        st.info("Timeline recording active for subsequent commit passes.")
+
+    st.markdown("---")
+
+    # Section E: Security Alert Center
+    st.markdown("### 🚨 Security Alert Center")
+    if res.alerts:
+        for alt in res.alerts:
+            sev_str = alt.severity.value if hasattr(alt.severity, "value") else str(alt.severity)
+            cat_str = alt.category.value if hasattr(alt.category, "value") else str(alt.category)
+            if sev_str == "CRITICAL":
+                st.error(f"**[{sev_str}] {alt.title}** (`{cat_str}`)\n\n**Reason**: {alt.reason}\n\n**Evidence**: {alt.evidence}\n\n**Action**: {alt.recommended_action}")
+            elif sev_str == "HIGH":
+                st.warning(f"**[{sev_str}] {alt.title}** (`{cat_str}`)\n\n**Reason**: {alt.reason}\n\n**Evidence**: {alt.evidence}\n\n**Action**: {alt.recommended_action}")
+            else:
+                st.info(f"**[{sev_str}] {alt.title}** (`{cat_str}`)\n\n**Reason**: {alt.reason}\n\n**Evidence**: {alt.evidence}\n\n**Action**: {alt.recommended_action}")
+    else:
+        st.success("No security alerts generated for current scan.")
+
+
+# ---------------------------------------------------------------------------
+# M19 — Security Release Readiness Panel
+# ---------------------------------------------------------------------------
+
+def render_release_readiness(data: Dict[str, Any]):
+    """Render M19 Security Release Readiness & Executive Gate Panel."""
+    st.title("🚀 Security Release Readiness & Executive Gate")
+    st.caption("Risk-Based Go/No-Go Decision Engine: Vulnerabilities + Attack Paths + Regressions + Remediation + Governance → Release Decision")
+
+    dec = data.get("release_decision")
+    if not dec:
+        st.info("Repository is release-ready. No blocking security risks detected.")
+        return
+
+    d_val = dec.decision.value if hasattr(dec.decision, "value") else str(dec.decision)
+    g_val = dec.release_status.value if hasattr(dec.release_status, "value") else str(dec.release_status)
+
+    # Section A: Executive Release Decision Banner
+    if d_val == "BLOCKED":
+        st.error(f"## 🔴 RELEASE DECISION: BLOCKED\n**Gate Verdict**: `{g_val}`\n\nRelease is BLOCKED due to active critical vulnerabilities, exploitable attack paths, or critical security regressions.")
+    elif d_val == "NO_GO":
+        st.error(f"## 🟠 RELEASE DECISION: NO_GO\n**Gate Verdict**: `{g_val}`\n\nRelease should NOT proceed because high-severity security risks remain unresolved.")
+    elif d_val == "REVIEW_REQUIRED":
+        st.warning(f"## 🟡 RELEASE DECISION: REVIEW_REQUIRED\n**Gate Verdict**: `{g_val}`\n\nHuman security review required before proceeding with release.")
+    elif d_val == "GO_WITH_WARNINGS":
+        st.warning(f"## 🟢 RELEASE DECISION: GO_WITH_WARNINGS\n**Gate Verdict**: `{g_val}`\n\nRepository is release-ready with non-blocking low/medium security warnings.")
+    else:
+        st.success(f"## 🟢 RELEASE DECISION: GO\n**Gate Verdict**: `{g_val}`\n\nRepository is fully release-ready. Zero blocking security risks detected.")
+
+    st.markdown("---")
+
+    # Section B: Executive Security Scorecard
+    st.markdown("### 📊 Executive Security Scorecard")
+    sc = dec.scorecard
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("SECURITY SCORE", f"{sc.security_score} / 100")
+    m2.metric("RISK SCORE", f"{sc.risk_score}")
+    m3.metric("EXPLOITABILITY", f"{sc.exploitability}")
+    m4.metric("EXPOSURE", f"{sc.internet_exposure}")
+    m5.metric("GOVERNANCE", f"{sc.governance_status}")
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("CRITICAL", sc.critical_findings)
+    c2.metric("HIGH", sc.high_findings)
+    c3.metric("ATTACK PATHS", sc.attack_paths)
+    c4.metric("REGRESSIONS", sc.regressions)
+    c5.metric("P0 REMEDIATION", sc.p0_remediations)
+
+    st.markdown("---")
+
+    # Section C: Release Blockers & Recommended Actions
+    c_b1, c_b2 = st.columns(2)
+    with c_b1:
+        st.markdown("### ⛔ Release Blockers")
+        if dec.blockers:
+            st.error(f"**{len(dec.blockers)} Blocking Condition(s) Preventing Release**")
+            for b in dec.blockers:
+                st.write(f"- **[{b.severity}] {b.title}** in `{b.file}` line {b.line or 1}\n  *Reason*: {b.reason}\n  *Action*: {b.recommended_action}")
+        else:
+            st.success("Zero release blockers detected.")
+
+    with c_b2:
+        st.markdown("### 💡 Executive Recommendations")
+        if dec.recommendations:
+            for rec in dec.recommendations:
+                st.write(f"- {rec}")
+        else:
+            st.write("- Proceed with standard deployment pipeline.")
+
+    st.markdown("---")
+
+    # Section D: Decision Evidence Chain
+    st.markdown("### 🔗 Decision Evidence Chain")
+    if dec.evidence_chain:
+        e_data = []
+        for ev in dec.evidence_chain:
+            e_data.append({
+                "ID": f"`{ev.evidence_id}`",
+                "Policy Rule": ev.policy_rule,
+                "Reference": f"`{ev.finding_id or ev.attack_path_id or ev.remediation_id or 'N/A'}`",
+                "Evidence": ev.evidence_text,
+                "Status": f"`{ev.validation_status}`",
+            })
+        st.table(e_data)
+    else:
+        st.info("No evidence chain required for clean release.")
+
+    st.markdown("---")
+
+    # Section E: Release Delta (Previous vs Current)
+    st.markdown("### 🔄 Release Delta (Previous vs Current)")
+    if dec.release_diff:
+        rd = dec.release_diff
+        prev_v = rd.previous_decision.value if hasattr(rd.previous_decision, "value") else str(rd.previous_decision)
+        curr_v = rd.current_decision.value if hasattr(rd.current_decision, "value") else str(rd.current_decision)
+        delta_v = rd.release_delta_state.value if hasattr(rd.release_delta_state, "value") else str(rd.release_delta_state)
+
+        if delta_v == "RECOVERED":
+            st.success(f"**Release Posture Status**: `{delta_v}` (Previous: `{prev_v}` → Current: `{curr_v}`)")
+        elif delta_v == "DEGRADED":
+            st.error(f"**Release Posture Status**: `{delta_v}` (Previous: `{prev_v}` → Current: `{curr_v}`)")
+        else:
+            st.info(f"**Release Posture Status**: `{delta_v}` (Previous: `{prev_v}` → Current: `{curr_v}`)")
+        st.write(rd.explanation)
+    else:
+        st.info("Baseline release evaluation active.")
 
 
 # ---------------------------------------------------------------------------
@@ -2118,6 +2550,12 @@ def main():
         render_security_intelligence(data)
     elif nav_selection.startswith("15."):
         render_attack_paths(data)
+    elif nav_selection.startswith("16."):
+        render_remediation_center(data)
+    elif nav_selection.startswith("17."):
+        render_security_monitoring(data)
+    elif nav_selection.startswith("18."):
+        render_release_readiness(data)
 
 
 if __name__ == "__main__":

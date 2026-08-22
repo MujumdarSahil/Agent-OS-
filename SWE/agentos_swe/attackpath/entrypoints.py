@@ -24,6 +24,22 @@ class EntrypointDetector:
         ctx_lower = ctx.lower()
         fp_lower = (file_path or "").lower()
 
+        # Check if file is a test file or test harness
+        is_test_file = (
+            "test_" in fp_lower
+            or "_test.py" in fp_lower
+            or "/tests/" in fp_lower
+            or "\\tests\\" in fp_lower
+            or "tests.py" in fp_lower
+        )
+        if is_test_file:
+            return [{
+                "entrypoint": f"Test Harness ({file_path or 'test'})",
+                "entrypoint_type": EntrypointType.UNKNOWN,
+                "framework": "TestHarness",
+                "evidence": f"Test harness scope in '{file_path}'",
+            }]
+
         # 1. FastAPI / Starlette Routes
         fastapi_matches = re.findall(r'@(?:app|router|blueprint)\.(get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']', ctx, re.IGNORECASE)
         for method, path in fastapi_matches:
@@ -55,8 +71,8 @@ class EntrypointDetector:
                     "evidence": f"Django URL path('{dp}')",
                 })
 
-        # 4. CLI Entrypoints
-        if "sys.argv" in ctx_lower or "argparse" in ctx_lower or "click.command" in ctx_lower or "typer" in ctx_lower:
+        # 4. CLI Entrypoints (requires structural CLI input usage)
+        if any(cli_kw in ctx_lower for cli_kw in ("sys.argv", "argparse", "click.command", "click.option", "typer.option", "typer.command", "sys.stdin")):
             entrypoints.append({
                 "entrypoint": "CLI Command",
                 "entrypoint_type": EntrypointType.USER_CLI,
@@ -76,7 +92,7 @@ class EntrypointDetector:
 
         # 6. Fallback based on file naming patterns
         if not entrypoints:
-            if "api/" in fp_lower or "routes/" in fp_lower or "controllers/" in fp_lower:
+            if "api/" in fp_lower or "routes/" in fp_lower or "controllers/" in fp_lower or "endpoints/" in fp_lower:
                 entrypoints.append({
                     "entrypoint": f"API Handler ({file_path})",
                     "entrypoint_type": EntrypointType.INTERNAL_API,

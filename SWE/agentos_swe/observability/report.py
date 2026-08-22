@@ -1,5 +1,5 @@
 """
-ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14, M15, M16).
+ReportGenerator - Generates machine-readable and human-readable execution run reports for AgentOS-SWE (M7, M13, M13.1, M14, M15, M16, M17, M18, M19).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """
     Generates structured JSON and Markdown execution run reports from a TraceCollector,
-    including M13 Vulnerability Intelligence, M13.1 Repair Validation, M14 History, M15 Prioritization, and M16 Attack Paths.
+    including M13 Vulnerability Intelligence, M13.1 Repair Validation, M14 History, M15 Prioritization, M16 Attack Paths, M17 Remediation, M18 Monitoring, and M19 Release Readiness.
     """
 
     def generate_run_report(
@@ -62,11 +62,50 @@ class ReportGenerator:
         cross_repository_patterns: Optional[List[Dict[str, Any]]] = None,
         attack_paths: Optional[List[Dict[str, Any]]] = None,
         regression_results: Optional[List[Dict[str, Any]]] = None,
+        remediation_plan: Optional[Any] = None,
+        monitoring_result: Optional[Any] = None,
+        release_decision: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
         f_m = report.finding_metrics
         r_m = report.repair_metrics
+
+        # M19 Release telemetry formatting
+        rel_dict = release_decision.to_dict() if hasattr(release_decision, "to_dict") else (release_decision or {})
+        rel_dec = rel_dict.get("decision", "GO")
+        rel_gate = rel_dict.get("release_status", "ALLOW_RELEASE")
+
+        blockers = rel_dict.get("blockers", [])
+        blocker_rows = []
+        if blockers:
+            for b in blockers[:5]:
+                sev = b.get("severity", "CRITICAL")
+                cat = b.get("category", "UNKNOWN")
+                ttl = b.get("title", "Blocker")
+                aff = f"{b.get('file', 'N/A')}:{b.get('line', 1)}"
+                act = b.get("recommended_action", "N/A")
+                blocker_rows.append(f"| `{sev}` | `{cat}` | {ttl} | `{aff}` | {act} |")
+        blocker_table = "\n".join(blocker_rows) if blocker_rows else "| `NONE` | `CLEAN` | Zero Release Blockers | `N/A` | Repository release ready |"
+
+        # M18 Monitoring telemetry formatting
+        mon_dict = monitoring_result.to_dict() if hasattr(monitoring_result, "to_dict") else (monitoring_result or {})
+        reg_sev = mon_dict.get("regression_severity", "NO_REGRESSION")
+        risk_trend = mon_dict.get("risk_trend", "STABLE")
+        score_b = mon_dict.get("security_score_before", 100)
+        score_a = mon_dict.get("security_score_after", 100)
+        s_delta = mon_dict.get("score_delta", 0)
+
+        mon_alerts = mon_dict.get("alerts", [])
+        alert_rows = []
+        if mon_alerts:
+            for alt in mon_alerts[:5]:
+                cat = alt.get("category", "INFO")
+                sev = alt.get("severity", "INFO")
+                ttl = alt.get("title", "Notice")
+                act = alt.get("recommended_action", "N/A")
+                alert_rows.append(f"| `{sev}` | `{cat}` | {ttl} | {act} |")
+        alert_table = "\n".join(alert_rows) if alert_rows else "| `INFO` | `NO_REGRESSION` | Clean Security Scan Pass | No action required |"
 
         agent_rows = []
         for name, a in report.agent_metrics.items():
@@ -74,6 +113,23 @@ class ReportGenerator:
                 f"| `{name}` | {a.execution_count} | {a.success_count} | {a.failure_count} | {a.fallback_count} | {a.total_tokens} | {a.total_duration_sec:.2f}s |"
             )
         agent_table = "\n".join(agent_rows) if agent_rows else "| None | 0 | 0 | 0 | 0 | 0 | 0s |"
+
+        # M17 Security Remediation Plan Table
+        rem_rows = []
+        rem_plan_dict = remediation_plan.to_dict() if hasattr(remediation_plan, "to_dict") else (remediation_plan or {})
+        rem_items = rem_plan_dict.get("remediation_items", [])
+        if rem_items:
+            for item in rem_items[:5]:
+                iid = item.get("item_id", "rem_#")
+                tier = item.get("priority_tier", "P2")
+                rc = item.get("root_cause", "UNKNOWN")
+                aff = ", ".join(item.get("affected_files", [])) or "N/A"
+                eff = item.get("effort", "MEDIUM")
+                red = item.get("projected_risk_reduction", 0)
+                stat = item.get("governance_status", "READY_FOR_REVIEW")
+                act = item.get("recommended_fix", "Apply defensive sanitization.")
+                rem_rows.append(f"| `{iid}` | `{tier}` | `{rc}` | `{aff}` | `{eff}` | `+{red}` | `{stat}` | {act} |")
+        rem_table = "\n".join(rem_rows) if rem_rows else "| rem_1 | `P4` | `NONE` | `N/A` | `TRIVIAL` | `+0` | `ALLOW` | Zero remediation items required |"
 
         # M16 Attack Surface Summary Table
         attack_rows = []
@@ -132,10 +188,10 @@ class ReportGenerator:
         # M14 Historical Comparison Summary
         hist_section = ""
         if historical_comparison:
-            score_b = historical_comparison.get("score_before", 100)
-            score_a = historical_comparison.get("score_after", 100)
-            delta = historical_comparison.get("score_delta", 0)
-            trend = historical_comparison.get("risk_trend", "STABLE")
+            score_b_hist = historical_comparison.get("score_before", 100)
+            score_a_hist = historical_comparison.get("score_after", 100)
+            delta_hist = historical_comparison.get("score_delta", 0)
+            trend_hist = historical_comparison.get("risk_trend", "STABLE")
             n_new = len(historical_comparison.get("new_findings", []))
             n_fixed = len(historical_comparison.get("fixed_findings", []))
             n_reopened = len(historical_comparison.get("reopened_findings", []))
@@ -144,10 +200,10 @@ class ReportGenerator:
 ---
 
 ### 📈 M14 Historical Security Intelligence & Risk Trend
-- **Security Score Before**: `{score_b} / 100`
-- **Current Security Score**: `{score_a} / 100`
-- **Score Delta**: `{delta:+d}`
-- **Risk Trend**: `{trend}`
+- **Security Score Before**: `{score_b_hist} / 100`
+- **Current Security Score**: `{score_a_hist} / 100`
+- **Score Delta**: `{delta_hist:+d}`
+- **Risk Trend**: `{trend_hist}`
 - **New Vulnerabilities**: `{n_new}`
 - **Fixed Vulnerabilities**: `{n_fixed}`
 - **Reopened Vulnerabilities**: `{n_reopened}`
@@ -163,6 +219,10 @@ class ReportGenerator:
                 gov_rows.append(f"| `{fid}` | `{dec}` |")
         gov_table = "\n".join(gov_rows) if gov_rows else "| None | ALLOW |"
 
+        curr_score = rem_plan_dict.get("current_security_score", 100)
+        proj_score = rem_plan_dict.get("projected_security_score", 100)
+        tot_red = rem_plan_dict.get("total_risk_reduction", 0)
+
         md = f"""# 📊 AgentOS-SWE Execution Run Report & Security Intelligence
 
 ### 📌 Executive Summary
@@ -172,9 +232,48 @@ class ReportGenerator:
 - **End Time**: `{report.end_time}`
 - **Total Duration**: `{report.total_duration_sec:.2f}s`
 - **Total Trace Events**: `{report.trace_events_count}`
+- **Current Security Score**: `{curr_score} / 100`
+- **Projected Security Score**: `{proj_score} / 100 (+{tot_red} Points)`
+- **Release Decision State**: `{rel_dec}`
+- **Security Gate Verdict**: `{rel_gate}`
+- **Regression Severity**: `{reg_sev}`
+- **Risk Trend**: `{risk_trend}`
 - **Safety Status**: `PASS (IsolatedSandbox + DRY RUN Active)`
 - **Final Verdict**: `{final_verdict}`
+
+---
+
+### 🚀 M19 Security Release Readiness & Executive Gate Report
+- **Release Decision**: `{rel_dec}`
+- **Executive Security Gate Verdict**: `{rel_gate}`
+- **Total Release Blockers**: `{len(blockers)}`
+
+#### ⛔ Release Blockers Table
+| Severity | Category | Title | Location | Action |
+| :--- | :--- | :--- | :--- | :--- |
+{blocker_table}
+
+---
+
+### 📡 M18 Continuous Security Monitoring & Regression Report
+- **Score Before**: `{score_b} / 100`
+- **Score After**: `{score_a} / 100`
+- **Score Delta**: `{s_delta:+d}`
+- **Regression Classification**: `{reg_sev}`
+- **Summary**: {mon_dict.get("summary_explanation", "Zero security regressions detected.")}
+
+#### 🚨 Active Security Alerts
+| Severity | Category | Title | Action |
+| :--- | :--- | :--- | :--- |
+{alert_table}
 {hist_section}
+---
+
+### 🛠️ M17 Intelligent Security Remediation Plan
+| Item ID | Tier | Root Cause | Affected File | Effort | Projected Reduction | Status | Recommended Fix |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{rem_table}
+
 ---
 
 ### 🌐 M16 Autonomous Attack Surface & Attack Paths Summary

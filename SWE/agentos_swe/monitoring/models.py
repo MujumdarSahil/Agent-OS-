@@ -1,0 +1,219 @@
+"""
+M18 Continuous Security Monitoring & Regression Models.
+
+Defines domain models, enums, dataclasses, and data structures for continuous security monitoring,
+regression classification, attack-path changes, remediation plan validity, alerts, timelines, and cross-repository posture.
+"""
+
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+
+
+class RegressionSeverity(str, Enum):
+    """Classification of security regression severity between scans."""
+    NO_REGRESSION = "NO_REGRESSION"
+    MINOR_REGRESSION = "MINOR_REGRESSION"
+    SIGNIFICANT_REGRESSION = "SIGNIFICANT_REGRESSION"
+    CRITICAL_REGRESSION = "CRITICAL_REGRESSION"
+
+
+class AlertSeverity(str, Enum):
+    """Severity classification for security alerts."""
+    INFO = "INFO"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AlertCategory(str, Enum):
+    """Deterministic category of a security monitoring alert."""
+    CRITICAL_SECURITY_REGRESSION = "CRITICAL_SECURITY_REGRESSION"
+    NEW_CRITICAL_FINDING = "NEW_CRITICAL_FINDING"
+    NEW_HIGH_FINDING = "NEW_HIGH_FINDING"
+    NEW_ATTACK_PATH = "NEW_ATTACK_PATH"
+    AUTHENTICATION_WEAKENED = "AUTHENTICATION_WEAKENED"
+    EXPOSURE_INCREASED = "EXPOSURE_INCREASED"
+    REMEDIATION_INVALIDATED = "REMEDIATION_INVALIDATED"
+    REOPENED_VULNERABILITY = "REOPENED_VULNERABILITY"
+    SECURITY_SCORE_DROP = "SECURITY_SCORE_DROP"
+    NO_REGRESSION = "NO_REGRESSION"
+
+
+class AttackPathChangeType(str, Enum):
+    """Type of structural change detected in an attack path across scans."""
+    NEW_ATTACK_PATH = "NEW_ATTACK_PATH"
+    REMOVED_ATTACK_PATH = "REMOVED_ATTACK_PATH"
+    UNCHANGED_ATTACK_PATH = "UNCHANGED_ATTACK_PATH"
+    MODIFIED_ATTACK_PATH = "MODIFIED_ATTACK_PATH"
+    REOPENED_ATTACK_PATH = "REOPENED_ATTACK_PATH"
+
+
+class RemediationPlanStatus(str, Enum):
+    """Validity state of an M17 remediation plan following code modifications."""
+    VALID = "VALID"
+    STALE = "STALE"
+    INVALIDATED = "INVALIDATED"
+    REQUIRES_REPLAN = "REQUIRES_REPLAN"
+
+
+class TrendDirection(str, Enum):
+    """Overall security posture trend across historical scans."""
+    IMPROVING = "IMPROVING"
+    STABLE = "STABLE"
+    DEGRADING = "DEGRADING"
+    VOLATILE = "VOLATILE"
+
+
+@dataclass
+class SecurityAlert:
+    """Actionable security monitoring alert entry."""
+    alert_id: str
+    category: AlertCategory
+    severity: AlertSeverity
+    title: str
+    repository: str
+    commit: str
+    reason: str
+    evidence: str
+    affected_files: List[str] = field(default_factory=list)
+    affected_findings: List[str] = field(default_factory=list)
+    affected_attack_paths: List[str] = field(default_factory=list)
+    recommended_action: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["category"] = self.category.value if isinstance(self.category, Enum) else self.category
+        d["severity"] = self.severity.value if isinstance(self.severity, Enum) else self.severity
+        return d
+
+
+@dataclass
+class AttackPathChange:
+    """Structural delta between historical and current attack paths."""
+    path_id: str
+    change_type: AttackPathChangeType
+    description: str
+    previous_risk_score: int = 0
+    current_risk_score: int = 0
+    auth_weakened: bool = False
+    exposure_increased: bool = False
+    affected_file: str = ""
+    root_cause: str = "UNKNOWN"
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["change_type"] = self.change_type.value if isinstance(self.change_type, Enum) else self.change_type
+        return d
+
+
+@dataclass
+class RemediationImpact:
+    """Impact of recent code changes on an M17 Remediation Plan."""
+    plan_id: str
+    status: RemediationPlanStatus
+    reason: str
+    invalidated_items: List[str] = field(default_factory=list)
+    affected_files: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["status"] = self.status.value if isinstance(self.status, Enum) else self.status
+        return d
+
+
+@dataclass
+class SecurityChangeImpact:
+    """Detailed security impact assessment for a git commit or diff."""
+    commit: str
+    file: str
+    affected_findings_count: int = 0
+    affected_attack_paths_count: int = 0
+    affected_remediation_items_count: int = 0
+    risk_score_delta: int = 0
+    status_description: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SecurityTimelineEntry:
+    """A chronological entry in the repository security evolution timeline."""
+    commit: str
+    timestamp: str
+    code_changes_summary: str
+    finding_changes_summary: str
+    attack_path_changes_summary: str
+    score_before: int
+    score_after: int
+    score_delta: int
+    remediation_status_summary: str
+    regression_severity: RegressionSeverity
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["regression_severity"] = self.regression_severity.value if isinstance(self.regression_severity, Enum) else self.regression_severity
+        return d
+
+
+@dataclass
+class SecurityMonitoringResult:
+    """Complete container for continuous security monitoring analysis."""
+    repository: str
+    current_commit: str
+    previous_commit: str
+    scan_timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    security_score_before: int = 100
+    security_score_after: int = 100
+    score_delta: int = 0
+    risk_trend: TrendDirection = TrendDirection.STABLE
+    regression_severity: RegressionSeverity = RegressionSeverity.NO_REGRESSION
+    new_findings: List[Dict[str, Any]] = field(default_factory=list)
+    fixed_findings: List[Dict[str, Any]] = field(default_factory=list)
+    unchanged_findings: List[Dict[str, Any]] = field(default_factory=list)
+    reopened_findings: List[Dict[str, Any]] = field(default_factory=list)
+    new_attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    removed_attack_paths: List[Dict[str, Any]] = field(default_factory=list)
+    changed_attack_paths: List[AttackPathChange] = field(default_factory=list)
+    remediation_impact: Optional[RemediationImpact] = None
+    change_impacts: List[SecurityChangeImpact] = field(default_factory=list)
+    timeline: List[SecurityTimelineEntry] = field(default_factory=list)
+    alerts: List[SecurityAlert] = field(default_factory=list)
+    monitoring_status: str = "COMPLETE"
+    governance_verdict: str = "ALLOW"
+    summary_explanation: str = "Zero security regressions detected."
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["risk_trend"] = self.risk_trend.value if isinstance(self.risk_trend, Enum) else self.risk_trend
+        d["regression_severity"] = self.regression_severity.value if isinstance(self.regression_severity, Enum) else self.regression_severity
+        d["changed_attack_paths"] = [cap.to_dict() for cap in self.changed_attack_paths]
+        if self.remediation_impact:
+            d["remediation_impact"] = self.remediation_impact.to_dict()
+        d["change_impacts"] = [ci.to_dict() for ci in self.change_impacts]
+        d["timeline"] = [t.to_dict() for t in self.timeline]
+        d["alerts"] = [a.to_dict() for a in self.alerts]
+        return d
+
+
+@dataclass
+class CrossRepositoryMonitoringResult:
+    """Container for batch monitoring across multiple repositories."""
+    scan_timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    repository_results: Dict[str, SecurityMonitoringResult] = field(default_factory=dict)
+    total_repositories: int = 0
+    degrading_repositories_count: int = 0
+    critical_regressions_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "scan_timestamp": self.scan_timestamp,
+            "repository_results": {repo: res.to_dict() for repo, res in self.repository_results.items()},
+            "total_repositories": self.total_repositories,
+            "degrading_repositories_count": self.degrading_repositories_count,
+            "critical_regressions_count": self.critical_regressions_count,
+        }

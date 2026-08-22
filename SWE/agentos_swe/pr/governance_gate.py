@@ -141,3 +141,45 @@ class GovernanceGate:
         if any(p.classification == PathClassification.EXPLOITABLE and p.risk_score >= 70 for p in attack_paths):
             return GovernanceDecision.REVIEW_REQUIRED
         return GovernanceDecision.ALLOW
+
+    def evaluate_remediation_plan(self, plan: Any) -> GovernanceDecision:
+        """
+        Evaluate M17 RemediationPlan against governance policies.
+        """
+        if getattr(plan, "conflicts", None):
+            return GovernanceDecision.REVIEW_REQUIRED
+        if getattr(plan, "governance_status", "") in ("NEEDS_REVIEW", "REJECT"):
+            return GovernanceDecision.REVIEW_REQUIRED
+        items = getattr(plan, "remediation_items", [])
+        if any(getattr(item, "priority_tier", "") in ("P0", "P1") for item in items):
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW
+
+    def evaluate_security_monitoring(self, result: Any) -> GovernanceDecision:
+        """
+        Evaluate M18 SecurityMonitoringResult against governance policies.
+        """
+        reg_sev = str(getattr(result, "regression_severity", "")).upper()
+        if "CRITICAL" in reg_sev or "SIGNIFICANT" in reg_sev:
+            return GovernanceDecision.REVIEW_REQUIRED
+
+        alerts = getattr(result, "alerts", [])
+        for alt in alerts:
+            cat = str(getattr(alt, "category", "")).upper()
+            sev = str(getattr(alt, "severity", "")).upper()
+            if sev == "CRITICAL" or cat in ("CRITICAL_SECURITY_REGRESSION", "AUTHENTICATION_WEAKENED", "NEW_CRITICAL_FINDING"):
+                return GovernanceDecision.REVIEW_REQUIRED
+
+        return GovernanceDecision.ALLOW
+
+    def evaluate_release_readiness(self, release_decision: Any) -> GovernanceDecision:
+        """
+        Evaluate M19 SecurityReleaseDecision against governance policies.
+        """
+        dec_val = str(getattr(release_decision, "decision", "")).upper()
+        if dec_val in ("BLOCKED", "NO_GO"):
+            return GovernanceDecision.DENY
+        elif dec_val == "REVIEW_REQUIRED":
+            return GovernanceDecision.REVIEW_REQUIRED
+        else:
+            return GovernanceDecision.ALLOW

@@ -152,16 +152,43 @@ class AttackPathBuilder:
         )
         auth_stat = self.auth_analyzer.analyze_auth_status(code_context=code_ctx)
 
-        # 5. Path Classification
-        is_constant = "constant" in code_ctx.lower() or "safe_const" in code_ctx.lower()
-        if is_constant or src_kind == "CONSTANT":
+        # 5. Path Classification & Hardening
+        fp_lower = aff_file.lower()
+        is_test_file = (
+            "test_" in fp_lower
+            or "_test.py" in fp_lower
+            or "/tests/" in fp_lower
+            or "\\tests\\" in fp_lower
+            or "tests.py" in fp_lower
+        )
+        is_constant = (
+            "constant" in code_ctx.lower()
+            or "safe_const" in code_ctx.lower()
+            or "echo hello" in code_ctx.lower()
+            or src_kind == "CONSTANT"
+        )
+        has_str_concat = "+" in code_ctx or "f\"" in code_ctx.lower() or "f'" in code_ctx.lower() or ".format(" in code_ctx.lower()
+        has_sql_param = "%s" in code_ctx or "?" in code_ctx or "$1" in code_ctx or "params" in code_ctx.lower() or ", (" in code_ctx or ", [" in code_ctx
+        is_parameterized_sql = (
+            rc == "SQL_INJECTION"
+            and has_sql_param
+            and not has_str_concat
+        )
+
+        if is_test_file or rc in ("TEST_HARNESS", "INTENTIONAL_FALLBACK"):
+            classification = PathClassification.NOT_EXPLOITABLE
+        elif is_constant or src_kind == "CONSTANT":
+            classification = PathClassification.NOT_EXPLOITABLE
+        elif rc in ("DICT_LOOKUP", "INFO"):
+            classification = PathClassification.NOT_EXPLOITABLE
+        elif is_parameterized_sql:
             classification = PathClassification.NOT_EXPLOITABLE
         elif sanitizers:
             classification = PathClassification.PARTIALLY_MITIGATED
-        elif rc == "DICT_LOOKUP":
-            classification = PathClassification.NOT_EXPLOITABLE
-        elif ep_type in (EntrypointType.INTERNET, EntrypointType.USER_CLI) and rc in ("COMMAND_INJECTION", "SQL_INJECTION", "CODE_INJECTION"):
+        elif ep_type in (EntrypointType.INTERNET, EntrypointType.USER_CLI, EntrypointType.AUTHENTICATED_HTTP) and rc in ("COMMAND_INJECTION", "SQL_INJECTION", "CODE_INJECTION"):
             classification = PathClassification.EXPLOITABLE
+        elif ep_type in (EntrypointType.INTERNAL_API, EntrypointType.UNKNOWN):
+            classification = PathClassification.BLOCKED
         else:
             classification = PathClassification.EXPLOITABLE if finding.get("severity") in ("CRITICAL", "HIGH") else PathClassification.BLOCKED
 

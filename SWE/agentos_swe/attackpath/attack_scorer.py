@@ -84,7 +84,9 @@ class AttackPathScorer:
         final_score = int(round(max(0, min(100, raw_score)) * attack_path.confidence))
 
         # Assign Severity Rating
-        if final_score >= 90:
+        if attack_path.classification == PathClassification.PARTIALLY_MITIGATED:
+            sev = "MEDIUM" if final_score >= 50 else "LOW"
+        elif final_score >= 90:
             sev = "CRITICAL"
         elif final_score >= 70:
             sev = "HIGH"
