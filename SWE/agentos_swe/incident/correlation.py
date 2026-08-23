@@ -43,7 +43,9 @@ class IncidentEvidenceCorrelator:
                         existing_ev_ids.add(ev.evidence_id)
 
                 # Select highest severity
-                if inc.severity.value == "CRITICAL" and existing.severity.value != "CRITICAL":
+                inc_sev = inc.severity.value if hasattr(inc.severity, "value") else str(inc.severity)
+                ext_sev = existing.severity.value if hasattr(existing.severity, "value") else str(existing.severity)
+                if str(inc_sev).upper() == "CRITICAL" and str(ext_sev).upper() != "CRITICAL":
                     existing.severity = inc.severity
 
         return list(dedup_map.values())

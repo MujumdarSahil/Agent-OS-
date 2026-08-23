@@ -39,7 +39,8 @@ class IncidentImpactAssessor:
             if "boundary" in ev.raw_data:
                 affected_boundaries.add(ev.raw_data["boundary"])
 
-            if "INTERNET" in str(ev.description).upper() or ev.evidence_type.value == "ATTACK_PATH":
+            ev_type_str = ev.evidence_type.value if hasattr(ev.evidence_type, "value") else str(ev.evidence_type)
+            if "INTERNET" in str(ev.description).upper() or ev_type_str == "ATTACK_PATH":
                 internet_exposed = True
                 path_reachable = True
 

@@ -24,6 +24,7 @@ from agentos_swe.ui import (
     render_pipeline,
     render_report,
     render_safety,
+    render_enterprise_release_readiness,
 )
 from agentos_swe.models import Finding, FindingStatus, Evidence
 from agentos_swe.security.taint.models import (
@@ -220,3 +221,10 @@ def test_safety_status_and_dry_run_invariants(mock_streamlit):
     assert data["safety_state"]["dry_run"] is True
     assert data["safety_state"]["remote_writes"] == 0
     assert data["safety_state"]["files_modified"] == 0
+
+
+def test_render_enterprise_release_readiness(mock_streamlit):
+    """14. Page 29 Enterprise Release Readiness rendering test."""
+    data = init_session_state()
+    data["metadata"] = {"repo_name": "test_ui_repo", "commit": "HEAD"}
+    render_enterprise_release_readiness(data)

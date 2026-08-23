@@ -1,39 +1,76 @@
 """
-M19 Security Release Readiness Package.
+M30 Enterprise Release Readiness Package.
 
-Provides security release readiness evaluation, risk-based Go/No-Go decision making,
-executive security gates, release blocker identification, evidence chain building, and executive scorecards.
+Exports release models, gate validator, readiness calculator, configuration auditor,
+dependency auditor, performance benchmarker, regression validator, packaging validator,
+system capability manifest generator, and master release readiness engine facade.
 """
 
 from agentos_swe.release.models import (
-    ReleaseDecisionState,
-    SecurityGateVerdict,
-    ReleaseDeltaState,
+    ReadinessLevel,
+    ReleaseStatus,
+    ReleaseRisk,
+    CheckStatus,
+    SecurityGateStatus,
+    RegressionStatus,
+    DependencyRisk,
+    ConfigurationStatus,
+    PerformanceStatus,
+    PackagingStatus,
+    ReleaseCheck,
+    ReleaseGate,
     ReleaseBlocker,
-    DecisionEvidence,
-    ExecutiveScorecard,
-    ReleaseDiff,
-    SecurityReleaseDecision,
-    CrossRepositoryReleasePosture,
+    ReleaseReadinessScore,
+    ReleaseSummary,
+    ReleaseValidationResult,
 )
-from agentos_swe.release.policy import RiskPolicyEngine
-from agentos_swe.release.blockers import BlockerEngine
-from agentos_swe.release.evidence import EvidenceChainBuilder
-from agentos_swe.release.readiness import SecurityReleaseGate, SecurityReleaseReadinessEngine
+from agentos_swe.release.validator import ReleaseGateValidator
+from agentos_swe.release.readiness import ReleaseReadinessCalculator
+from agentos_swe.release.configuration import SecurityConfigurationAuditor
+from agentos_swe.release.dependency_audit import DependencyAuditor
+from agentos_swe.release.performance import PerformanceBenchmarker
+from agentos_swe.release.regression import ReleaseRegressionValidator
+from agentos_swe.release.packaging import PackagingValidator
+from agentos_swe.release.manifest import SystemCapabilityManifest
+from agentos_swe.release.release_engine import ReleaseReadinessEngine
+
+from agentos_swe.release.models import CrossRepositoryReleasePosture, SecurityGateVerdict, ReleaseDeltaState
+
+# Backward Compatibility Aliases for M18
+SecurityReleaseReadinessEngine = ReleaseReadinessEngine
+SecurityReleaseDecision = ReleaseSummary
+ReleaseDecisionState = ReadinessLevel
 
 __all__ = [
+    "ReadinessLevel",
+    "ReleaseStatus",
+    "ReleaseRisk",
+    "CheckStatus",
+    "SecurityGateStatus",
+    "RegressionStatus",
+    "DependencyRisk",
+    "ConfigurationStatus",
+    "PerformanceStatus",
+    "PackagingStatus",
+    "ReleaseCheck",
+    "ReleaseGate",
+    "ReleaseBlocker",
+    "ReleaseReadinessScore",
+    "ReleaseSummary",
+    "ReleaseValidationResult",
+    "CrossRepositoryReleasePosture",
+    "ReleaseGateValidator",
+    "ReleaseReadinessCalculator",
+    "SecurityConfigurationAuditor",
+    "DependencyAuditor",
+    "PerformanceBenchmarker",
+    "ReleaseRegressionValidator",
+    "PackagingValidator",
+    "SystemCapabilityManifest",
+    "ReleaseReadinessEngine",
+    "SecurityReleaseReadinessEngine",
+    "SecurityReleaseDecision",
     "ReleaseDecisionState",
     "SecurityGateVerdict",
     "ReleaseDeltaState",
-    "ReleaseBlocker",
-    "DecisionEvidence",
-    "ExecutiveScorecard",
-    "ReleaseDiff",
-    "SecurityReleaseDecision",
-    "CrossRepositoryReleasePosture",
-    "RiskPolicyEngine",
-    "BlockerEngine",
-    "EvidenceChainBuilder",
-    "SecurityReleaseGate",
-    "SecurityReleaseReadinessEngine",
 ]

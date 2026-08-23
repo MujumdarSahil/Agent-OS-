@@ -481,6 +481,40 @@ Repository Intake → Investigation Squad → Semantic Analysis → Taint Analys
 
 ---
 
+## M30 — Enterprise Release Readiness & Final Security Hardening Architecture
+
+M30 is the **final feature milestone** consolidating, validating, hardening, benchmarking, and exposing the complete M0–M29 system as a production-ready platform:
+
+```
+Repository Intake → Investigation Squad → Semantic Analysis → Taint Analysis → Evidence Correlation
+    → Root Cause → Security Intelligence → Attack Paths → History → Learning & Adaptive Risk
+    → Security Drift → Decision Orchestration → Remediation Queue → Repair & Validation
+    → Security Operations Control Plane → Persistent Monitoring → Incident Response Engine
+    → Release Gate Validator (12 Mandatory Release Gates GATE-01 to GATE-12)
+    → Release Readiness Calculator (Explainable 0-100 Score + Mandatory Gate Override Enforcement)
+    → Security Configuration Auditor (DRY_RUN=1, MOCK_LLM=1, Sandbox Isolation, Egress Policy)
+    → Dependency Auditor (Offline requirements.txt & pyproject.toml Manifest Inspection)
+    → Performance Benchmarker (Per-Stage Telemetry & Bottleneck Identification)
+    → Release Regression Validator (M0-M30 Invariant Verification & Safety Auditing)
+    → Packaging Validator (Local Package Structure, Importability & Discoverability Checks)
+    → System Capability Manifest Generator (Machine-Readable JSON System Manifest)
+    → Release Readiness Engine Facade
+    → UI Page 29 / Executive Reports / Final Release Checklist
+```
+
+### Key Architectural Components:
+1. **`ReleaseGateValidator` (`agentos_swe/release/validator.py`)**: Evaluates 12 mandatory release gates (`GATE-01` through `GATE-12`) covering critical vulnerabilities, attack paths, incidents, governance, priority tiers, monitoring health, and safe pattern protections.
+2. **`ReleaseReadinessCalculator` (`agentos_swe/release/readiness.py`)**: Computes 0–100 readiness scores and enforces the mandatory blocking gate override rule (mandatory gate failure $\rightarrow$ `BLOCKED` status regardless of numerical score).
+3. **`SecurityConfigurationAuditor` (`agentos_swe/release/configuration.py`)**: Audits runtime safety controls, dry-run mode, mock LLM, sandbox isolation, secret redaction, and remote-write protection.
+4. **`DependencyAuditor` (`agentos_swe/release/dependency_audit.py`)**: Safely inspects local dependency manifests (`requirements.txt`, `pyproject.toml`) offline without fabricating CVEs.
+5. **`PerformanceBenchmarker` (`agentos_swe/release/performance.py`)**: Measures per-stage runtimes and identifies bottleneck stages.
+6. **`ReleaseRegressionValidator` (`agentos_swe/release/regression.py`)**: Validates safety invariants, core framework immutability, and single-file UI constraints across all milestones.
+7. **`PackagingValidator` (`agentos_swe/release/packaging.py`)**: Checks package structure, importability, UI launchability, test discoverability, and documentation presence locally.
+8. **`SystemCapabilityManifest` (`agentos_swe/release/manifest.py`)**: Generates machine-readable system manifest detailing AgentOS-SWE capabilities (M0-M30).
+9. **`ReleaseReadinessEngine` (`agentos_swe/release/release_engine.py`)**: Master facade orchestrator.
+
+---
+
 ## Security & Production Safety Invariants
 
 1. **Repository Immutability**: Host source code is strictly read-only. All modifications occur inside temporary `IsolatedSandbox` environments.

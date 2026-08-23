@@ -268,3 +268,27 @@ class GovernanceGate:
         elif sev in ["CRITICAL", "HIGH"]:
             return GovernanceDecision.REVIEW_REQUIRED
         return GovernanceDecision.ALLOW
+
+    def evaluate_release_readiness_governance(self, release_result: Any) -> GovernanceDecision:
+        """
+        Evaluate M30 Enterprise Release Readiness against governance policies.
+        BLOCKED -> DENY
+        READY_WITH_WARNINGS / NOT_READY -> REVIEW_REQUIRED
+        RELEASE_READY -> ALLOW
+        """
+        if hasattr(release_result, "summary"):
+            lvl = str(getattr(release_result.summary, "readiness_level", "BLOCKED")).upper()
+        elif hasattr(release_result, "decision"):
+            lvl = str(getattr(release_result, "decision", "BLOCKED")).upper()
+        elif isinstance(release_result, dict):
+            rel_dict = release_result
+            summary = rel_dict.get("summary", {})
+            lvl = str(summary.get("readiness_level") or rel_dict.get("decision", "BLOCKED")).upper()
+        else:
+            lvl = "BLOCKED"
+
+        if "BLOCKED" in lvl or "DENY" in lvl:
+            return GovernanceDecision.DENY
+        elif "WARNING" in lvl or "NOT_READY" in lvl or "REVIEW" in lvl:
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW

@@ -26,8 +26,8 @@ class SecurityIncidentInvestigator:
         blast_score = incident.impact.blast_radius_score if incident.impact else 0.0
 
         # Assess confidence
-        has_finding_ev = any(e.evidence_type.value == "FINDING" for e in incident.evidence_list)
-        has_path_ev = len(incident.attack_paths) > 0 or any(e.evidence_type.value == "ATTACK_PATH" for e in incident.evidence_list)
+        has_finding_ev = any((e.evidence_type.value if hasattr(e.evidence_type, "value") else str(e.evidence_type)) == "FINDING" for e in incident.evidence_list)
+        has_path_ev = len(incident.attack_paths) > 0 or any((e.evidence_type.value if hasattr(e.evidence_type, "value") else str(e.evidence_type)) == "ATTACK_PATH" for e in incident.evidence_list)
 
         if has_finding_ev and has_path_ev:
             conf = InvestigationConfidence.VERY_HIGH

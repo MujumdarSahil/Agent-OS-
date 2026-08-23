@@ -29,11 +29,12 @@ class EvidenceChainBuilder:
 
         # 1. Primary Policy Trigger Evidence
         for idx, trigger in enumerate(policy_triggers, 1):
+            state_str = decision_state.value if hasattr(decision_state, "value") else str(decision_state)
             chain.append(
                 DecisionEvidence(
                     evidence_id=f"ev_trig_{idx}",
                     policy_rule=f"Policy Rule #{idx}: {trigger}",
-                    evidence_text=f"Release evaluation resulted in state `{decision_state.value}` because: {trigger}.",
+                    evidence_text=f"Release evaluation resulted in state `{state_str}` because: {trigger}.",
                     validation_status="VERIFIED",
                 )
             )
@@ -77,13 +78,16 @@ class EvidenceChainBuilder:
 
         # 4. Monitoring & Regression Evidence
         if monitoring_result:
-            reg_sev = str(monitoring_result.get("regression_severity") or "NO_REGRESSION")
+            mon_dict = monitoring_result.to_dict() if hasattr(monitoring_result, "to_dict") else (monitoring_result if isinstance(monitoring_result, dict) else {})
+            reg_sev = str(getattr(monitoring_result, "regression_severity", None) or mon_dict.get("regression_severity") or "NO_REGRESSION")
+            trend_val = str(getattr(monitoring_result, "risk_trend", None) or mon_dict.get("risk_trend") or "STABLE")
+            expl_val = str(getattr(monitoring_result, "summary_explanation", None) or mon_dict.get("summary_explanation") or "Security posture monitored across commits.")
             chain.append(
                 DecisionEvidence(
                     evidence_id=f"ev_mon_{len(chain)+1}",
                     policy_rule="Continuous Security Monitoring (M18)",
-                    historical_context=f"Regression Severity: {reg_sev}, Risk Trend: {monitoring_result.get('risk_trend', 'STABLE')}.",
-                    evidence_text=str(monitoring_result.get("summary_explanation") or "Security posture monitored across commits."),
+                    historical_context=f"Regression Severity: {reg_sev}, Risk Trend: {trend_val}.",
+                    evidence_text=expl_val,
                     validation_status="MONITORED",
                 )
             )

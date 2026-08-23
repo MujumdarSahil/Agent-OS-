@@ -44,7 +44,8 @@ class RiskPolicyEngine:
             for ap in attack_paths
         )
 
-        monitoring_reg = str((monitoring_result or {}).get("regression_severity") or "").upper()
+        mon_dict = monitoring_result.to_dict() if hasattr(monitoring_result, "to_dict") else (monitoring_result if isinstance(monitoring_result, dict) else {})
+        monitoring_reg = str(getattr(monitoring_result, "regression_severity", None) or mon_dict.get("regression_severity") or "").upper()
         has_critical_regression = "CRITICAL" in monitoring_reg
 
         p0_remediations = []
@@ -54,8 +55,9 @@ class RiskPolicyEngine:
         has_unresolved_p0 = len(p0_remediations) > 0
 
         has_auth_weakened = False
-        if monitoring_result and "changed_attack_paths" in monitoring_result:
-            has_auth_weakened = any(getattr(cap, "auth_weakened", False) or (isinstance(cap, dict) and cap.get("auth_weakened")) for cap in monitoring_result["changed_attack_paths"])
+        changed_paths = getattr(monitoring_result, "changed_attack_paths", None) or mon_dict.get("changed_attack_paths", [])
+        if changed_paths:
+            has_auth_weakened = any(getattr(cap, "auth_weakened", False) or (isinstance(cap, dict) and cap.get("auth_weakened")) for cap in changed_paths)
 
         if has_critical_exploitable or has_unauth_internet_attack_path or has_critical_regression or has_unresolved_p0 or has_auth_weakened:
             if has_critical_exploitable:
@@ -102,8 +104,8 @@ class RiskPolicyEngine:
             has_remediation_conflicts = True
 
         remediation_requires_replan = False
-        if monitoring_result and monitoring_result.get("remediation_impact"):
-            rem_imp = monitoring_result["remediation_impact"]
+        rem_imp = getattr(monitoring_result, "remediation_impact", None) or mon_dict.get("remediation_impact")
+        if rem_imp:
             rem_stat = rem_imp.get("status") if isinstance(rem_imp, dict) else getattr(rem_imp, "status", "")
             if str(rem_stat) == "REQUIRES_REPLAN":
                 remediation_requires_replan = True
@@ -115,7 +117,8 @@ class RiskPolicyEngine:
             for f in (prioritized_findings or findings)
         )
 
-        score_degraded = security_score < 80 or (monitoring_result and monitoring_result.get("score_delta", 0) <= -15)
+        score_delta_val = getattr(monitoring_result, "score_delta", 0) or mon_dict.get("score_delta", 0)
+        score_degraded = security_score < 80 or score_delta_val <= -15
 
         if has_remediation_conflicts or remediation_requires_replan or has_medium_exploitable or score_degraded or governance_status == "REVIEW_REQUIRED":
             if has_remediation_conflicts:

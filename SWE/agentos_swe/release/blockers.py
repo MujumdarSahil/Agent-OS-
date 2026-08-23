@@ -102,16 +102,19 @@ class BlockerEngine:
 
         # 4. Blocking Regressions (M18 CRITICAL_REGRESSION)
         if monitoring_result:
-            reg_sev = str(monitoring_result.get("regression_severity") or "").upper()
+            mon_dict = monitoring_result.to_dict() if hasattr(monitoring_result, "to_dict") else (monitoring_result if isinstance(monitoring_result, dict) else {})
+            reg_sev = str(getattr(monitoring_result, "regression_severity", None) or mon_dict.get("regression_severity") or "").upper()
             if "CRITICAL" in reg_sev:
+                repo_val = getattr(monitoring_result, "repository", None) or mon_dict.get("repository", "repository")
+                expl_val = getattr(monitoring_result, "summary_explanation", None) or mon_dict.get("summary_explanation") or "Security score or vulnerability regression detected."
                 blockers.append(
                     ReleaseBlocker(
                         blocker_id=f"blk_{len(blockers)+1}",
                         severity="CRITICAL",
                         category="SECURITY_REGRESSION",
                         title="Critical Security Regression",
-                        file=monitoring_result.get("repository", "repository"),
-                        reason=str(monitoring_result.get("summary_explanation") or "Security score or vulnerability regression detected."),
+                        file=repo_val,
+                        reason=str(expl_val),
                         evidence=f"Regression Severity: {reg_sev}.",
                         recommended_action="Revert recent regressive commit or apply hotfix before release.",
                     )
