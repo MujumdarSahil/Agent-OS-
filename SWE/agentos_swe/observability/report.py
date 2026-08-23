@@ -391,6 +391,13 @@ class ReportGenerator:
 
 ---
 
+### 🎯 Security Drift Intelligence
+- **Drift Category**: `{drift_cat}`
+- **Drift Impact Score**: `{drift_score}/100`
+- **Security Score Delta**: `{int(score_delta):+d}`
+
+---
+
 ### ⚖️ Governance Decisions
 | Finding ID | Decision |
 | :--- | :--- |

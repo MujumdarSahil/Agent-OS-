@@ -353,6 +353,50 @@ Static taint analysis is deterministic and bounded. It has explicit limitations:
 
 ---
 
+## M25 — Continuous Security Learning, Trend Intelligence & Adaptive Risk Architecture
+
+M25 equips AgentOS-SWE with continuous security learning, trend intelligence, vulnerability recurrence classification, remediation efficacy tracking, and adaptive risk signal generation:
+
+```
+Repository Scan → M14 Historical Memory → SecurityPatternDetector (10 Pattern Types)
+    → SecurityTrendAnalyzer (Posture Trends & Volatility) → RecurrenceAnalyzer (FIRST_SEEN to CHRONIC)
+    → RemediationLearningEngine (Strategy Efficacy) → AdaptiveRiskEngine (1.0x-2.5x Multipliers)
+    → LearningExplainabilityEngine → UI Page 24
+```
+
+### Key Architectural Components:
+1. **`SecurityMemory` (`agentos_swe/learning/security_memory.py`)**: Persists finding memories and scan snapshots using M14 SQLite infrastructure (`agentos_swe_history.db`) with secret sanitization.
+2. **`SecurityPatternDetector` (`agentos_swe/learning/pattern_detector.py`)**: Detects 10 core security patterns (`RECURRING_VULNERABILITY`, `REOPENED_VULNERABILITY`, `REPEATED_ROOT_CAUSE`, `REPEATED_FILE_PATTERN`, `REPEATED_ATTACK_PATH`, `REPEATED_SECURITY_DRIFT`, `FAILED_REMEDIATION`, `SUCCESSFUL_REMEDIATION`, `PERSISTENT_VULNERABILITY`, `NEW_EMERGING_PATTERN`).
+3. **`SecurityTrendAnalyzer` (`agentos_swe/learning/trend_analyzer.py`)**: Computes score deltas, posture directions (`RAPIDLY_IMPROVING` to `RAPIDLY_DEGRADING`), and standard deviation volatility.
+4. **`RecurrenceAnalyzer` (`agentos_swe/learning/recurrence_analyzer.py`)**: Classifies vulnerability lifecycle behavior (`FIRST_SEEN`, `OCCASIONAL`, `RECURRING`, `PERSISTENT`, `CHRONIC`).
+5. **`RemediationLearningEngine` (`agentos_swe/learning/remediation_learning.py`)**: Tracks repair strategy success rates per root cause.
+6. **`AdaptiveRiskEngine` (`agentos_swe/learning/risk_adaptation.py`)**: Computes evidence-backed risk multipliers ($1.0\times$ to $2.5\times$) and priority boosts.
+7. **`LearningExplainabilityEngine` (`agentos_swe/learning/explainability.py`)**: Produces transparent audit reports explaining learning decisions.
+
+---
+
+## M26 — Continuous Security Monitoring & Security Drift Detection Architecture
+
+M26 transforms AgentOS-SWE into a continuous monitoring and postural drift detection engine:
+
+```
+Baseline Scan Snapshot + Current Scan Snapshot → SecurityPosturalComparator
+    → ChangedSurfaceAnalyzer (Git Diff Mapping) → SecurityDriftDetector (16 Drift Event Rules)
+    → SecurityDriftScorer (0-100 Impact Score & Severity) → SecurityDriftCorrelator (M14-M25 Signals)
+    → SecurityDriftInvestigator ("WHY DID SECURITY DRIFT?") → M24 Governance Integration → UI Page 25
+```
+
+### Key Architectural Components:
+1. **`SecurityPosturalComparator` (`agentos_swe/drift/comparator.py`)**: Fine-grained differential analysis beyond finding counts (detects impact escalation).
+2. **`ChangedSurfaceAnalyzer` (`agentos_swe/drift/changed_surface.py`)**: Maps read-only git diff changes to security-sensitive code surfaces.
+3. **`SecurityDriftDetector` (`agentos_swe/drift/drift_detector.py`)**: Evaluates 16 drift event rules while enforcing strict false positive protection (`dict.get()`, test-harness diagnostic handlers, intentional fallbacks, formatting/comment changes produce `NO_DRIFT`).
+4. **`SecurityDriftScorer` (`agentos_swe/drift/drift_scorer.py`)**: Computes deterministic $0$–$100$ impact scores and maps severity (`NONE`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
+5. **`SecurityDriftCorrelator` (`agentos_swe/drift/drift_correlator.py`)**: Correlates drift events with M14 history, M15 priorities, M16 attack paths, M24 decisions, and M25 learning signals.
+6. **`SecurityDriftInvestigator` (`agentos_swe/drift/drift_investigator.py`)**: Produces structured root-cause answers to "WHY DID SECURITY DRIFT?".
+7. **`SecurityMonitoringDriftEngine` (`agentos_swe/drift/drift_engine.py`)**: Master facade orchestrator.
+
+---
+
 ## Security & Production Safety Invariants
 
 1. **Repository Immutability**: Host source code is strictly read-only. All modifications occur inside temporary `IsolatedSandbox` environments.
@@ -367,4 +411,5 @@ Static taint analysis is deterministic and bounded. It has explicit limitations:
 
 1. **Remote Git Commit Push**: Requires valid `GITHUB_TOKEN` and setting `AGENTOS_SWE_DRY_RUN=0`.
 2. **Language Support**: Polyglot static analysis available for Python, JavaScript, TypeScript, Vue, and React. Taint analysis engine fully implemented for Python with JS/TS provider interface prepared for future expansion.
+3. **Historical Baseline Dependency**: Drift detection and continuous learning require at least 2 historical scan snapshots for comparative deltas; initial scans report `INSUFFICIENT_HISTORY`.
 

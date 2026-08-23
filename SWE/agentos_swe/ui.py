@@ -257,6 +257,7 @@ from agentos_swe.knowledge import SecurityKnowledgeEngine
 from agentos_swe.simulation import SecuritySimulationEngine
 from agentos_swe.monitoring import SecurityMonitoringEngine
 from agentos_swe.learning import ContinuousSecurityLearningEngine
+from agentos_swe.drift import SecurityMonitoringDriftEngine
 
 
 
@@ -926,9 +927,9 @@ def run_swe_scan_engine(
 
         record_stage("SECURITY KNOWLEDGE", t0, f"Learned patterns & stored knowledge ({knowledge_result.get('total_knowledge_records', 0)} total records)")
 
-        # 11.95 M23 Continuous Security Monitoring & Security Drift Engine
+        # 11.95 M26 Continuous Security Monitoring & Security Drift Engine
         t0 = time.time()
-        drift_engine = SecurityMonitoringEngine()
+        drift_engine = SecurityMonitoringDriftEngine()
         monitoring_drift_result = drift_engine.run_monitoring_pipeline(
             repository_name=repo_name or os.path.basename(scan_target_path),
             current_commit=resolved_commit,
@@ -1186,6 +1187,8 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "21. Security Simulation",
         "22. Security Drift Monitoring",
         "23. Security Decision Center",
+        "24. Security Learning & Trends",
+        "25. Security Drift Center",
     ]
 
     
@@ -3165,6 +3168,128 @@ def render_security_decision_center(data: Dict[str, Any]):
             st.dataframe(st.session_state["approval_audit_trail"], use_container_width=True)
 
 
+def render_security_learning_trends(data: Dict[str, Any]):
+    """Page 24 — Security Learning & Trends."""
+    st.title("🧠 Security Learning & Trends Center")
+    st.caption("M25 Continuous Security Learning, Historical Patterns & Adaptive Risk Engine")
+
+    learning = data.get("learning_result")
+    if not learning:
+        st.warning("⚠️ INSUFFICIENT_HISTORY: Run a repository scan to generate continuous security learning metrics.")
+        return
+
+    learning_dict = learning.to_dict() if hasattr(learning, "to_dict") else learning
+
+    # 1. Security Posture Timeline & Metrics
+    st.subheader("📈 Security Posture Timeline")
+    trend_info = learning_dict.get("trend") or {}
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Current Score", trend_info.get("current_score", 100), f"{trend_info.get('score_delta', 0):+d}")
+    c2.metric("Average Score", trend_info.get("average_score", 100.0))
+    c3.metric("Trend Direction", trend_info.get("trend", "STABLE"))
+    c4.metric("Score Volatility", trend_info.get("volatility", 0.0))
+
+    # 2. Risk Trend & Patterns
+    st.subheader("🔍 Detected Historical Security Patterns")
+    patterns = learning_dict.get("detected_patterns", [])
+    if patterns:
+        for p in patterns:
+            st.info(f"**[{p.get('pattern_type')}] {p.get('title')}**: {p.get('description')}")
+    else:
+        st.success("✔ Zero adverse security patterns detected across scan history.")
+
+    # 3. Recurrence & Remediation Efficacy
+    col_rec, col_rem = st.columns(2)
+    with col_rec:
+        st.markdown("#### 🔄 Vulnerability Recurrence Insights")
+        recs = learning_dict.get("recurrence_analysis", [])
+        if recs:
+            st.dataframe(recs, use_container_width=True)
+        else:
+            st.info("No recurring vulnerability entries recorded.")
+
+    with col_rem:
+        st.markdown("#### 🛠️ Remediation Learning Lessons")
+        rems = learning_dict.get("remediation_learning", [])
+        if rems:
+            st.dataframe(rems, use_container_width=True)
+        else:
+            st.info("No repair strategy lessons recorded.")
+
+    # 4. Adaptive Risk Signals & Rationale
+    st.subheader("⚡ Adaptive Risk Signals")
+    signals = learning_dict.get("adaptive_signals", [])
+    if signals:
+        st.dataframe(signals, use_container_width=True)
+    else:
+        st.success("✔ All findings operating at baseline risk (no escalation multipliers).")
+
+
+def render_security_drift_center(data: Dict[str, Any]):
+    """Page 25 — Security Drift Center."""
+    st.title("🎯 Security Drift Center")
+    st.caption("M26 Continuous Security Monitoring & Postural Drift Detection")
+
+    drift_res = data.get("monitoring_drift_result")
+    if not drift_res:
+        st.warning("⚠️ INSUFFICIENT_HISTORY: Run a security scan to compute security drift analytics.")
+        return
+
+    drift_dict = drift_res.to_dict() if hasattr(drift_res, "to_dict") else drift_res
+    summary = drift_dict.get("summary", {})
+    impact = drift_dict.get("impact", {})
+
+    # 1. Security Drift Banner
+    status = summary.get("overall_status", "NO_DRIFT")
+    if status == "CRITICAL_SECURITY_DRIFT":
+        st.error("🚨 CRITICAL SECURITY DRIFT DETECTED — RELEASE BLOCKED")
+    elif status == "HIGH_SECURITY_DRIFT":
+        st.warning("🔴 HIGH SECURITY DRIFT — HUMAN REVIEW REQUIRED")
+    elif status == "MODERATE_DRIFT":
+        st.warning("🟠 MEDIUM DRIFT DETECTED — INVESTIGATION RECOMMENDED")
+    elif status == "LOW_DRIFT":
+        st.info("🟡 LOW DRIFT — MONITOR ONLY")
+    else:
+        st.success("🟢 NO SECURITY DRIFT — REPOSITORY POSTURE STABLE")
+
+    # 2. Previous vs Current Security Posture
+    st.subheader("📊 Previous vs Current Security Posture")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Drift Score", f"{impact.get('drift_score', 0.0)}/100")
+    c2.metric("Security Score Delta", impact.get("security_score_delta", 0), f"{impact.get('security_score_delta', 0):+d}")
+    c3.metric("Drift Direction", impact.get("direction", "STABLE"))
+    c4.metric("Governance Verdict", drift_dict.get("governance_verdict", "ALLOW"))
+
+    # 3. Changed Security Surface Table
+    st.subheader("🔍 Changed Security Surface")
+    surface = drift_dict.get("changed_surface", {})
+    st.write(surface.get("relevance_summary", "No changed surface data."))
+    entries = surface.get("surface_entries", [])
+    if entries:
+        st.dataframe(entries, use_container_width=True)
+
+    # 4. Drift Event Explorer & Why Security Drifted
+    st.subheader("🚨 Security Drift Events & Root Cause Investigation")
+    events = drift_dict.get("drift_events", [])
+    if events:
+        for ev in events:
+            with st.expander(f"[{ev.get('severity')}] {ev.get('title')} ({ev.get('drift_type')})"):
+                st.write(f"**Description**: {ev.get('description')}")
+                st.write(f"**File**: `{ev.get('file', 'N/A')}`")
+                st.write(f"**Evidence**: {', '.join(ev.get('evidence', []))}")
+
+        st.markdown("#### 🧐 WHY SECURITY DRIFTED (Root Cause Analysis)")
+        investigations = drift_dict.get("investigations", [])
+        if investigations:
+            st.dataframe(investigations, use_container_width=True)
+    else:
+        st.success("✔ Zero security drift events identified.")
+
+    # 5. False Positive Protection Indicators
+    st.subheader("🛡️ False Positive Protection Status")
+    st.info("✔ Safe design patterns (`dict.get()`, test-harness diagnostic handlers, intentional fallbacks, formatting/comment changes) are actively filtered and produce ZERO security drift.")
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -3234,6 +3359,10 @@ def main():
         render_security_drift_monitoring(data)
     elif nav_selection.startswith("23."):
         render_security_decision_center(data)
+    elif nav_selection.startswith("24."):
+        render_security_learning_trends(data)
+    elif nav_selection.startswith("25."):
+        render_security_drift_center(data)
 
 
 if __name__ == "__main__":
