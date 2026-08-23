@@ -397,6 +397,31 @@ Baseline Scan Snapshot + Current Scan Snapshot → SecurityPosturalComparator
 
 ---
 
+## M27 — Security Operations Control Plane Architecture
+
+M27 transforms AgentOS-SWE from a collection of security intelligence engines into a unified Security Operations Control Plane:
+
+```
+Repository Intake → Investigation Squad → Semantic Analysis → Taint Analysis → Evidence Correlation
+    → Root Cause → Security Intelligence → Attack Paths → History → Learning & Adaptive Risk
+    → Security Drift → Decision Orchestration → Remediation Queue → Repair & Validation
+    → Security Operations Control Plane (In-Memory Operational State Manager)
+    → Health Engine (0-100 Score) + Action Selector → UI Page 26 / Audit Trail
+```
+
+### Key Architectural Components:
+1. **`RepositoryOperationalStateManager` (`agentos_swe/controlplane/state.py`)**: Manages in-memory repository operational states aggregating M14-M26.
+2. **`SecurityOperationsAggregator` (`agentos_swe/controlplane/aggregator.py`)**: Consolidates multi-milestone intelligence streams into `SecurityOperationsSummary`.
+3. **`RepositoryLifecycleEngine` (`agentos_swe/controlplane/lifecycle.py`)**: Enforces state machine transitions across repository operational lifecycle stages.
+4. **`SecurityOperationsHealthEngine` (`agentos_swe/controlplane/health.py`)**: Computes a $0$–$100$ operational health score with explainable risk factors.
+5. **`ControlPlaneActionSelector` (`agentos_swe/controlplane/actions.py`)**: Recommends the next operational action with evidence and rationale.
+6. **`ControlPlaneApprovalManager` (`agentos_swe/controlplane/approvals.py`)**: Integrates with M24 `HumanApprovalEngine` for safe approval management.
+7. **`SecurityMonitoringScheduler` (`agentos_swe/controlplane/scheduler.py`)**: Safe local monitoring scheduler abstraction (`MANUAL`, `HOURLY`, `DAILY`, `WEEKLY`).
+8. **`SecurityAuditTrailEngine` (`agentos_swe/controlplane/audit.py`)**: Logs secret-safe event entries into audit trail records (`ControlPlaneEventRecord`).
+9. **`SecurityOperationsControlPlane` (`agentos_swe/controlplane/controller.py`)**: Master facade controller orchestrating control plane operations.
+
+---
+
 ## Security & Production Safety Invariants
 
 1. **Repository Immutability**: Host source code is strictly read-only. All modifications occur inside temporary `IsolatedSandbox` environments.

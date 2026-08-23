@@ -258,6 +258,7 @@ from agentos_swe.simulation import SecuritySimulationEngine
 from agentos_swe.monitoring import SecurityMonitoringEngine
 from agentos_swe.learning import ContinuousSecurityLearningEngine
 from agentos_swe.drift import SecurityMonitoringDriftEngine
+from agentos_swe.controlplane import SecurityOperationsControlPlane
 
 
 
@@ -982,6 +983,25 @@ def run_swe_scan_engine(
 
         record_stage("SECURITY LEARNING", t0, f"Learned patterns & trend intelligence (Trend: {learning_result.trend.trend.value if learning_result.trend else 'STABLE'}, Patterns: {len(learning_result.detected_patterns)})")
 
+        # 11.100 M27 Security Operations Control Plane
+        t0 = time.time()
+        control_plane = SecurityOperationsControlPlane()
+        control_plane_result = control_plane.process_repository_operations(
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            commit_sha=resolved_commit,
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            decision_result=decision_orchestration_result,
+            learning_result=learning_result,
+            drift_result=monitoring_drift_result,
+        )
+
+        g_cp_dec = gov_gate.evaluate_orchestration_decision(control_plane_result)
+        governance_decisions.append({"finding_id": "security_operations_control_plane", "decision": g_cp_dec.value})
+
+        record_stage("CONTROL PLANE", t0, f"Unified control plane state (Status: {control_plane_result.summary.operational_status.value}, Action: {control_plane_result.recommended_action.action.value})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -1011,6 +1031,7 @@ def run_swe_scan_engine(
             monitoring_drift_result=monitoring_drift_result,
             decision_orchestration_result=decision_orchestration_result,
             learning_result=learning_result,
+            control_plane_result=control_plane_result,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
@@ -1026,6 +1047,8 @@ def run_swe_scan_engine(
         data["simulation_result"] = simulation_result
         data["monitoring_drift_result"] = monitoring_drift_result
         data["decision_orchestration_result"] = decision_orchestration_result
+        data["learning_result"] = learning_result
+        data["control_plane_result"] = control_plane_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
@@ -1189,6 +1212,7 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "23. Security Decision Center",
         "24. Security Learning & Trends",
         "25. Security Drift Center",
+        "26. Security Operations Control Plane",
     ]
 
     
@@ -3290,6 +3314,125 @@ def render_security_drift_center(data: Dict[str, Any]):
     st.info("✔ Safe design patterns (`dict.get()`, test-harness diagnostic handlers, intentional fallbacks, formatting/comment changes) are actively filtered and produce ZERO security drift.")
 
 
+def render_security_operations_control_plane(data: Dict[str, Any]):
+    """Page 26 — Security Operations Control Plane."""
+    st.title("🎛️ Security Operations Control Plane")
+    st.caption("M27 Unified Security Operations, Posture Management & Autonomous Lifecycle Control")
+
+    cp_res = data.get("control_plane_result")
+    if not cp_res:
+        st.warning("⚠️ INSUFFICIENT_DATA: Run a repository security scan to initialize the control plane.")
+        return
+
+    cp_dict = cp_res.to_dict() if hasattr(cp_res, "to_dict") else cp_res
+    summary = cp_dict.get("summary", {})
+    state = cp_dict.get("state", {})
+    health = cp_dict.get("health", {})
+    action = cp_dict.get("recommended_action", {})
+
+    # SECTION 1 — GLOBAL SECURITY STATUS
+    st.subheader("🌐 Section 1 — Global Security Status")
+    status_str = summary.get("operational_status", "UNKNOWN")
+    if status_str == "HEALTHY":
+        st.success("🟢 HEALTHY — REPOSITORY SECURITY POSTURE OPTIMAL")
+    elif status_str == "AT_RISK":
+        st.warning("🟡 AT RISK — ELEVATED RISK FACTORS IDENTIFIED")
+    elif status_str == "DEGRADED":
+        st.warning("🟠 DEGRADED — HIGH SEVERITY FINDINGS / DRIFT ACTIVE")
+    elif status_str == "CRITICAL":
+        st.error("🔴 CRITICAL — SEVERE VULNERABILITIES DETECTED")
+    elif status_str == "BLOCKED":
+        st.error("🚫 BLOCKED — GOVERNANCE POLICY RELEASE BLOCK ACTIVE")
+    else:
+        st.info(f"⚪ {status_str}")
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Health Score", f"{health.get('health_score', 100.0)}/100")
+    c2.metric("Security Score", summary.get("security_score", 100))
+    c3.metric("Risk Score", summary.get("risk_score", 0.0))
+    c4.metric("Drift Score", f"{summary.get('drift_score', 0.0)}/100")
+    c5.metric("Adaptive Risk", f"{summary.get('adaptive_risk_multiplier', 1.0)}x")
+    c6.metric("Release Status", summary.get("release_status", "RELEASE_ALLOWED"))
+
+    # SECTION 2 — CURRENT OPERATIONAL STATE
+    st.subheader("🔄 Section 2 — Current Operational State")
+    sc1, sc2, sc3, sc4 = st.columns(4)
+    sc1.metric("Operational Mode", summary.get("operational_mode", "IDLE"))
+    sc2.metric("Lifecycle Stage", state.get("lifecycle_stage", "COMPLETE"))
+    sc3.metric("Last Scan", state.get("last_scan_timestamp", "N/A")[:19])
+    sc4.metric("Governance Decision", summary.get("governance_status", "ALLOW"))
+
+    # SECTION 3 — SECURITY POSTURE
+    st.subheader("📊 Section 3 — Security Posture")
+    pc1, pc2, pc3, pc4, pc5, pc6, pc7 = st.columns(7)
+    pc1.metric("Critical", summary.get("critical_findings", 0))
+    pc2.metric("High", summary.get("high_findings", 0))
+    pc3.metric("Medium", summary.get("medium_findings", 0))
+    pc4.metric("Low", summary.get("low_findings", 0))
+    pc5.metric("P0 Queue", summary.get("p0_findings", 0))
+    pc6.metric("P1 Queue", summary.get("p1_findings", 0))
+    pc7.metric("P2 Queue", summary.get("p2_findings", 0))
+
+    # SECTION 4 — ACTIVE ATTACK SURFACE
+    st.subheader("🎯 Section 4 — Active Attack Surface")
+    ac1, ac2, ac3 = st.columns(3)
+    ac1.metric("Active Attack Paths", summary.get("active_attack_paths", 0))
+    ac2.metric("Internet Exposed Paths", summary.get("internet_exposed_paths", 0))
+    ac3.metric("Reopened / Chronic", f"{summary.get('reopened_vulnerabilities', 0)} / {summary.get('chronic_vulnerabilities', 0)}")
+
+    # SECTION 5 — SECURITY DRIFT
+    st.subheader("🌊 Section 5 — Security Drift")
+    dc1, dc2, dc3 = st.columns(3)
+    dc1.metric("Drift Score", f"{summary.get('drift_score', 0.0)}/100")
+    dc2.metric("Drift Severity", summary.get("drift_severity", "NONE"))
+    dc3.metric("Drift Direction", summary.get("drift_direction", "STABLE"))
+
+    # SECTION 6 — REMEDIATION OPERATIONS
+    st.subheader("🛠️ Section 6 — Remediation Operations")
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    rc1.metric("Pending Repairs", summary.get("pending_repairs", 0))
+    rc2.metric("Validated Repairs", summary.get("validated_repairs", 0))
+    rc3.metric("Failed Repairs", summary.get("failed_repairs", 0))
+    rc4.metric("Pending Approvals", summary.get("pending_approvals", 0))
+
+    # SECTION 7 — APPROVAL CENTER
+    st.subheader("📜 Section 7 — Approval Center")
+    pending_apps = state.get("pending_approvals", [])
+    if pending_apps:
+        for app in pending_apps:
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                st.write(f"**Request `{app.get('request_id')}`**: {app.get('reason')} (Action: `{app.get('proposed_action')}`, Risk: `{app.get('risk_level')}`)")
+            with col_b:
+                if st.button(f"✔ Approve ({app.get('request_id')})", key=f"cp_app_{app.get('request_id')}"):
+                    st.success(f"Simulated approval for {app.get('request_id')} recorded.")
+                    st.rerun()
+    else:
+        st.success("✔ Zero pending human approval requests.")
+
+    # SECTION 8 — NEXT ACTION
+    st.subheader("🚀 Section 8 — Next Recommended Operational Action")
+    st.info(f"**NEXT ACTION**: `{action.get('action')}`")
+    st.write(f"**WHY**: {action.get('reason')}")
+    st.write(f"**GOVERNANCE**: `{action.get('governance_decision')}` | **RISK**: `{action.get('risk_level')}`")
+    if action.get("evidence"):
+        st.write(f"**EVIDENCE**: {', '.join(action.get('evidence'))}")
+
+    # SECTION 9 — OPERATIONAL TIMELINE
+    st.subheader("⏳ Section 9 — Operational Timeline")
+    timeline = cp_dict.get("timeline", [])
+    if timeline:
+        st.dataframe(timeline, use_container_width=True)
+
+    # SECTION 10 — COMPLETE AUDIT TRAIL
+    st.subheader("📜 Section 10 — Complete Audit Trail")
+    audit = cp_dict.get("audit_trail", [])
+    if audit:
+        st.dataframe(audit, use_container_width=True)
+    else:
+        st.info("No control plane audit events logged.")
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -3363,6 +3506,8 @@ def main():
         render_security_learning_trends(data)
     elif nav_selection.startswith("25."):
         render_security_drift_center(data)
+    elif nav_selection.startswith("26."):
+        render_security_operations_control_plane(data)
 
 
 if __name__ == "__main__":

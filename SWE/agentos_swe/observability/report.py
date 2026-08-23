@@ -71,9 +71,11 @@ class ReportGenerator:
         monitoring_drift_result: Optional[Any] = None,
         decision_orchestration_result: Optional[Any] = None,
         learning_result: Optional[Any] = None,
+        control_plane_result: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
+        cp_res = control_plane_result
         f_m = report.finding_metrics
         r_m = report.repair_metrics
 
@@ -395,6 +397,15 @@ class ReportGenerator:
 - **Drift Category**: `{drift_cat}`
 - **Drift Impact Score**: `{drift_score}/100`
 - **Security Score Delta**: `{int(score_delta):+d}`
+
+---
+
+### 🎛️ Security Operations Control Plane
+- **Operational Status**: `{cp_res.summary.operational_status.value if cp_res and cp_res.summary else 'HEALTHY'}`
+- **Operational Mode**: `{cp_res.summary.operational_mode.value if cp_res and cp_res.summary else 'IDLE'}`
+- **Operational Health Score**: `{cp_res.health.health_score if cp_res and cp_res.health else 100.0}/100`
+- **Next Recommended Action**: `{cp_res.recommended_action.action.value if cp_res and cp_res.recommended_action else 'RELEASE_ALLOWED'}`
+- **Release Status**: `{cp_res.summary.release_status if cp_res and cp_res.summary else 'RELEASE_ALLOWED'}`
 
 ---
 
