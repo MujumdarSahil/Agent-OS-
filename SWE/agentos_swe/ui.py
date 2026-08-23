@@ -259,6 +259,9 @@ from agentos_swe.monitoring import SecurityMonitoringEngine
 from agentos_swe.learning import ContinuousSecurityLearningEngine
 from agentos_swe.drift import SecurityMonitoringDriftEngine
 from agentos_swe.controlplane import SecurityOperationsControlPlane
+from agentos_swe.persistence import PersistentOperationalStateStore, RepositoryRegistry
+from agentos_swe.monitoring import ContinuousMonitoringScheduler, SecurityMonitoringRunner
+from agentos_swe.incident import SecurityIncidentResponseEngine
 
 
 
@@ -1002,6 +1005,49 @@ def run_swe_scan_engine(
 
         record_stage("CONTROL PLANE", t0, f"Unified control plane state (Status: {control_plane_result.summary.operational_status.value}, Action: {control_plane_result.recommended_action.action.value})")
 
+        # 11.101 M28 Persistent Operations & Registry Store
+        t0 = time.time()
+        m28_store = PersistentOperationalStateStore()
+        m28_registry = RepositoryRegistry()
+
+        active_repo_name = repo_name or os.path.basename(scan_target_path)
+        m28_registry.register_repository(
+            repository_name=active_repo_name,
+            repository_path_or_url=scan_target_path,
+            branch=branch,
+        )
+
+        cp_res_dict = control_plane_result.to_dict() if hasattr(control_plane_result, "to_dict") else control_plane_result
+        cp_res_dict["repository_path_or_url"] = scan_target_path
+        m28_store.save_operational_state(active_repo_name, cp_res_dict)
+
+        record_stage("PERSISTENCE", t0, f"Persisted operational state & registered '{active_repo_name}' for continuous monitoring.")
+
+        # 11.102 M29 Security Incident Response & Investigation Engine
+        t0 = time.time()
+        incident_engine = SecurityIncidentResponseEngine()
+        incident_result = incident_engine.process_security_incidents(
+            repository_name=active_repo_name,
+            commit_sha=resolved_commit,
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            decision_result=decision_orchestration_result,
+            learning_result=learning_result,
+            drift_result=monitoring_drift_result,
+            control_plane_result=control_plane_result,
+        )
+
+        for inc in incident_result.incidents:
+            g_inc_dec = gov_gate.evaluate_incident_governance(inc)
+            governance_decisions.append({"finding_id": inc.incident_id, "decision": g_inc_dec.value})
+
+        # Persist incidents to SQLite
+        for inc in incident_result.incidents:
+            m28_store.save_incident(active_repo_name, inc.to_dict())
+
+        record_stage("INCIDENT RESPONSE", t0, f"Evaluated incident response & investigation (Active Incidents: {incident_result.active_incident_count}, Critical: {incident_result.critical_incident_count})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -1049,6 +1095,7 @@ def run_swe_scan_engine(
         data["decision_orchestration_result"] = decision_orchestration_result
         data["learning_result"] = learning_result
         data["control_plane_result"] = control_plane_result
+        data["incident_result"] = incident_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
@@ -1213,6 +1260,8 @@ def render_sidebar(data: Dict[str, Any]) -> str:
         "24. Security Learning & Trends",
         "25. Security Drift Center",
         "26. Security Operations Control Plane",
+        "27. Continuous Security Monitoring",
+        "28. Security Incident Response Center",
     ]
 
     
@@ -3433,6 +3482,261 @@ def render_security_operations_control_plane(data: Dict[str, Any]):
         st.info("No control plane audit events logged.")
 
 
+def render_continuous_security_monitoring(data: Dict[str, Any]):
+    """Page 27 — Continuous Security Monitoring."""
+    st.title("📡 Continuous Security Monitoring")
+    st.caption("M28 Persistent Operational State, Change-Aware Scans & Automated Security Monitoring")
+
+    m28_store = PersistentOperationalStateStore()
+    m28_registry = RepositoryRegistry()
+    m28_scheduler = ContinuousMonitoringScheduler(registry=m28_registry)
+    m28_runner = SecurityMonitoringRunner(store=m28_store, registry=m28_registry)
+
+    m_health = m28_scheduler.compute_monitoring_health()
+
+    # SECTION 1 — MONITORING OVERVIEW
+    st.subheader("📊 Section 1 — Monitoring Overview")
+    mc1, mc2, mc3, mc4, mc5, mc6 = st.columns(6)
+    mc1.metric("Monitored Repos", m_health.repositories_monitored)
+    mc2.metric("Due Scans", m_health.repositories_due)
+    mc3.metric("Successful Scans", m_health.successful_scans)
+    mc4.metric("Failed Scans", m_health.failed_scans)
+    mc5.metric("Stale Repos", m_health.stale_repos_count)
+    mc6.metric("Monitoring Health", m_health.monitoring_health)
+
+    # SECTION 2 — REPOSITORY MONITORING TABLE
+    st.subheader("📋 Section 2 — Repository Monitoring Table")
+    all_regs = m28_registry.list_all_repositories()
+    if all_regs:
+        table_rows = []
+        for r in all_regs:
+            op_st = m28_store.load_operational_state(r.repository_name) or {}
+            sum_dict = op_st.get("summary", {})
+            act_dict = op_st.get("recommended_action", {})
+
+            table_rows.append({
+                "Repository": r.repository_name,
+                "Branch": r.branch,
+                "Current Commit": (op_st.get("commit_sha") or "HEAD")[:7],
+                "Last Scan": r.last_successful_scan[:19] if r.last_successful_scan else "N/A",
+                "Next Scan": r.next_due_timestamp[:19] if r.next_due_timestamp else "N/A",
+                "Monitoring Status": r.current_status,
+                "Security Health": sum_dict.get("operational_status", "HEALTHY"),
+                "Drift Score": f"{sum_dict.get('drift_score', 0.0)}/100",
+                "Priority": f"P0: {sum_dict.get('p0_findings', 0)} | P1: {sum_dict.get('p1_findings', 0)}",
+                "Next Action": act_dict.get("action", "RELEASE_ALLOWED"),
+            })
+        st.dataframe(table_rows, use_container_width=True)
+    else:
+        st.info("No repositories registered for continuous monitoring. Run a security scan to register a repository.")
+
+    # SECTION 3 — MONITORING TIMELINE
+    st.subheader("⏳ Section 3 — Monitoring Event Timeline")
+    st.info("✔ Continuous monitoring telemetry logs change-aware scan events, commit deltas, and posture changes.")
+
+    # SECTION 4 — REPOSITORY DETAIL
+    st.subheader("🔍 Section 4 — Repository Detail & Posture Snapshots")
+    repo_names = m28_store.list_repositories()
+    if repo_names:
+        selected_repo = st.selectbox("Select Repository to Inspect", repo_names)
+        if selected_repo:
+            latest_snap = m28_store.get_latest_snapshot(selected_repo)
+            prev_snap = m28_store.get_previous_snapshot(selected_repo)
+            cmp_res = m28_store.compare_snapshots(selected_repo)
+
+            dc1, dc2, dc3, dc4 = st.columns(4)
+            dc1.metric("Current Commit", (latest_snap.commit_sha if latest_snap else "N/A")[:7])
+            dc2.metric("Previous Commit", (prev_snap.commit_sha if prev_snap else "N/A")[:7])
+            dc3.metric("Score Delta", f"{cmp_res.get('score_delta', 0):+d}")
+            dc4.metric("Change Direction", cmp_res.get("direction", "STABLE"))
+
+            cur_op = m28_store.load_operational_state(selected_repo)
+            if cur_op:
+                with st.expander("📄 View Full Persistent Operational State"):
+                    st.json(cur_op)
+    else:
+        st.info("No persistent repository snapshots stored yet.")
+
+    # SECTION 5 — SCHEDULER CONTROLS
+    st.subheader("⚙️ Section 5 — Monitoring Scheduler Controls")
+    ctl_col1, ctl_col2, ctl_col3 = st.columns(3)
+    with ctl_col1:
+        if st.button("🔄 Run Scheduler Tick Now", key="btn_sched_tick"):
+            tick_results = m28_scheduler.tick(runner=m28_runner, force_scan=False)
+            st.success(f"Executed scheduler tick across {len(tick_results)} due repositories.")
+            st.rerun()
+
+    with ctl_col2:
+        if st.button("🚀 Run Force Scan Now (Dry-Run)", key="btn_force_scan"):
+            if repo_names:
+                tick_results = m28_scheduler.tick(runner=m28_runner, force_scan=True)
+                st.success(f"Executed forced read-only monitoring scan across {len(tick_results)} repositories.")
+                st.rerun()
+            else:
+                st.warning("No registered repositories available.")
+
+    with ctl_col3:
+        st.caption("🔒 Safety Invariants Active: AGENTOS_SWE_DRY_RUN=1 | Strictly Read-Only Sandbox Execution")
+
+
+def render_security_incident_response_center(data: Dict[str, Any]):
+    """Page 28 — Security Incident Response Center."""
+    st.title("🚨 Security Incident Response Center")
+    st.caption("M29 Security Incident Detection, Forensic Investigation, Impact Analysis & Response Planning")
+
+    inc_res = data.get("incident_result")
+    m28_store = PersistentOperationalStateStore()
+
+    repo_meta = data.get("metadata", {})
+    repo_name = repo_meta.get("repo_name", "UNKNOWN")
+
+    # Load stored incidents if pipeline run has not executed in session
+    stored_incidents_raw = m28_store.list_incidents(repo_name) if repo_name != "UNKNOWN" else m28_store.list_incidents()
+
+    incidents = []
+    if inc_res and hasattr(inc_res, "incidents") and inc_res.incidents:
+        incidents = inc_res.incidents
+    elif stored_incidents_raw:
+        from agentos_swe.incident.models import SecurityIncident
+        incidents = [SecurityIncident.from_dict(d) for d in stored_incidents_raw]
+
+    # 1. Global Incident Status
+    st.subheader("🌐 Section 1 — Global Incident Status")
+    crit_count = sum(1 for inc in incidents if str(inc.severity.value if hasattr(inc.severity, "value") else inc.severity).upper() == "CRITICAL")
+    high_count = sum(1 for inc in incidents if str(inc.severity.value if hasattr(inc.severity, "value") else inc.severity).upper() == "HIGH")
+
+    if crit_count > 0:
+        st.error(f"🔴 CRITICAL INCIDENT ACTIVE — {crit_count} Critical Incident(s) Require Immediate Containment!")
+    elif high_count > 0:
+        st.warning(f"🟡 HIGH INCIDENT ACTIVE — {high_count} High Severity Incident(s) Flagged for Review.")
+    elif incidents:
+        st.info(f"🔵 ACTIVE INCIDENTS — {len(incidents)} Incident(s) Monitored.")
+    else:
+        st.success("🟢 NO ACTIVE SECURITY INCIDENTS — REPOSITORY SECURITY POSTURE OPTIMAL.")
+
+    # 2. Active Incidents Cards
+    st.subheader("🔥 Section 2 — Active Incident Summary Cards")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Active Incidents", len(incidents))
+    c2.metric("Critical Incidents", crit_count)
+    c3.metric("High Incidents", high_count)
+    c4.metric("Governance Blocked", sum(1 for inc in incidents if str(inc.status.value if hasattr(inc.status, "value") else inc.status).upper() == "BLOCKED"))
+
+    # 3. Incident Severity Distribution
+    st.subheader("📊 Section 3 — Incident Severity Distribution")
+    s_col1, s_col2, s_col3, s_col4 = st.columns(4)
+    s_col1.metric("Critical", crit_count)
+    s_col2.metric("High", high_count)
+    s_col3.metric("Medium", sum(1 for inc in incidents if str(inc.severity.value if hasattr(inc.severity, "value") else inc.severity).upper() == "MEDIUM"))
+    s_col4.metric("Low", sum(1 for inc in incidents if str(inc.severity.value if hasattr(inc.severity, "value") else inc.severity).upper() == "LOW"))
+
+    # 4. Incident Queue Table
+    st.subheader("📋 Section 4 — Incident Queue")
+    if incidents:
+        q_rows = []
+        for inc in incidents:
+            inc_dict = inc.to_dict() if hasattr(inc, "to_dict") else inc
+            q_rows.append({
+                "Incident ID": inc_dict.get("incident_id"),
+                "Type": inc_dict.get("incident_type"),
+                "Severity": inc_dict.get("severity"),
+                "Status": inc_dict.get("status"),
+                "Confidence": inc_dict.get("confidence"),
+                "Created At": inc_dict.get("created_at", "")[:19],
+                "Title": inc_dict.get("title"),
+            })
+        st.dataframe(q_rows, use_container_width=True)
+
+        # 5. Incident Detail Inspector
+        st.subheader("🔎 Section 5 — Incident Detail Inspector")
+        inc_ids = [inc.incident_id if hasattr(inc, "incident_id") else inc.get("incident_id") for inc in incidents]
+        sel_id = st.selectbox("Select Incident to Inspect", inc_ids)
+        sel_inc = next((inc for inc in incidents if (inc.incident_id if hasattr(inc, "incident_id") else inc.get("incident_id")) == sel_id), None)
+
+        if sel_inc:
+            sel_dict = sel_inc.to_dict() if hasattr(sel_inc, "to_dict") else sel_inc
+
+            st.write(f"### `{sel_dict.get('incident_id')}` — {sel_dict.get('title')}")
+            st.write(f"**Description**: {sel_dict.get('description')}")
+            st.write(f"**Severity**: `{sel_dict.get('severity')}` | **Status**: `{sel_dict.get('status')}` | **Confidence**: `{sel_dict.get('confidence')}`")
+
+            # 6. Evidence Explorer
+            st.subheader("🧾 Section 6 — Evidence Explorer")
+            ev_list = sel_dict.get("evidence_list", [])
+            if ev_list:
+                for ev in ev_list:
+                    with st.expander(f"[{ev.get('evidence_type')}] {ev.get('title')} ({ev.get('source_module')})"):
+                        st.write(f"**Description**: {ev.get('description')}")
+                        st.write(f"**File**: `{ev.get('file_path', 'N/A')}` | **Line**: `{ev.get('line_number', 'N/A')}`")
+
+            # 7. Incident Timeline
+            st.subheader("⏳ Section 7 — Incident Timeline")
+            tl = sel_dict.get("timeline", [])
+            if tl:
+                st.dataframe(tl, use_container_width=True)
+
+            # 8. Attack Path Visualization
+            st.subheader("🎯 Section 8 — Attack Path Visualization")
+            aps = sel_dict.get("attack_paths", [])
+            if aps:
+                for ap in aps:
+                    st.warning(f"**Attack Path `{ap.get('path_id')}`**: `{ap.get('entrypoint')}` ➔ `{ap.get('source_type')}` ➔ `{ap.get('sink_type')}` (Exposed: {ap.get('is_internet_exposed')})")
+            else:
+                st.info("Zero active attack paths associated with this incident.")
+
+            # 9. Impact Assessment
+            st.subheader("💥 Section 9 — Impact Assessment")
+            imp = sel_dict.get("impact", {})
+            if imp:
+                ic1, ic2, ic3 = st.columns(3)
+                ic1.metric("Blast Radius Score", f"{imp.get('blast_radius_score', 0.0)}/100")
+                ic2.metric("Internet Exposed", str(imp.get("internet_exposed", False)))
+                ic3.metric("Recurrence", imp.get("recurrence_classification", "FIRST_SEEN"))
+                st.write(f"**Affected Files**: `{', '.join(imp.get('affected_files', []))}`")
+
+            # 10. Investigation Explanation (10 Core Questions)
+            st.subheader("🧠 Section 10 — Forensic Investigation (10 Core Questions)")
+            exp = sel_dict.get("explanation", {})
+            if exp:
+                for k, v in exp.items():
+                    q_title = k.replace("_", " ").upper()
+                    st.write(f"**{q_title}**: {v}")
+
+            # 11. Response Recommendation
+            st.subheader("🚀 Section 11 — Response Action Recommendation")
+            plan = sel_dict.get("response_plan", {})
+            if plan:
+                st.info(f"**PRIMARY RECOMMENDED ACTION**: `{plan.get('primary_action')}`")
+                st.write(f"**RECOMMENDED ACTIONS**: `{', '.join(plan.get('recommended_actions', []))}`")
+                st.write(f"**RATIONALE**: {plan.get('rationale')}")
+
+            # 12. Governance Decision
+            st.subheader("⚖️ Section 12 — Governance Decision")
+            if plan:
+                st.write(f"**GOVERNANCE DECISION**: `{plan.get('governance_decision')}` | **RISK LEVEL**: `{plan.get('risk_level')}`")
+
+            # 13. Lifecycle Status & Transition Simulator
+            st.subheader("🔄 Section 13 — Incident Lifecycle Control")
+            st.write(f"Current Lifecycle Stage: `{sel_dict.get('status')}`")
+            col_l1, col_l2 = st.columns([2, 1])
+            with col_l1:
+                target_stage = st.selectbox("Simulate Lifecycle State Transition", [
+                    "TRIAGED", "INVESTIGATING", "CONTAINMENT_RECOMMENDED", "REPAIR_PENDING", "VALIDATING", "RESOLVED"
+                ], key=f"sel_stage_{sel_id}")
+            with col_l2:
+                if st.button("Apply Transition", key=f"btn_trans_{sel_id}"):
+                    if m28_store.update_incident_status(sel_id, target_stage):
+                        st.success(f"Simulated lifecycle transition for '{sel_id}' to '{target_stage}'.")
+                        st.rerun()
+
+            # 14. Resolution / Reopen History
+            st.subheader("📜 Section 14 — Resolution & Reopen History")
+            st.info("✔ Incident audit trail tracks full lifecycle transitions from detection through resolution or reopening.")
+
+    else:
+        st.info("Zero incidents found in store. Run a security scan to perform automated incident detection.")
+
+
 # ---------------------------------------------------------------------------
 # Main Router (Phase 2 & Phase 4)
 # ---------------------------------------------------------------------------
@@ -3508,6 +3812,10 @@ def main():
         render_security_drift_center(data)
     elif nav_selection.startswith("26."):
         render_security_operations_control_plane(data)
+    elif nav_selection.startswith("27."):
+        render_continuous_security_monitoring(data)
+    elif nav_selection.startswith("28."):
+        render_security_incident_response_center(data)
 
 
 if __name__ == "__main__":

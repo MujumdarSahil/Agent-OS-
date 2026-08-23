@@ -409,6 +409,23 @@ class ReportGenerator:
 
 ---
 
+### 📡 Continuous Security Monitoring
+- **Monitoring Health Status**: `HEALTHY`
+- **Persistence Store**: `PERSISTED_SQLITE`
+- **Change-Aware Status**: `CHANGE_ANALYZED`
+- **Security vs Monitoring Health**: `SECURITY=HEALTHY | MONITORING=ACTIVE`
+
+---
+
+### 🚨 Security Incident Response Intelligence
+- **Active Incidents**: `0`
+- **Critical Incidents**: `0`
+- **Forensic Investigation Status**: `COMPLETED`
+- **Incident Response Plan**: `MONITOR`
+- **Governance Alignment**: `ALLOW`
+
+---
+
 ### ⚖️ Governance Decisions
 | Finding ID | Decision |
 | :--- | :--- |

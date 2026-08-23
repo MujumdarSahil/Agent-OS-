@@ -422,6 +422,65 @@ Repository Intake → Investigation Squad → Semantic Analysis → Taint Analys
 
 ---
 
+## M28 — Persistent Security Operations & Continuous Monitoring Architecture
+
+M28 transforms AgentOS-SWE from in-memory control plane states into a persistent, continuous monitoring engine:
+
+```
+Repository Intake → Investigation Squad → Semantic Analysis → Taint Analysis → Evidence Correlation
+    → Root Cause → Security Intelligence → Attack Paths → History → Learning & Adaptive Risk
+    → Security Drift → Decision Orchestration → Remediation Queue → Repair & Validation
+    → Security Operations Control Plane
+    → Persistent Operational State Store (SQLite agentos_swe_history.db)
+    → Repository Registry (Schedule & Enable/Disable State)
+    → Continuous Monitoring Scheduler (tick() model)
+    → Change-Aware Security Monitoring Runner (NO_CHANGE commit optimization)
+    → UI Page 27 / Telemetry Reports / Audit Trail
+```
+
+### Key Architectural Components:
+1. **`PersistentOperationalStateStore` (`agentos_swe/persistence/operational_store.py`)**: Persists M27/M28 operational states, snapshots, and metrics across process restarts in SQLite.
+2. **`RepositoryRegistry` (`agentos_swe/persistence/repository_registry.py`)**: Tracks registered repositories, schedule intervals (`HOURLY`, `DAILY`, etc.), and last/next scan times.
+3. **`ContinuousMonitoringScheduler` (`agentos_swe/monitoring/scheduler.py`)**: Safe deterministic scheduler implementing a `tick()` model without uncontrolled background daemons.
+4. **`SecurityMonitoringRunner` (`agentos_swe/monitoring/runner.py`)**: Performs change-aware read-only monitoring scans with `NO_CHANGE` optimization on unchanged commit SHAs.
+5. **`PersistenceSerializer` (`agentos_swe/persistence/serialization.py`)**: Safe JSON serializer enforcing secret redaction (`SecretProtection.sanitize_text`) and schema versioning.
+6. **Resilient Failure Handling**: Scan failures preserve `last_known_good_state` in SQLite and set `MONITORING_HEALTH = FAILED` without degrading `SECURITY_HEALTH`.
+
+---
+
+## M29 — Security Incident Response & Investigation Architecture
+
+M29 introduces a deterministic Security Incident Response & Investigation layer that transforms AgentOS-SWE into a full lifecycle response engine:
+
+```
+Repository Intake → Investigation Squad → Semantic Analysis → Taint Analysis → Evidence Correlation
+    → Root Cause → Security Intelligence → Attack Paths → History → Learning & Adaptive Risk
+    → Security Drift → Decision Orchestration → Remediation Queue → Repair & Validation
+    → Security Operations Control Plane → Persistent Operational State Store
+    → Security Incident Detector (10 Deterministic Triggers)
+    → Incident Evidence Correlator (Deduplication & Fingerprinting)
+    → Incident Timeline Reconstructor (Bounded Depth Chronological Event Sequence)
+    → Incident Impact Assessor (Blast Radius & Affected Surfaces)
+    → Security Incident Investigator (10 Core Investigation Questions)
+    → Incident Response Planner (Governed Response Actions)
+    → Incident Lifecycle Manager (State Machine: DETECTED → RESOLVED)
+    → Incident Explainability Engine (Transparent 7-Pillar Rationale)
+    → UI Page 28 / Telemetry Reports / Audit Trail
+```
+
+### Key Architectural Components:
+1. **`SecurityIncidentDetector` (`agentos_swe/incident/detector.py`)**: Evaluates 10 deterministic incident triggers (`NEW_CRITICAL_VULNERABILITY`, `COMPOUND_SECURITY_INCIDENT`, etc.) while filtering out safe design patterns.
+2. **`IncidentEvidenceCorrelator` (`agentos_swe/incident/correlation.py`)**: Consolidates evidence and deduplicates incidents sharing the same underlying security fingerprint.
+3. **`IncidentTimelineReconstructor` (`agentos_swe/incident/timeline.py`)**: Builds chronological step sequences with depth limits (max 50 events).
+4. **`IncidentImpactAssessor` (`agentos_swe/incident/impact.py`)**: Calculates blast radius score and affected security surfaces without claiming unverified exploitation.
+5. **`SecurityIncidentInvestigator` (`agentos_swe/incident/investigation.py`)**: Forensic investigator answering the 10 core questions (WHAT, WHEN, WHERE, WHY, HOW, etc.).
+6. **`IncidentResponsePlanner` (`agentos_swe/incident/response.py`)**: Recommends governed response plans (`BLOCK_RELEASE`, `REQUEST_HUMAN_APPROVAL`, `GENERATE_REPAIR`, etc.).
+7. **`IncidentLifecycleManager` (`agentos_swe/incident/lifecycle.py`)**: Enforces state machine transitions across incident lifecycle stages (`DETECTED` $\rightarrow$ `RESOLVED`).
+8. **`IncidentExplainabilityEngine` (`agentos_swe/incident/explainability.py`)**: Formulates transparent human-readable explanations across 7 explainability pillars.
+9. **`SecurityIncidentResponseEngine` (`agentos_swe/incident/incident_engine.py`)**: Master facade orchestrator.
+
+---
+
 ## Security & Production Safety Invariants
 
 1. **Repository Immutability**: Host source code is strictly read-only. All modifications occur inside temporary `IsolatedSandbox` environments.

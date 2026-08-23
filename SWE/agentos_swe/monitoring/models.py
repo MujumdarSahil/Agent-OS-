@@ -322,3 +322,96 @@ class HistoricalDriftContext:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+# --- M28 Continuous Monitoring Events & Health Models ---
+
+class MonitoringEventType(str, Enum):
+    """M28 Continuous Security Monitoring event types."""
+    NO_CHANGE = "NO_CHANGE"
+    CHANGE_DETECTED = "CHANGE_DETECTED"
+    SCAN_STARTED = "SCAN_STARTED"
+    SCAN_COMPLETED = "SCAN_COMPLETED"
+    SCAN_FAILED = "SCAN_FAILED"
+    SECURITY_IMPROVED = "SECURITY_IMPROVED"
+    SECURITY_DEGRADED = "SECURITY_DEGRADED"
+    NEW_CRITICAL_FINDING = "NEW_CRITICAL_FINDING"
+    NEW_HIGH_FINDING = "NEW_HIGH_FINDING"
+    FINDING_FIXED = "FINDING_FIXED"
+    FINDING_REOPENED = "FINDING_REOPENED"
+    DRIFT_DETECTED = "DRIFT_DETECTED"
+    GOVERNANCE_BLOCKED = "GOVERNANCE_BLOCKED"
+    REPAIR_RECOMMENDED = "REPAIR_RECOMMENDED"
+    MONITORING_DISABLED = "MONITORING_DISABLED"
+
+
+class MonitoringHealthStatus(str, Enum):
+    """Execution status of the monitoring infrastructure."""
+    HEALTHY = "HEALTHY"
+    DEGRADED = "DEGRADED"
+    FAILED = "FAILED"
+    STALE = "STALE"
+
+
+@dataclass
+class MonitoringEvent:
+    """Strongly typed M28 continuous monitoring telemetry event."""
+    event_id: str
+    repository_name: str
+    timestamp: str
+    event_type: MonitoringEventType
+    severity: str = "INFO"
+    previous_commit: Optional[str] = None
+    current_commit: Optional[str] = None
+    previous_state: Optional[str] = None
+    current_state: Optional[str] = None
+    reason: str = ""
+    evidence: List[str] = field(default_factory=list)
+    correlation_id: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["event_type"] = self.event_type.value if isinstance(self.event_type, Enum) else self.event_type
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MonitoringEvent":
+        ev_type = data.get("event_type", MonitoringEventType.SCAN_COMPLETED.value)
+        if isinstance(ev_type, str):
+            try:
+                ev_type = MonitoringEventType(ev_type)
+            except ValueError:
+                ev_type = MonitoringEventType.SCAN_COMPLETED
+
+        return cls(
+            event_id=data.get("event_id", "ev_unknown"),
+            repository_name=data.get("repository_name", "UNKNOWN"),
+            timestamp=data.get("timestamp", datetime.now().isoformat()),
+            event_type=ev_type,
+            severity=data.get("severity", "INFO"),
+            previous_commit=data.get("previous_commit"),
+            current_commit=data.get("current_commit"),
+            previous_state=data.get("previous_state"),
+            current_state=data.get("current_state"),
+            reason=data.get("reason", ""),
+            evidence=data.get("evidence", []),
+            correlation_id=data.get("correlation_id", ""),
+        )
+
+
+@dataclass
+class MonitoringHealth:
+    """Differentiates security posture health from monitoring infrastructure health."""
+    security_health: str = "HEALTHY"
+    monitoring_health: str = MonitoringHealthStatus.HEALTHY.value
+    repositories_monitored: int = 0
+    repositories_due: int = 0
+    successful_scans: int = 0
+    failed_scans: int = 0
+    last_successful_scan: Optional[str] = None
+    next_scheduled_scan: Optional[str] = None
+    failures_count: int = 0
+    stale_repos_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)

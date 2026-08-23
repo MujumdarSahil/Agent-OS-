@@ -250,3 +250,21 @@ class GovernanceGate:
         elif outcome == "REVIEW_REQUIRED" or "HUMAN_REVIEW" in g_str:
             return GovernanceDecision.REVIEW_REQUIRED
         return GovernanceDecision.ALLOW
+
+    def evaluate_incident_governance(self, incident: Any) -> GovernanceDecision:
+        """
+        Evaluate M29 Security Incident against governance policies.
+        CRITICAL + INTERNET_EXPOSED + ACTIVE_ATTACK_PATH -> DENY
+        HIGH + RECURRING / REOPENED -> REVIEW_REQUIRED
+        LOW / SAFE -> ALLOW
+        """
+        inc_dict = incident.to_dict() if hasattr(incident, "to_dict") else (incident or {})
+        sev = str(inc_dict.get("severity", "MEDIUM")).upper()
+        impact = inc_dict.get("impact", {})
+        is_exp = impact.get("internet_exposed", False) if isinstance(impact, dict) else False
+
+        if sev == "CRITICAL" and is_exp:
+            return GovernanceDecision.DENY
+        elif sev in ["CRITICAL", "HIGH"]:
+            return GovernanceDecision.REVIEW_REQUIRED
+        return GovernanceDecision.ALLOW

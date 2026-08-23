@@ -26,6 +26,10 @@ from agentos_swe.monitoring.models import (
     SecurityDrift,
     ReleaseDriftAssessment,
     HistoricalDriftContext,
+    MonitoringEventType,
+    MonitoringHealthStatus,
+    MonitoringEvent,
+    MonitoringHealth,
 )
 from agentos_swe.monitoring.snapshot_manager import SnapshotManager
 from agentos_swe.monitoring.change_detector import ChangeDetector
@@ -37,8 +41,10 @@ from agentos_swe.monitoring.drift import SecurityDriftAnalyzer, SecurityDriftSco
 from agentos_swe.monitoring.changes import SecurityChangeAnalyzer
 from agentos_swe.monitoring.impact import SecurityChangeImpactCorrelator
 from agentos_swe.monitoring.alerts import SecurityAlertEngine
-from agentos_swe.monitoring.scheduler import SecurityMonitorScheduler
+from agentos_swe.monitoring.scheduler import SecurityMonitorScheduler, ContinuousMonitoringScheduler
 from agentos_swe.monitoring.monitor import SecurityMonitor, SecurityMonitoringEngine
+from agentos_swe.monitoring.runner import SecurityMonitoringRunner
+from agentos_swe.monitoring.result import MonitoringJobResult
 
 __all__ = [
     "RegressionSeverity",
@@ -59,12 +65,6 @@ __all__ = [
     "RegressionDetector",
     "TrendAnalyzer",
     "AlertEngine",
-    "SecurityMonitor",
-    "DriftScoreCategory",
-    "SecuritySnapshot",
-    "SecurityDrift",
-    "ReleaseDriftAssessment",
-    "HistoricalDriftContext",
     "SecuritySnapshotEngine",
     "SecurityDriftAnalyzer",
     "SecurityDriftScorer",
@@ -72,5 +72,18 @@ __all__ = [
     "SecurityChangeImpactCorrelator",
     "SecurityAlertEngine",
     "SecurityMonitorScheduler",
+    "ContinuousMonitoringScheduler",
+    "SecurityMonitor",
     "SecurityMonitoringEngine",
+    "SecurityMonitoringRunner",
+    "MonitoringJobResult",
+    "MonitoringEventType",
+    "MonitoringHealthStatus",
+    "MonitoringEvent",
+    "MonitoringHealth",
+    "DriftScoreCategory",
+    "SecuritySnapshot",
+    "SecurityDrift",
+    "ReleaseDriftAssessment",
+    "HistoricalDriftContext",
 ]
