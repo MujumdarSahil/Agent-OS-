@@ -256,6 +256,7 @@ from agentos_swe.orchestration import (
 from agentos_swe.knowledge import SecurityKnowledgeEngine
 from agentos_swe.simulation import SecuritySimulationEngine
 from agentos_swe.monitoring import SecurityMonitoringEngine
+from agentos_swe.learning import ContinuousSecurityLearningEngine
 
 
 
@@ -963,6 +964,23 @@ def run_swe_scan_engine(
 
         record_stage("DECISION ORCHESTRATION", t0, f"Orchestrated decisions (Global: {decision_orchestration_result.global_decision.value}, Queue Items: {len(decision_orchestration_result.remediation_queue)})")
 
+        # 11.99 M25 Continuous Security Learning, Trend Intelligence & Adaptive Risk Engine
+        t0 = time.time()
+        learning_engine = ContinuousSecurityLearningEngine()
+        learning_result = learning_engine.run_learning_pipeline(
+            repository_name=repo_name or os.path.basename(scan_target_path),
+            commit_sha=resolved_commit,
+            current_findings=[f.to_dict() if hasattr(f, "to_dict") else f for f in prioritized_findings],
+            attack_paths=attack_paths,
+            drift_result=monitoring_drift_result,
+            orchestration_result=decision_orchestration_result,
+            repair_validations=[rv.to_dict() if hasattr(rv, "to_dict") else rv for rv in repair_validations],
+            repair_results=[rp.to_dict() if hasattr(rp, "to_dict") else rp for rp in repair_proposals],
+            current_security_score=remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
+        )
+
+        record_stage("SECURITY LEARNING", t0, f"Learned patterns & trend intelligence (Trend: {learning_result.trend.trend.value if learning_result.trend else 'STABLE'}, Patterns: {len(learning_result.detected_patterns)})")
+
         # 12. Observability Telemetry & Final Report
         data["status"] = "REPORTING"
         t0 = time.time()
@@ -991,6 +1009,7 @@ def run_swe_scan_engine(
             simulation_result=simulation_result,
             monitoring_drift_result=monitoring_drift_result,
             decision_orchestration_result=decision_orchestration_result,
+            learning_result=learning_result,
             governance_decisions=governance_decisions,
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )

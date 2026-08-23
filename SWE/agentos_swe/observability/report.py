@@ -70,6 +70,7 @@ class ReportGenerator:
         simulation_result: Optional[Any] = None,
         monitoring_drift_result: Optional[Any] = None,
         decision_orchestration_result: Optional[Any] = None,
+        learning_result: Optional[Any] = None,
         governance_decisions: Optional[List[Dict[str, Any]]] = None,
         final_verdict: str = "PASS",
     ) -> str:
