@@ -30,3 +30,6 @@
 - **R1**: Single-File UI Hardening & Rerun Safety
 - **R2**: Real-Time Execution Telemetry, Live Pipeline Visualization & Report Package Export
 - **R3**: Responsibility-Driven Repository Restructuring & Maintainability Hardening
+- **R4**: Post-Restructuring Architecture Validation, Import Hardening & Facade Cleanup
+- **R5**: Production Repository Hygiene, Build Validation & Final Maintainability Hardening
+
