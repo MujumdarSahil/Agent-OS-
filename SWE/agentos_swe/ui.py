@@ -172,6 +172,13 @@ from agentos_swe.security.command_policy import CommandPolicy
 from agentos_swe.security.secret_protection import SecretProtection
 from agentos_swe.observability.tracer import TraceCollector
 from agentos_swe.observability.report import ReportGenerator
+from agentos_swe.observability.events import (
+    ExecutionEvent,
+    ExecutionStatus,
+    ExecutionEventBus,
+    TerminalLogger,
+    CANONICAL_PIPELINE_STAGES,
+)
 from agentos_swe.benchmark.fixtures import BenchmarkFixtures
 
 # M13 Correlation & Repair Imports
@@ -431,14 +438,15 @@ PIPELINE_STAGES_MASTER = [
     "SEMANTIC ANALYSIS",
     "TAINT ANALYSIS",
     "EVIDENCE CORRELATION",
-    "ROOT CAUSE",
+    "VERIFICATION",
     "SECURITY INTELLIGENCE",
     "ATTACK PATH",
+    "HISTORICAL ANALYSIS",
+    "LEARNING",
+    "DRIFT",
     "DECISION ORCHESTRATION",
     "REPAIR",
     "VALIDATION",
-    "LEARNING",
-    "DRIFT",
     "CONTROL PLANE",
     "INCIDENT RESPONSE",
     "RELEASE READINESS",
@@ -581,10 +589,14 @@ def run_swe_scan_engine(
     data["terminal_events"] = []
     data["live_findings"] = []
 
+    bus = ExecutionEventBus.reset_instance()
+
     def log_event(msg: str):
         now_ts = datetime.now().strftime("[%H:%M:%S]")
         evt = f"{now_ts} {msg}"
         data["terminal_events"].append(evt)
+        if len(data["terminal_events"]) > 500:
+            data["terminal_events"] = data["terminal_events"][-500:]
 
     def start_stage(stage_name: str) -> float:
         t_stage_start = time.time()
@@ -596,6 +608,7 @@ def run_swe_scan_engine(
                 s["result"] = "Executing..."
                 break
         log_event(f"Starting stage: {stage_name}")
+        bus.emit(stage=stage_name, message=f"Starting stage: {stage_name}", status=ExecutionStatus.RUNNING.value)
         return t_stage_start
 
     def finish_stage(stage_name: str, t_stage_start: float, result_msg: str, status_str: str = "COMPLETE"):
@@ -617,6 +630,7 @@ def run_swe_scan_engine(
             "result": result_msg,
         })
         log_event(f"Stage {stage_name} {status_str}: {result_msg} ({round(duration, 2)}s)")
+        bus.emit(stage=stage_name, message=result_msg, status=ExecutionStatus.COMPLETED.value, duration=duration)
 
     def fail_pipeline(failed_stage: str, t_stage_start: float, error_msg: str):
         duration = time.time() - t_stage_start
@@ -642,6 +656,7 @@ def run_swe_scan_engine(
             "result": f"FAILED: {error_msg}",
         })
         log_event(f"FAILED: {failed_stage} - {error_msg}")
+        bus.emit(stage=failed_stage, message=error_msg, status=ExecutionStatus.FAILED.value, error=error_msg, duration=duration)
         data["status"] = "FAILED"
         data["error"] = error_msg
 
@@ -792,10 +807,13 @@ def run_swe_scan_engine(
         finish_stage("EVIDENCE CORRELATION", t0, f"Correlated {len(correlated_findings)} findings")
         log_event(f"Evidence correlation complete: {len(correlated_findings)} correlated findings")
 
-        # 7. ROOT CAUSE
-        t0 = start_stage("ROOT CAUSE")
-        finish_stage("ROOT CAUSE", t0, f"Root cause assigned for {len(correlated_findings)} findings")
-        log_event("Root cause analysis complete")
+        # 7. VERIFICATION
+        t0 = start_stage("VERIFICATION")
+        confirmed_cnt = len([f for f in verified_findings if f.status == FindingStatus.CONFIRMED])
+        rejected_cnt = len([f for f in verified_findings if f.status == FindingStatus.REJECTED])
+        inconclusive_cnt = len([f for f in verified_findings if f.status == FindingStatus.INCONCLUSIVE])
+        finish_stage("VERIFICATION", t0, f"Verified: {confirmed_cnt} Confirmed, {rejected_cnt} Rejected, {inconclusive_cnt} Inconclusive")
+        log_event(f"Verification complete: {confirmed_cnt} confirmed true positives")
 
         # 8. SECURITY INTELLIGENCE
         t0 = start_stage("SECURITY INTELLIGENCE")
@@ -865,6 +883,11 @@ def run_swe_scan_engine(
         )
         finish_stage("ATTACK PATH", t0, f"Correlated {len(attack_paths)} attack paths")
         log_event(f"Attack path correlation complete: {len(attack_paths)} paths")
+
+        # 10. HISTORICAL ANALYSIS
+        t0 = start_stage("HISTORICAL ANALYSIS")
+        finish_stage("HISTORICAL ANALYSIS", t0, f"Risk Trend: {hist_comparison.risk_trend} (Score Delta: {hist_comparison.score_delta:+d})")
+        log_event("Historical security analysis complete")
 
         # 10. DECISION ORCHESTRATION
         t0 = start_stage("DECISION ORCHESTRATION")
@@ -1139,7 +1162,7 @@ def run_swe_scan_engine(
         finish_stage("RELEASE READINESS", t0, f"Level: {release_result.summary.readiness_level.value}, Score: {release_result.summary.overall_score}/100")
         log_event("Release readiness evaluation complete")
 
-        # 18. FINAL REPORT
+        # 19. REPORT GENERATION
         t0 = start_stage("FINAL REPORT")
         report_gen = ReportGenerator()
         run_report = report_gen.generate_run_report(
@@ -1225,11 +1248,51 @@ def run_swe_scan_engine(
         data["report_markdown"] = report_md
         data["report_json"] = json.dumps(run_report.to_dict(), indent=2)
         data["report_html"] = f"<html><body><pre>{html.escape(report_md)}</pre></body></html>"
+
+        # Generate Complete 13-Artifact Report Package & ZIP
+        out_dir = os.path.join("outputs", "scans", repo_key, datetime.now().strftime("%Y%m%d_%H%M%S"))
+        bundle_info = report_gen.generate_report_bundle(
+            output_dir=out_dir,
+            report=run_report,
+            markdown_report=report_md,
+            scan_data=data,
+        )
+        data["report_bundle"] = bundle_info
         data["report_generated_once"] = True
 
-        finish_stage("FINAL REPORT", t0, "Generated execution report & telemetry ONCE")
-        log_event("Generated final report (JSON, Markdown, HTML)")
+        finish_stage("FINAL REPORT", t0, "Generated report bundle (JSON, MD, HTML, ZIP)")
+        log_event("Generated final execution report & bundle")
         log_event("SCAN COMPLETE")
+
+        # Terminal Final Security Summary Output
+        crit_cnt = len([f for f in verified_findings if getattr(f, "severity", "").lower() == "critical"])
+        high_cnt = len([f for f in verified_findings if getattr(f, "severity", "").lower() == "high"])
+        med_cnt = len([f for f in verified_findings if getattr(f, "severity", "").lower() == "medium"])
+        low_cnt = len([f for f in verified_findings if getattr(f, "severity", "").lower() == "low"])
+
+        bus.terminal_logger.print_final_summary(
+            metrics={
+                "files_analyzed": len(context.source_files),
+                "graph_nodes": nodes_cnt,
+                "graph_edges": edges_cnt,
+                "raw_findings": len(candidates),
+                "verified_findings": len(verified_findings),
+                "confirmed_findings": len([f for f in verified_findings if f.status == FindingStatus.CONFIRMED]),
+                "rejected_findings": len([f for f in verified_findings if f.status == FindingStatus.REJECTED]),
+                "inconclusive_findings": len([f for f in verified_findings if f.status == FindingStatus.INCONCLUSIVE]),
+                "critical": crit_cnt,
+                "high": high_cnt,
+                "medium": med_cnt,
+                "low": low_cnt,
+                "taint_paths": len(taint_findings),
+                "attack_paths": len(attack_paths),
+                "security_score": remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
+                "risk_trend": hist_comparison.risk_trend if hasattr(hist_comparison, "risk_trend") else "STABLE",
+                "release_readiness": release_result.summary.readiness_level.value if hasattr(release_result, "summary") else "RELEASE_READY",
+            },
+            duration=duration_sec,
+            verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
+        )
 
         data["safety_state"] = {
             "dry_run": os.environ.get("AGENTOS_SWE_DRY_RUN", "1") == "1",
@@ -1442,8 +1505,9 @@ def render_dashboard(data: Dict[str, Any]):
 
     st.markdown("---")
 
-    # Top Metric Grid
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Top Metric Grid (Explicit Raw Candidates vs Verified Findings separation)
+    candidates_count = len(data.get("candidates", []))
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("Files Analyzed", len(context.source_files) if context else 0)
     with col2:
@@ -1451,8 +1515,10 @@ def render_dashboard(data: Dict[str, Any]):
     with col3:
         st.metric("Graph Edges", len(relationships))
     with col4:
-        st.metric("Total Findings", len(findings) + len(taint_findings))
+        st.metric("Raw Candidates", candidates_count if candidates_count > 0 else ("0" if data.get("status") == "COMPLETE" else "N/A"))
     with col5:
+        st.metric("Verified Findings", len(findings))
+    with col6:
         st.metric("Runtime", f"{meta.get('duration_sec', 0.0)}s")
 
     st.markdown("---")
@@ -1478,6 +1544,29 @@ def render_dashboard(data: Dict[str, Any]):
     c2.markdown(f"**HIGH**: `{high_count}`")
     c3.markdown(f"**MEDIUM**: `{med_count}`")
     c4.markdown(f"**LOW**: `{low_count}`")
+
+    # Native Streamlit Telemetry Charts
+    st.markdown("---")
+    st.markdown("### 📊 Live Telemetry & Execution Analytics Charts")
+    chart_col1, chart_col2 = st.columns(2)
+    import pandas as pd
+    with chart_col1:
+        st.markdown("**Finding Severity Breakdown**")
+        sev_df = pd.DataFrame({
+            "Severity": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            "Count": [critical_count, high_count, med_count, low_count],
+        }).set_index("Severity")
+        st.bar_chart(sev_df)
+
+    with chart_col2:
+        st.markdown("**Stage Execution Runtime (s)**")
+        stages_data = data.get("pipeline_stages", [])
+        if stages_data:
+            stg_df = pd.DataFrame({
+                "Stage": [s["name"] for s in stages_data],
+                "Duration (s)": [s.get("duration_sec", 0.0) for s in stages_data],
+            }).set_index("Stage")
+            st.bar_chart(stg_df)
 
     if findings:
         st.markdown("### 📋 Quick Findings Summary")
@@ -2101,13 +2190,22 @@ def render_report(data: Dict[str, Any]):
     report_json = data.get("report_json", "{}")
     report_html = data.get("report_html", "<html></html>")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.download_button("📥 Download JSON Report", data=report_json, file_name="swe_run_report.json", mime="application/json", use_container_width=True)
     with col2:
         st.download_button("📥 Download Markdown Report", data=report_md, file_name="swe_run_report.md", mime="text/markdown", use_container_width=True)
     with col3:
         st.download_button("📥 Download HTML Report", data=report_html, file_name="swe_run_report.html", mime="text/html", use_container_width=True)
+    with col4:
+        bundle_info = data.get("report_bundle", {})
+        zip_path = bundle_info.get("zip_path", "") if isinstance(bundle_info, dict) else ""
+        if zip_path and os.path.exists(zip_path):
+            with open(zip_path, "rb") as zf:
+                zip_data = zf.read()
+            st.download_button("📦 Download ZIP Report Bundle", data=zip_data, file_name="agentos_swe_report.zip", mime="application/zip", use_container_width=True)
+        else:
+            st.button("📦 ZIP Bundle N/A", disabled=True, use_container_width=True)
 
     st.markdown("---")
     st.markdown(report_md)

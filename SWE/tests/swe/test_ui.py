@@ -239,7 +239,7 @@ def test_r1_scan_starts_only_on_explicit_request(mock_streamlit):
     data = init_session_state()
     assert data["status"] == "IDLE"
     assert len(data["terminal_events"]) == 0
-    assert len(data["pipeline_stages"]) == 18
+    assert len(data["pipeline_stages"]) == 19
     for stg in data["pipeline_stages"]:
         assert stg["status"] == "PENDING"
 
@@ -251,7 +251,7 @@ def test_r1_scan_completes_and_telemetry_collected(mock_streamlit):
 
     data = mock_streamlit["swe_scan_data"]
     assert data["status"] == "COMPLETE"
-    assert len(data["pipeline_stages"]) == 18
+    assert len(data["pipeline_stages"]) == 19
 
     stage_names = [s["name"] for s in data["pipeline_stages"]]
     assert "REPOSITORY INTAKE" in stage_names
@@ -260,7 +260,7 @@ def test_r1_scan_completes_and_telemetry_collected(mock_streamlit):
     assert "FINAL REPORT" in stage_names
 
     completed_stages = [s for s in data["pipeline_stages"] if s["status"] == "COMPLETE"]
-    assert len(completed_stages) == 18
+    assert len(completed_stages) == 19
 
     agents = data["agent_activity"]
     assert len(agents) >= 7
@@ -304,7 +304,7 @@ def test_r1_failed_scan_stops_without_retries(mock_streamlit):
     assert intake_stage["status"] == "FAILED"
 
     pending_or_skipped = [s for s in data["pipeline_stages"] if s["status"] in ("SKIPPED", "PENDING")]
-    assert len(pending_or_skipped) == 17
+    assert len(pending_or_skipped) == 18
 
 
 def test_r1_downloadable_reports_generated_once(mock_streamlit):

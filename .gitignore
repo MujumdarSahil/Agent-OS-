@@ -54,5 +54,8 @@ chroma_db/
 *.key
 *.agentpack
 keys/
+outputs/
+scratch/
+
 
 

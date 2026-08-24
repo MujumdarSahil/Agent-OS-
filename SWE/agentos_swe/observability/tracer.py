@@ -14,6 +14,7 @@ from agentos_swe.observability.models import (
     FindingMetrics,
     RepairMetrics,
 )
+from agentos_swe.observability.events import ExecutionEventBus, ExecutionEvent, ExecutionStatus
 
 logger = logging.getLogger(__name__)
 
