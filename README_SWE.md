@@ -392,9 +392,9 @@ outputs/
 
 ## 📖 Documentation Index
 
-- [Architecture & System Design](docs/architecture/agentos_swe_architecture.md) — Technical deep-dive into the 10-domain architecture, semantic resolvers, and taint tracking.
-- [Milestone Evolution Index](docs/history/milestone_index.md) — Chronological history covering M0–M30 and R1–R5 passes.
-- [Developer & Contributor Guide](docs/operations/development.md) — Guidelines for code placement, testing protocols, and architectural invariants.
+- [Architecture & System Design](SWE/docs/architecture/agentos_swe_architecture.md) — Technical deep-dive into the 10-domain architecture, semantic resolvers, and taint tracking.
+- [Milestone Evolution Index](SWE/docs/history/milestone_index.md) — Chronological history covering M0–M30 and R1–R5 passes.
+- [Developer & Contributor Guide](SWE/docs/operations/development.md) — Guidelines for code placement, testing protocols, and architectural invariants.
 
 ---
 
@@ -422,7 +422,7 @@ outputs/
 
 ## 🤝 Development & Contributing
 
-Contributions to AgentOS-SWE are welcome! Please review [docs/operations/development.md](docs/operations/development.md) before submitting code.
+Contributions to AgentOS-SWE are welcome! Please review [SWE/docs/operations/development.md](SWE/docs/operations/development.md) before submitting code.
 
 1. Preserve the **Single-File UI Invariant** (`SWE/agentos_swe/ui.py`).
 2. Preserve **Legacy Compatibility Facades** (`agentos_swe.repair`, `attackpath`, etc.).
