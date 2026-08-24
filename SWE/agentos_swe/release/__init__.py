@@ -34,7 +34,7 @@ from agentos_swe.release.packaging import PackagingValidator
 from agentos_swe.release.manifest import SystemCapabilityManifest
 from agentos_swe.release.release_engine import ReleaseReadinessEngine
 
-from agentos_swe.release.models import CrossRepositoryReleasePosture, SecurityGateVerdict, ReleaseDeltaState
+from agentos_swe.release.models import CrossRepositoryReleasePosture, SecurityGateVerdict, ReleaseDeltaState, DecisionEvidence
 
 # Backward Compatibility Aliases for M18
 SecurityReleaseReadinessEngine = ReleaseReadinessEngine
@@ -73,4 +73,6 @@ __all__ = [
     "ReleaseDecisionState",
     "SecurityGateVerdict",
     "ReleaseDeltaState",
+    "DecisionEvidence",
 ]
+

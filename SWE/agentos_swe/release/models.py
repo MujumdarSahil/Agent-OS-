@@ -310,3 +310,20 @@ class SecurityGateVerdict(str, Enum):
 # Backward-compatibility aliases for M18/M19
 SecurityReleaseDecision = ReleaseSummary
 ReleaseDecisionState = ReadinessLevel
+
+
+@dataclass
+class DecisionEvidence:
+    """Explainable evidence item supporting a release decision."""
+    evidence_id: str
+    policy_rule: str
+    evidence_text: str
+    validation_status: str
+    finding_id: Optional[str] = None
+    attack_path_id: Optional[str] = None
+    remediation_id: Optional[str] = None
+    historical_context: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
