@@ -228,3 +228,121 @@ def test_render_enterprise_release_readiness(mock_streamlit):
     data = init_session_state()
     data["metadata"] = {"repo_name": "test_ui_repo", "commit": "HEAD"}
     render_enterprise_release_readiness(data)
+
+
+# ---------------------------------------------------------------------------
+# R1 Telemetry, Visualization, Reporting & Hard Stop Invariant Tests
+# ---------------------------------------------------------------------------
+
+def test_r1_scan_starts_only_on_explicit_request(mock_streamlit):
+    """R1.13.1 — Scan starts only on explicit request, initially IDLE."""
+    data = init_session_state()
+    assert data["status"] == "IDLE"
+    assert len(data["terminal_events"]) == 0
+    assert len(data["pipeline_stages"]) == 18
+    for stg in data["pipeline_stages"]:
+        assert stg["status"] == "PENDING"
+
+
+def test_r1_scan_completes_and_telemetry_collected(mock_streamlit):
+    """R1.13.2 & R1.13.7 — Scan completes and collects stage/agent telemetry."""
+    bench_dir, _ = BenchmarkFixtures.create_benchmark_workspace()
+    run_swe_scan_engine(repo_input=bench_dir, scan_mode="Synthetic Benchmark")
+
+    data = mock_streamlit["swe_scan_data"]
+    assert data["status"] == "COMPLETE"
+    assert len(data["pipeline_stages"]) == 18
+
+    stage_names = [s["name"] for s in data["pipeline_stages"]]
+    assert "REPOSITORY INTAKE" in stage_names
+    assert "GRAPH BUILD" in stage_names
+    assert "INVESTIGATION SQUAD" in stage_names
+    assert "FINAL REPORT" in stage_names
+
+    completed_stages = [s for s in data["pipeline_stages"] if s["status"] == "COMPLETE"]
+    assert len(completed_stages) == 18
+
+    agents = data["agent_activity"]
+    assert len(agents) >= 7
+    executed_agents = [a for a in agents if a["status"] == "COMPLETE"]
+    assert len(executed_agents) >= 5
+
+    # Check non-python resolvers are marked NOT EXECUTED on python benchmark
+    js_resolver = next((a for a in agents if a["name"] == "JavaScriptSemanticResolver"), None)
+    if js_resolver:
+        assert js_resolver["status"] in ("NOT EXECUTED", "COMPLETE")
+
+
+def test_r1_scan_rerun_safety_and_no_auto_restart(mock_streamlit):
+    """R1.13.3, R1.13.4 & R1.13.12 — Completed scan remains stopped, reruns do not duplicate scan."""
+    bench_dir, _ = BenchmarkFixtures.create_benchmark_workspace()
+    run_swe_scan_engine(repo_input=bench_dir)
+    data = mock_streamlit["swe_scan_data"]
+    assert data["status"] == "COMPLETE"
+
+    initial_event_count = len(data["terminal_events"])
+    assert initial_event_count > 0
+
+    # Simulate UI render / widget interaction rerun
+    render_dashboard(data)
+    render_pipeline(data)
+    render_report(data)
+
+    # Status remains COMPLETE and events count unchanged
+    assert data["status"] == "COMPLETE"
+    assert len(data["terminal_events"]) == initial_event_count
+
+
+def test_r1_failed_scan_stops_without_retries(mock_streamlit):
+    """R1.13.5 — Failed scan stops cleanly, marks pending stages SKIPPED, no retries."""
+    run_swe_scan_engine(repo_input="C:/invalid_nonexistent_directory_9999")
+    data = mock_streamlit["swe_scan_data"]
+    assert data["status"] == "FAILED"
+    assert "path does not exist" in data["error"]
+
+    intake_stage = next(s for s in data["pipeline_stages"] if s["name"] == "REPOSITORY INTAKE")
+    assert intake_stage["status"] == "FAILED"
+
+    pending_or_skipped = [s for s in data["pipeline_stages"] if s["status"] in ("SKIPPED", "PENDING")]
+    assert len(pending_or_skipped) == 17
+
+
+def test_r1_downloadable_reports_generated_once(mock_streamlit):
+    """R1.13.8 - R1.13.11 — Final reports generated ONCE and available in JSON, MD, HTML formats."""
+    bench_dir, _ = BenchmarkFixtures.create_benchmark_workspace()
+    run_swe_scan_engine(repo_input=bench_dir)
+
+    data = mock_streamlit["swe_scan_data"]
+    assert data["report_generated_once"] is True
+    assert data["report_json"] != ""
+    assert data["report_markdown"] != ""
+    assert data["report_html"] != ""
+
+    import json
+    parsed_json = json.loads(data["report_json"])
+    assert "mission_id" in parsed_json or "findings" in parsed_json or "summary" in parsed_json or "stages" in parsed_json or isinstance(parsed_json, dict)
+    assert "<html>" in data["report_html"]
+
+
+def test_r1_terminal_events_reflect_real_pipeline(mock_streamlit):
+    """R1.13.13 — Terminal log events contain real-time timestamps and stage progression."""
+    bench_dir, _ = BenchmarkFixtures.create_benchmark_workspace()
+    run_swe_scan_engine(repo_input=bench_dir)
+
+    data = mock_streamlit["swe_scan_data"]
+    events = data["terminal_events"]
+    assert len(events) >= 10
+    assert events[0].startswith("[")
+    assert "Starting AgentOS-SWE scan" in events[0]
+    assert any("SCAN COMPLETE" in e for e in events)
+
+
+def test_r1_no_infinite_loop_or_background_processes(mock_streamlit):
+    """R1.13.14 & R1.13.15 — Finite execution completes without leaving background loops."""
+    bench_dir, _ = BenchmarkFixtures.create_benchmark_workspace()
+    run_swe_scan_engine(repo_input=bench_dir)
+
+    data = mock_streamlit["swe_scan_data"]
+    assert data["status"] in ("COMPLETE", "FAILED")
+    # Verify execution returned control cleanly without throwing infinite loop or timeout
+

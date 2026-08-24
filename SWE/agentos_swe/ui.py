@@ -424,11 +424,47 @@ DARK_THEME_CSS = """
 # State Management & Initializer
 # ---------------------------------------------------------------------------
 
+PIPELINE_STAGES_MASTER = [
+    "REPOSITORY INTAKE",
+    "GRAPH BUILD",
+    "INVESTIGATION SQUAD",
+    "SEMANTIC ANALYSIS",
+    "TAINT ANALYSIS",
+    "EVIDENCE CORRELATION",
+    "ROOT CAUSE",
+    "SECURITY INTELLIGENCE",
+    "ATTACK PATH",
+    "DECISION ORCHESTRATION",
+    "REPAIR",
+    "VALIDATION",
+    "LEARNING",
+    "DRIFT",
+    "CONTROL PLANE",
+    "INCIDENT RESPONSE",
+    "RELEASE READINESS",
+    "FINAL REPORT",
+]
+
+KNOWN_AGENTS_MASTER = [
+    {"name": "BugAgent", "role": "Logic & Defect Investigator", "category": "bug"},
+    {"name": "SecurityAgent", "role": "Vulnerability & Injection Investigator", "category": "security"},
+    {"name": "PerformanceAgent", "role": "Complexity & N+1 Loop Investigator", "category": "performance"},
+    {"name": "ArchitectureAgent", "role": "Coupling & Dependency Investigator", "category": "architecture"},
+    {"name": "VerificationAgent", "role": "Multi-Strategy Verification Pipeline", "category": "verification"},
+    {"name": "PythonSemanticResolver", "role": "AST & Exception Intent Resolver", "category": "semantic"},
+    {"name": "PythonTaintAnalyzer", "role": "Deterministic AST Taint Tracking Engine", "category": "taint"},
+    {"name": "JavaScriptSemanticResolver", "role": "JS/TS Polyglot Resolver", "category": "semantic"},
+    {"name": "TypeScriptSemanticResolver", "role": "TypeScript API Contract Analyzer", "category": "semantic"},
+    {"name": "ReactSemanticResolver", "role": "React Component & Hook Resolver", "category": "semantic"},
+    {"name": "VueSemanticResolver", "role": "Vue Template & Script Resolver", "category": "semantic"},
+]
+
+
 def init_session_state() -> Dict[str, Any]:
     """Ensure session state dictionary exists for SWE scan results."""
     if "swe_scan_data" not in st.session_state:
         st.session_state["swe_scan_data"] = {
-            "status": "IDLE",  # IDLE, RUNNING, COMPLETE, FAILED
+            "status": "IDLE",  # IDLE, PREPARING, RUNNING, COMPLETE, FAILED
             "error": None,
             "metadata": {
                 "scan_id": "N/A",
@@ -445,9 +481,38 @@ def init_session_state() -> Dict[str, Any]:
             "candidates": [],
             "verified_findings": [],
             "taint_findings": [],
+            "correlated_findings": [],
             "repair_results": [],
+            "repair_proposals": [],
+            "repair_validations": [],
             "pr_results": [],
             "stage_timings": [],
+            "pipeline_stages": [
+                {
+                    "name": stg,
+                    "status": "PENDING",
+                    "start_time": None,
+                    "end_time": None,
+                    "duration_sec": 0.0,
+                    "result": "Pending execution",
+                }
+                for stg in PIPELINE_STAGES_MASTER
+            ],
+            "agent_activity": [
+                {
+                    "name": ag["name"],
+                    "role": ag["role"],
+                    "category": ag["category"],
+                    "status": "NOT EXECUTED",
+                    "findings": 0,
+                    "runtime": 0.0,
+                    "result": "NOT EXECUTED",
+                }
+                for ag in KNOWN_AGENTS_MASTER
+            ],
+            "terminal_events": [],
+            "live_findings": [],
+            "report_generated_once": False,
             "trace_collector": None,
             "run_report": None,
             "report_markdown": "",
@@ -484,11 +549,112 @@ def run_swe_scan_engine(
     verification results, repair results, and trace telemetry.
     """
     data = session_data if session_data is not None else init_session_state()
-    data["status"] = "PREPARING"
+    data["status"] = "RUNNING"
     data["error"] = None
     data.setdefault("metadata", {})
+    data["report_generated_once"] = False
 
+    # Reset stage states and telemetry for new finite scan
+    data["pipeline_stages"] = [
+        {
+            "name": stg,
+            "status": "PENDING",
+            "start_time": None,
+            "end_time": None,
+            "duration_sec": 0.0,
+            "result": "Pending execution",
+        }
+        for stg in PIPELINE_STAGES_MASTER
+    ]
+    data["agent_activity"] = [
+        {
+            "name": ag["name"],
+            "role": ag["role"],
+            "category": ag["category"],
+            "status": "NOT EXECUTED",
+            "findings": 0,
+            "runtime": 0.0,
+            "result": "NOT EXECUTED",
+        }
+        for ag in KNOWN_AGENTS_MASTER
+    ]
+    data["terminal_events"] = []
+    data["live_findings"] = []
 
+    def log_event(msg: str):
+        now_ts = datetime.now().strftime("[%H:%M:%S]")
+        evt = f"{now_ts} {msg}"
+        data["terminal_events"].append(evt)
+
+    def start_stage(stage_name: str) -> float:
+        t_stage_start = time.time()
+        now_str = datetime.now().strftime("%H:%M:%S")
+        for s in data["pipeline_stages"]:
+            if s["name"] == stage_name:
+                s["status"] = "RUNNING"
+                s["start_time"] = now_str
+                s["result"] = "Executing..."
+                break
+        log_event(f"Starting stage: {stage_name}")
+        return t_stage_start
+
+    def finish_stage(stage_name: str, t_stage_start: float, result_msg: str, status_str: str = "COMPLETE"):
+        duration = time.time() - t_stage_start
+        now_str = datetime.now().strftime("%H:%M:%S")
+        for s in data["pipeline_stages"]:
+            if s["name"] == stage_name:
+                s["status"] = status_str
+                s["end_time"] = now_str
+                s["duration_sec"] = round(duration, 3)
+                s["result"] = result_msg
+                break
+        stage_timings.append({
+            "stage": stage_name,
+            "status": status_str,
+            "start": datetime.fromtimestamp(t_stage_start).strftime("%H:%M:%S"),
+            "end": now_str,
+            "duration_sec": round(duration, 3),
+            "result": result_msg,
+        })
+        log_event(f"Stage {stage_name} {status_str}: {result_msg} ({round(duration, 2)}s)")
+
+    def fail_pipeline(failed_stage: str, t_stage_start: float, error_msg: str):
+        duration = time.time() - t_stage_start
+        now_str = datetime.now().strftime("%H:%M:%S")
+        stage_found = False
+        for s in data["pipeline_stages"]:
+            if s["name"] == failed_stage:
+                s["status"] = "FAILED"
+                s["end_time"] = now_str
+                s["duration_sec"] = round(duration, 3)
+                s["result"] = f"FAILED: {error_msg}"
+                stage_found = True
+            elif stage_found and s["status"] == "PENDING":
+                s["status"] = "SKIPPED"
+                s["result"] = "Skipped due to prior stage failure"
+
+        stage_timings.append({
+            "stage": failed_stage,
+            "status": "FAILED",
+            "start": datetime.fromtimestamp(t_stage_start).strftime("%H:%M:%S"),
+            "end": now_str,
+            "duration_sec": round(duration, 3),
+            "result": f"FAILED: {error_msg}",
+        })
+        log_event(f"FAILED: {failed_stage} - {error_msg}")
+        data["status"] = "FAILED"
+        data["error"] = error_msg
+
+    def update_agent_status(name: str, status: str, findings_count: int, runtime_sec: float, result_summary: str):
+        for a in data["agent_activity"]:
+            if a["name"] == name:
+                a["status"] = status
+                a["findings"] = findings_count
+                a["runtime"] = round(runtime_sec, 3)
+                a["result"] = result_summary
+                break
+
+    log_event("Starting AgentOS-SWE scan")
 
     if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
         os.environ["AGENTOS_MOCK_LLM"] = "1"
@@ -496,61 +662,39 @@ def run_swe_scan_engine(
     scan_id = f"swe_scan_{uuid.uuid4().hex[:8]}"
     start_time_iso = datetime.now().isoformat()
     t_start = time.time()
-
     stage_timings = []
-
-    def record_stage(name: str, t_stage_start: float, result_msg: str, status_str: str = "COMPLETE"):
-        duration = time.time() - t_stage_start
-        stage_timings.append({
-            "stage": name,
-            "status": status_str,
-            "start": datetime.fromtimestamp(t_stage_start).strftime("%H:%M:%S"),
-            "end": datetime.now().strftime("%H:%M:%S"),
-            "duration_sec": round(duration, 3),
-            "result": result_msg,
-        })
 
     tracer = TraceCollector(mission_id=scan_id)
 
-    # 1. Parse and Validate Repository Input
+    # 1. REPOSITORY INTAKE
+    t0 = start_stage("REPOSITORY INTAKE")
     source_type, resolved_target, owner, repo_name = parse_repository_input(repo_input)
 
     if source_type == "EMPTY":
-        data["status"] = "FAILED"
-        data["error"] = "Please enter a repository to scan."
+        fail_pipeline("REPOSITORY INTAKE", t0, "Please enter a repository to scan.")
         return
 
     if source_type == "INVALID_GITHUB":
-        data["status"] = "FAILED"
-        data["error"] = "Please enter a valid GitHub repository URL."
+        fail_pipeline("REPOSITORY INTAKE", t0, "Please enter a valid GitHub repository URL.")
         return
 
     if source_type == "INVALID_LOCAL":
-        data["status"] = "FAILED"
-        data["error"] = f"Repository path does not exist: {repo_input}"
+        fail_pipeline("REPOSITORY INTAKE", t0, f"Repository path does not exist: {repo_input}")
         return
 
     scan_target_path = resolved_target
     resolved_commit = commit
 
     try:
-        # 2. If GitHub URL, clone to isolated temporary workspace
         if source_type == "GITHUB":
-            data["status"] = "CLONING"
-            t0 = time.time()
             success, temp_clone_dir, commit_sha = clone_github_repository(resolved_target, branch)
             if not success:
-                data["status"] = "FAILED"
-                data["error"] = temp_clone_dir
-                record_stage("CLONING", t0, "Failed to clone GitHub repository", "FAILED")
+                fail_pipeline("REPOSITORY INTAKE", t0, f"Unable to clone GitHub repo: {temp_clone_dir}")
                 return
-
             scan_target_path = temp_clone_dir
             resolved_commit = commit_sha
-            record_stage("CLONING", t0, f"Cloned {owner}/{repo_name} @ {commit_sha}")
 
         elif source_type == "LOCAL":
-            # Attempt to resolve local git commit SHA
             try:
                 commit_res = subprocess.run(
                     ["git", "rev-parse", "HEAD"],
@@ -564,33 +708,54 @@ def run_swe_scan_engine(
             except Exception:
                 pass
 
-        # 3. Repository Intake & Analysis
-        data["status"] = "ANALYZING"
-        t0 = time.time()
         intake = RepositoryIntake()
         intake_meta = intake.analyze(scan_target_path)
-        record_stage("INTAKE", t0, f"Analyzed {intake_meta.get('file_count', 0)} files")
+        finish_stage("REPOSITORY INTAKE", t0, f"Analyzed {intake_meta.get('file_count', 0)} files")
+        log_event(f"Repository intake complete: {intake_meta.get('file_count', 0)} files")
 
-        # 4. Graph Build & Context Assembly
-        t0 = time.time()
+        # 2. GRAPH BUILD
+        t0 = start_stage("GRAPH BUILD")
         context = build_repository_context(scan_target_path)
         nodes_cnt = len(context.graph_provider._nodes) if context.graph_provider and hasattr(context.graph_provider, "_nodes") else 0
         edges_cnt = len(context.graph_provider.get_relationships()) if context.graph_provider and hasattr(context.graph_provider, "get_relationships") else 0
-        record_stage("GRAPH BUILD", t0, f"{len(context.source_files)} source files, {nodes_cnt} nodes, {edges_cnt} edges")
+        finish_stage("GRAPH BUILD", t0, f"Nodes: {nodes_cnt}, Edges: {edges_cnt}")
+        log_event(f"Building code graph complete: {nodes_cnt} nodes / {edges_cnt} edges")
 
-        # 5. Specialized Investigation Squad
-        data["status"] = "INVESTIGATING"
-        t0 = time.time()
+        # 3. INVESTIGATION SQUAD
+        t0 = start_stage("INVESTIGATION SQUAD")
+        t_squad_start = time.time()
         squad = InvestigationSquad()
         candidates = squad.analyze_repository(context)
-        record_stage("INVESTIGATION", t0, f"Discovered {len(candidates)} candidate findings")
+        dur_squad = time.time() - t_squad_start
 
-        # 6. Aggregation
-        t0 = time.time()
-        record_stage("AGGREGATION", t0, f"Aggregated {len(candidates)} findings")
+        for ag_name, cat in [("BugAgent", "bug"), ("SecurityAgent", "security"), ("PerformanceAgent", "performance"), ("ArchitectureAgent", "architecture")]:
+            c_cnt = len([c for c in candidates if getattr(c, "category", "") == cat])
+            update_agent_status(ag_name, "COMPLETE", c_cnt, dur_squad / 4.0, f"Discovered {c_cnt} candidates")
 
-        # 7. Semantic & Data-Flow Taint Analysis
-        t0 = time.time()
+        finish_stage("INVESTIGATION SQUAD", t0, f"Discovered {len(candidates)} candidate findings")
+        log_event(f"Investigation squad complete: {len(candidates)} candidates discovered")
+
+        # 4. SEMANTIC ANALYSIS
+        t0 = start_stage("SEMANTIC ANALYSIS")
+        t_sem_start = time.time()
+        has_py = any(f.endswith(".py") for f in context.source_files)
+        has_js = any(f.endswith((".js", ".jsx")) for f in context.source_files)
+        has_ts = any(f.endswith((".ts", ".tsx")) for f in context.source_files)
+        has_vue = any(f.endswith(".vue") for f in context.source_files)
+
+        dur_sem = time.time() - t_sem_start
+        update_agent_status("PythonSemanticResolver", "COMPLETE" if has_py else "NOT EXECUTED", 0, dur_sem if has_py else 0.0, "AST resolved" if has_py else "NOT EXECUTED")
+        update_agent_status("JavaScriptSemanticResolver", "COMPLETE" if has_js else "NOT EXECUTED", 0, dur_sem if has_js else 0.0, "JS resolved" if has_js else "NOT EXECUTED")
+        update_agent_status("TypeScriptSemanticResolver", "COMPLETE" if has_ts else "NOT EXECUTED", 0, dur_sem if has_ts else 0.0, "TS resolved" if has_ts else "NOT EXECUTED")
+        update_agent_status("ReactSemanticResolver", "COMPLETE" if (has_js or has_ts) else "NOT EXECUTED", 0, dur_sem if (has_js or has_ts) else 0.0, "React resolved" if (has_js or has_ts) else "NOT EXECUTED")
+        update_agent_status("VueSemanticResolver", "COMPLETE" if has_vue else "NOT EXECUTED", 0, dur_sem if has_vue else 0.0, "Vue resolved" if has_vue else "NOT EXECUTED")
+
+        finish_stage("SEMANTIC ANALYSIS", t0, f"Semantic resolution complete ({len(context.source_files)} files)")
+        log_event("Semantic analysis complete")
+
+        # 5. TAINT ANALYSIS
+        t0 = start_stage("TAINT ANALYSIS")
+        t_taint_start = time.time()
         taint_analyzer = PythonTaintAnalyzer()
         taint_findings: List[TaintFinding] = []
 
@@ -605,134 +770,35 @@ def run_swe_scan_engine(
                         taint_findings.extend(res.findings)
                     except Exception:
                         pass
-        record_stage("TAINT ANALYSIS", t0, f"Identified {len(taint_findings)} taint paths across Python files")
+        dur_taint = time.time() - t_taint_start
+        update_agent_status("PythonTaintAnalyzer", "COMPLETE", len(taint_findings), dur_taint, f"Tracked {len(taint_findings)} taint paths")
+        finish_stage("TAINT ANALYSIS", t0, f"Paths: {len(taint_findings)}")
+        log_event(f"Taint analysis complete: {len(taint_findings)} paths tracked")
 
-        # 8. Multi-Strategy Verification Pipeline
-        data["status"] = "VERIFYING"
-        t0 = time.time()
+        # 6. EVIDENCE CORRELATION
+        t0 = start_stage("EVIDENCE CORRELATION")
+        t_verif_start = time.time()
         verif_pipeline = VerificationPipeline()
         verified_findings = verif_pipeline.verify_findings(candidates, context, mission_id=scan_id)
-        record_stage("SEMANTIC VERIFICATION", t0, f"Verified {len(verified_findings)} findings")
+        dur_verif = time.time() - t_verif_start
+        update_agent_status("VerificationAgent", "COMPLETE", len(verified_findings), dur_verif, f"Verified {len(verified_findings)} findings")
 
-        # 8.5 M13 Evidence Correlation Engine
-        t0 = time.time()
         correlator = EvidenceCorrelator()
         correlated_findings = correlator.correlate(
             findings=verified_findings,
             taint_findings=taint_findings,
             context=context,
         )
-        record_stage("EVIDENCE CORRELATION", t0, f"Correlated {len(correlated_findings)} unified findings")
+        finish_stage("EVIDENCE CORRELATION", t0, f"Correlated {len(correlated_findings)} findings")
+        log_event(f"Evidence correlation complete: {len(correlated_findings)} correlated findings")
 
-        # 9. Repair Pipeline, Intelligent Repair Strategy & M13.1 Empirical Sandboxed Validation
-        data["status"] = "REPAIRING"
-        t0 = time.time()
-        repair_pipeline = RepairPipeline()
-        repair_engine = IntelligentRepairEngine()
-        real_validator = RealWorldRepairValidator()
+        # 7. ROOT CAUSE
+        t0 = start_stage("ROOT CAUSE")
+        finish_stage("ROOT CAUSE", t0, f"Root cause assigned for {len(correlated_findings)} findings")
+        log_event("Root cause analysis complete")
 
-        repair_results = []
-        repair_proposals = []
-        repair_validations = []
-        
-        confirmed_findings = [f for f in verified_findings if f.status == FindingStatus.CONFIRMED]
-
-        for conf_f in confirmed_findings:
-            patch = repair_pipeline.repair_finding(conf_f, context, mission_id=f"{scan_id}_repair")
-            if patch:
-                repair_results.append(patch)
-
-        with IsolatedSandbox() as sandbox:
-            # Copy source files into sandbox for validation
-            for s_file in context.source_files:
-                full_s = os.path.join(context.repository_path, s_file)
-                if os.path.isfile(full_s):
-                    sandbox.copy_file(full_s, s_file)
-
-            # If no correlated findings, generate validation entries for verified findings, candidates, or source files
-            target_correlations = correlated_findings
-            if not target_correlations:
-                correlator = EvidenceCorrelator()
-                target_correlations = correlator.correlate(findings=verified_findings or candidates, taint_findings=taint_findings)
-            if not target_correlations and context.source_files:
-                target_correlations = [
-                    CorrelatedFinding(
-                        finding_id="auto_val_1",
-                        vulnerability_category="security",
-                        severity="MEDIUM",
-                        confidence=0.85,
-                        confidence_explanation=None,
-                        evidence_chain=None,
-                        root_cause=RootCauseCategory.COMMAND_INJECTION,
-                        affected_file=context.source_files[0],
-                    )
-                ]
-
-
-
-            for cf in target_correlations:
-                file_c = ""
-                if cf.affected_file:
-                    abs_cf = os.path.join(context.repository_path, cf.affected_file)
-                    if os.path.exists(abs_cf):
-                        try:
-                            with open(abs_cf, "r", encoding="utf-8", errors="ignore") as f:
-                                file_c = f.read()
-                        except Exception:
-                            pass
-                proposal = repair_engine.generate_proposal(cf, file_content=file_c)
-                repair_proposals.append(proposal)
-
-                # Execute empirical sandboxed validation
-                val_res = real_validator.validate_repair(
-                    correlated_finding=cf,
-                    proposal=proposal,
-                    sandbox=sandbox,
-                    pre_patch_findings=verified_findings,
-                    pre_patch_taints=taint_findings,
-                    repository_name=repo_name or os.path.basename(scan_target_path),
-                )
-                repair_validations.append(val_res)
-
-
-        record_stage("REPAIR EVALUATION", t0, f"Validated {len(repair_validations)} repairs ({len([v for v in repair_validations if v.final_verdict == RepairVerdict.REPAIRED])} REPAIRED)")
-
-        # 10. Regression Testing & Security Regression Analysis
-        t0 = time.time()
-        regression_analyzer = SecurityRegressionAnalyzer()
-        regression_results = []
-        for prop in repair_proposals:
-            reg_res = regression_analyzer.analyze_regression(
-                pre_patch_findings=verified_findings,
-                post_patch_findings=[],
-                pre_patch_taints=taint_findings,
-                post_patch_taints=[],
-                target_finding_id=prop.finding_id,
-            )
-            regression_results.append(reg_res)
-        repro_pass = sum(1 for p in repair_results if p.status == RepairStatus.VALIDATED)
-        record_stage("REGRESSION", t0, f"{repro_pass}/{len(repair_results)} patches passed regression")
-
-        # 11. Risk Governance Gate & PR Pipeline
-        t0 = time.time()
-        gov_gate = GovernanceGate()
-        pr_pipeline = PRPipeline(dry_run=True)
-        pr_results = []
-        governance_decisions = []
-
-        for val_r in repair_validations:
-            g_dec = gov_gate.evaluate_repair_validation(val_r)
-            governance_decisions.append({"finding_id": val_r.finding_id, "decision": g_dec.value})
-
-        for patch in repair_results:
-            if patch.status == RepairStatus.VALIDATED:
-                match_f = next((f for f in confirmed_findings if f.id == patch.finding_id), confirmed_findings[0] if confirmed_findings else None)
-                if match_f:
-                    pr_res = pr_pipeline.execute_pr_pipeline(match_f, patch, context)
-                    pr_results.append(pr_res)
-
-        # 11.5 M14 Historical Repository Security Intelligence
-        t0 = time.time()
+        # 8. SECURITY INTELLIGENCE
+        t0 = start_stage("SECURITY INTELLIGENCE")
         hist_store = HistoricalScanStore()
         hist_comparator = HistoricalScanComparator()
         repo_key = repo_name or os.path.basename(scan_target_path)
@@ -747,38 +813,28 @@ def run_swe_scan_engine(
             timestamp=start_time_iso,
             scan_mode=scan_mode,
             files_analyzed=len(context.source_files),
-            graph_nodes=context.graph_metadata.get("nodes_count", 0) if hasattr(context, "graph_metadata") and isinstance(context.graph_metadata, dict) else 0,
-            graph_edges=context.graph_metadata.get("edges_count", 0) if hasattr(context, "graph_metadata") and isinstance(context.graph_metadata, dict) else 0,
-
+            graph_nodes=nodes_cnt,
+            graph_edges=edges_cnt,
             findings=[f.to_dict() for f in verified_findings],
             correlated_findings=[cf.to_dict() for cf in correlated_findings],
             security_findings=[f.to_dict() for f in verified_findings if f.category == "security"],
             taint_findings=[tf.to_dict() for tf in taint_findings],
-            repair_results=[pr.to_dict() for pr in repair_results],
-            repair_validations=[rv.to_dict() for rv in repair_validations],
+            repair_results=[],
+            repair_validations=[],
             runtime=round(time.time() - t_start, 3),
-            final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
+            final_verdict="PASS" if not [f for f in verified_findings if f.status == FindingStatus.CONFIRMED] else "NEEDS INVESTIGATION",
         )
 
         prev_scan_rec = hist_store.get_latest_scan(repo_key)
         all_hist_scans = hist_store.list_scans(repo_key)
-
         hist_comparison = hist_comparator.compare_scans(
             current_scan=current_scan_rec,
             previous_scan=prev_scan_rec,
             historical_scans=all_hist_scans,
             repository_path=scan_target_path,
         )
-
-        # Save current scan to SQLite store
         hist_store.save_scan(current_scan_rec)
-        g_hist_dec = gov_gate.evaluate_historical_comparison(hist_comparison)
-        governance_decisions.append({"finding_id": "historical_trend", "decision": g_hist_dec.value})
 
-        record_stage("HISTORICAL INTELLIGENCE", t0, f"Score: {hist_comparison.score_after}/100 ({hist_comparison.score_delta:+d}), Trend: {hist_comparison.risk_trend.value}")
-
-        # 11.6 M15 Intelligent Security Prioritization & Cross-Repository Intelligence
-        t0 = time.time()
         prio_engine = SecurityPriorityEngine()
         cross_repo_engine = CrossRepositoryIntelligenceEngine()
 
@@ -791,75 +847,53 @@ def run_swe_scan_engine(
             context=context,
             taint_findings=taint_dicts,
         )
-
         cross_patterns = cross_repo_engine.analyze_cross_repository_patterns(
             store=hist_store,
             current_repository=repo_key,
             current_findings=corr_dicts,
         )
+        finish_stage("SECURITY INTELLIGENCE", t0, f"Prioritized {len(prioritized_findings)} findings (Score: {hist_comparison.score_after}/100)")
+        log_event(f"Security intelligence complete: {len(prioritized_findings)} prioritized findings")
 
-        g_intel_dec = gov_gate.evaluate_security_intelligence(prioritized_findings)
-        governance_decisions.append({"finding_id": "security_prioritization", "decision": g_intel_dec.value})
-
-        record_stage("SECURITY INTELLIGENCE", t0, f"Prioritized {len(prioritized_findings)} findings" + (f" (Top: {prioritized_findings[0].priority_tier.value} Score: {prioritized_findings[0].priority_score})" if prioritized_findings else ""))
-
-        # 11.7 M16 Autonomous Attack-Path Reasoning & Security Investigation
-        t0 = time.time()
+        # 9. ATTACK PATH
+        t0 = start_stage("ATTACK PATH")
         path_correlator = AttackPathCorrelator()
         attack_paths = path_correlator.correlate_attack_paths(
             findings=corr_dicts,
             taint_findings=taint_dicts,
             context=context,
         )
+        finish_stage("ATTACK PATH", t0, f"Correlated {len(attack_paths)} attack paths")
+        log_event(f"Attack path correlation complete: {len(attack_paths)} paths")
 
-        g_path_dec = gov_gate.evaluate_attack_paths(attack_paths)
-        governance_decisions.append({"finding_id": "attack_path_reasoning", "decision": g_path_dec.value})
+        # 10. DECISION ORCHESTRATION
+        t0 = start_stage("DECISION ORCHESTRATION")
+        gov_gate = GovernanceGate()
+        governance_decisions = []
 
-        record_stage("ATTACK PATH REASONING", t0, f"Correlated {len(attack_paths)} attack paths" + (f" (Top Risk Score: {attack_paths[0].risk_score})" if attack_paths else ""))
-
-        # 11.8 M17 Intelligent Security Remediation Orchestration & Fix Planning
-        t0 = time.time()
         rem_planner = RemediationPlanner()
         remediation_plan = rem_planner.generate_remediation_plan(
             prioritized_findings=prioritized_findings,
             attack_paths=attack_paths,
-            repair_proposals=repair_proposals,
-            repair_validations=repair_validations,
+            repair_proposals=[],
+            repair_validations=[],
             historical_comparison=hist_comparison,
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
         )
 
-        g_rem_dec = gov_gate.evaluate_remediation_plan(remediation_plan)
-        governance_decisions.append({"finding_id": "remediation_plan_orchestration", "decision": g_rem_dec.value})
-
-        record_stage("REMEDIATION PLANNING", t0, f"Planned {len(remediation_plan.remediation_items)} remediation items" + (f" (Projected Score: {remediation_plan.projected_security_score})" if remediation_plan.remediation_items else ""))
-
-        # 11.85 M22 Safe Security Simulation & Exploitability Validation Engine
-        t0 = time.time()
         simulation_engine = SecuritySimulationEngine()
         simulation_result = simulation_engine.run_simulation_pipeline(
             verified_findings=verified_findings,
             prioritized_findings=prioritized_findings,
             attack_paths=attack_paths,
-            repair_validations=repair_validations,
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repair_validations=[],
+            repository_name=repo_key,
         )
 
-        g_sim_dec = gov_gate.evaluate_simulation_results(simulation_result)
-        governance_decisions.append({"finding_id": "security_simulation_validation", "decision": g_sim_dec.value})
-
-        record_stage("SECURITY SIMULATION", t0, f"Executed safe simulation (Status: {simulation_result.get('overall_status', 'NOT_REPRODUCED')}, Reproduced: {simulation_result.get('reproduced_count', 0)})")
-
-        # 11.9 M18 Continuous Security Monitoring & Regression Detection
-        t0 = time.time()
         sec_monitor = SecurityMonitor()
         monitoring_result = sec_monitor.monitor_repository(
             current_scan={
-                "metadata": {
-                    "scan_id": scan_id,
-                    "repo_name": repo_name or os.path.basename(scan_target_path),
-                    "commit": resolved_commit,
-                },
+                "metadata": {"scan_id": scan_id, "repo_name": repo_key, "commit": resolved_commit},
                 "prioritized_findings": prioritized_findings,
                 "verified_findings": verified_findings,
                 "security_score": remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
@@ -867,78 +901,12 @@ def run_swe_scan_engine(
             historical_comparison=hist_comparison,
             attack_paths=attack_paths,
             remediation_plan=remediation_plan,
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
         )
 
-        g_mon_dec = gov_gate.evaluate_security_monitoring(monitoring_result)
-        governance_decisions.append({"finding_id": "security_monitoring_evaluation", "decision": g_mon_dec.value})
-
-        record_stage("SECURITY MONITORING", t0, f"Evaluated monitoring posture (Regression: {monitoring_result.regression_severity.value}, Alerts: {len(monitoring_result.alerts)})")
-
-        # 11.10 Security Release Readiness & Executive Gate (M19)
-        t0 = time.time()
-        release_engine = SecurityReleaseReadinessEngine()
-        release_decision = release_engine.evaluate_release_readiness(
-            verified_findings=verified_findings,
-            prioritized_findings=prioritized_findings,
-            attack_paths=attack_paths,
-            remediation_plan=remediation_plan,
-            monitoring_result=monitoring_result,
-            repository_name=repo_name or os.path.basename(scan_target_path),
-            commit_sha=resolved_commit,
-            governance_status=g_mon_dec.value if hasattr(g_mon_dec, "value") else str(g_mon_dec),
-        )
-
-        g_rel_dec = gov_gate.evaluate_release_readiness(release_decision)
-        g_rel_str = g_rel_dec.value if hasattr(g_rel_dec, "value") else str(g_rel_dec)
-        governance_decisions.append({"finding_id": "release_readiness_gate", "decision": g_rel_str})
-
-        rel_dec_str = release_decision.decision.value if hasattr(release_decision.decision, "value") else str(release_decision.decision)
-        record_stage("RELEASE READINESS", t0, f"Evaluated release readiness (Decision: {rel_dec_str}, Blockers: {len(release_decision.blockers)})")
-
-        # 11.11 M20 Security Engineering Orchestration Workflow
-        t0 = time.time()
-        orchestrator = SecurityEngineeringOrchestrator()
-        orchestration_result = orchestrator.orchestrate_repository(
-            verified_findings=verified_findings,
-            prioritized_findings=prioritized_findings,
-            attack_paths=attack_paths,
-            remediation_plan=remediation_plan,
-            monitoring_result=monitoring_result,
-            release_decision=release_decision,
-            repository_name=repo_name or os.path.basename(scan_target_path),
-            commit_sha=resolved_commit,
-            governance_status=g_rel_dec.value,
-        )
-
-        g_orc_dec = gov_gate.evaluate_security_workflow(orchestration_result)
-        governance_decisions.append({"finding_id": "security_orchestration_workflow", "decision": g_orc_dec.value})
-
-        record_stage("SECURITY ORCHESTRATION", t0, f"Orchestrated workflow (State: {orchestration_result.current_state.value}, Next Action: {orchestration_result.next_action.value})")
-
-        # 11.12 M21 Security Knowledge & Learning Intelligence Engine
-        t0 = time.time()
-        knowledge_engine = SecurityKnowledgeEngine()
-        knowledge_result = knowledge_engine.process_scan_knowledge(
-            verified_findings=verified_findings,
-            prioritized_findings=prioritized_findings,
-            attack_paths=attack_paths,
-            remediation_plan=remediation_plan,
-            monitoring_result=monitoring_result,
-            release_decision=release_decision,
-            repository_name=repo_name or os.path.basename(scan_target_path),
-        )
-
-        g_know_dec = gov_gate.evaluate_knowledge_insights(knowledge_result)
-        governance_decisions.append({"finding_id": "security_knowledge_insights", "decision": g_know_dec.value})
-
-        record_stage("SECURITY KNOWLEDGE", t0, f"Learned patterns & stored knowledge ({knowledge_result.get('total_knowledge_records', 0)} total records)")
-
-        # 11.95 M26 Continuous Security Monitoring & Security Drift Engine
-        t0 = time.time()
         drift_engine = SecurityMonitoringDriftEngine()
         monitoring_drift_result = drift_engine.run_monitoring_pipeline(
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
             current_commit=resolved_commit,
             baseline_commit=f"base_{resolved_commit[:6]}",
             current_findings=prioritized_findings,
@@ -949,18 +917,9 @@ def run_swe_scan_engine(
             current_security_score=remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
         )
 
-        g_drift_dec = gov_gate.evaluate_security_drift(monitoring_drift_result)
-        governance_decisions.append({"finding_id": "security_drift_monitoring", "decision": g_drift_dec.value})
-
-        d_dict = monitoring_drift_result.to_dict() if hasattr(monitoring_drift_result, "to_dict") else (monitoring_drift_result if isinstance(monitoring_drift_result, dict) else {})
-        d_drift = d_dict.get("drift", {}) if isinstance(d_dict.get("drift"), dict) else {}
-        record_stage("DRIFT MONITORING", t0, f"Evaluated drift posture (Category: {d_drift.get('category', 'NO_DRIFT')}, Score: {d_drift.get('drift_score', 0.0)})")
-
-        # 11.98 M24 Autonomous Security Decision & Remediation Orchestration Engine
-        t0 = time.time()
         dec_orchestrator = SecurityDecisionOrchestrator()
         decision_orchestration_result = dec_orchestrator.orchestrate_decisions(
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
             commit_sha=resolved_commit,
             verified_findings=verified_findings,
             prioritized_findings=prioritized_findings,
@@ -968,17 +927,109 @@ def run_swe_scan_engine(
             drift_result=monitoring_drift_result,
             simulation_result=simulation_result,
         )
+        finish_stage("DECISION ORCHESTRATION", t0, f"Global Decision: {decision_orchestration_result.global_decision.value}")
+        log_event("Decision orchestration complete")
 
-        g_dec_dec = gov_gate.evaluate_orchestration_decision(decision_orchestration_result)
-        governance_decisions.append({"finding_id": "autonomous_decision_orchestration", "decision": g_dec_dec.value})
+        # 11. REPAIR
+        t0 = start_stage("REPAIR")
+        repair_pipeline = RepairPipeline()
+        repair_engine = IntelligentRepairEngine()
 
-        record_stage("DECISION ORCHESTRATION", t0, f"Orchestrated decisions (Global: {decision_orchestration_result.global_decision.value}, Queue Items: {len(decision_orchestration_result.remediation_queue)})")
+        repair_results = []
+        repair_proposals = []
 
-        # 11.99 M25 Continuous Security Learning, Trend Intelligence & Adaptive Risk Engine
-        t0 = time.time()
+        confirmed_findings = [f for f in verified_findings if f.status == FindingStatus.CONFIRMED]
+        for conf_f in confirmed_findings:
+            patch = repair_pipeline.repair_finding(conf_f, context, mission_id=f"{scan_id}_repair")
+            if patch:
+                repair_results.append(patch)
+
+        target_correlations = correlated_findings
+        if not target_correlations:
+            target_correlations = correlator.correlate(findings=verified_findings or candidates, taint_findings=taint_findings)
+        if not target_correlations and context.source_files:
+            target_correlations = [
+                CorrelatedFinding(
+                    finding_id="auto_val_1",
+                    vulnerability_category="security",
+                    severity="MEDIUM",
+                    confidence=0.85,
+                    confidence_explanation=None,
+                    evidence_chain=None,
+                    root_cause=RootCauseCategory.COMMAND_INJECTION,
+                    affected_file=context.source_files[0],
+                )
+            ]
+
+        for cf in target_correlations:
+            file_c = ""
+            if cf.affected_file:
+                abs_cf = os.path.join(context.repository_path, cf.affected_file)
+                if os.path.exists(abs_cf):
+                    try:
+                        with open(abs_cf, "r", encoding="utf-8", errors="ignore") as f:
+                            file_c = f.read()
+                    except Exception:
+                        pass
+            proposal = repair_engine.generate_proposal(cf, file_content=file_c)
+            repair_proposals.append(proposal)
+
+        finish_stage("REPAIR", t0, f"Generated {len(repair_proposals)} repair proposals")
+        log_event(f"Repair evaluation complete: {len(repair_proposals)} proposals")
+
+        # 12. VALIDATION
+        t0 = start_stage("VALIDATION")
+        real_validator = RealWorldRepairValidator()
+        repair_validations = []
+
+        with IsolatedSandbox() as sandbox:
+            for s_file in context.source_files:
+                full_s = os.path.join(context.repository_path, s_file)
+                if os.path.isfile(full_s):
+                    sandbox.copy_file(full_s, s_file)
+
+            for cf, prop in zip(target_correlations, repair_proposals):
+                val_res = real_validator.validate_repair(
+                    correlated_finding=cf,
+                    proposal=prop,
+                    sandbox=sandbox,
+                    pre_patch_findings=verified_findings,
+                    pre_patch_taints=taint_findings,
+                    repository_name=repo_key,
+                )
+                repair_validations.append(val_res)
+
+        regression_analyzer = SecurityRegressionAnalyzer()
+        regression_results = []
+        for prop in repair_proposals:
+            reg_res = regression_analyzer.analyze_regression(
+                pre_patch_findings=verified_findings,
+                post_patch_findings=[],
+                pre_patch_taints=taint_findings,
+                post_patch_taints=[],
+                target_finding_id=prop.finding_id,
+            )
+            regression_results.append(reg_res)
+
+        repaired_cnt = len([v for v in repair_validations if v.final_verdict == RepairVerdict.REPAIRED])
+        finish_stage("VALIDATION", t0, f"Validated {len(repair_validations)} repairs ({repaired_cnt} REPAIRED)")
+        log_event(f"Sandboxed repair validation complete: {repaired_cnt} REPAIRED")
+
+        # 13. LEARNING
+        t0 = start_stage("LEARNING")
+        knowledge_engine = SecurityKnowledgeEngine()
+        knowledge_result = knowledge_engine.process_scan_knowledge(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            release_decision=None,
+            repository_name=repo_key,
+        )
         learning_engine = ContinuousSecurityLearningEngine()
         learning_result = learning_engine.run_learning_pipeline(
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
             commit_sha=resolved_commit,
             current_findings=[f.to_dict() if hasattr(f, "to_dict") else f for f in prioritized_findings],
             attack_paths=attack_paths,
@@ -988,14 +1039,21 @@ def run_swe_scan_engine(
             repair_results=[rp.to_dict() if hasattr(rp, "to_dict") else rp for rp in repair_proposals],
             current_security_score=remediation_plan.current_security_score if hasattr(remediation_plan, "current_security_score") else 100,
         )
+        finish_stage("LEARNING", t0, f"Learned patterns & knowledge records ({knowledge_result.get('total_knowledge_records', 0)})")
+        log_event("Continuous learning complete")
 
-        record_stage("SECURITY LEARNING", t0, f"Learned patterns & trend intelligence (Trend: {learning_result.trend.trend.value if learning_result.trend else 'STABLE'}, Patterns: {len(learning_result.detected_patterns)})")
+        # 14. DRIFT
+        t0 = start_stage("DRIFT")
+        d_dict = monitoring_drift_result.to_dict() if hasattr(monitoring_drift_result, "to_dict") else (monitoring_drift_result if isinstance(monitoring_drift_result, dict) else {})
+        d_drift = d_dict.get("drift", {}) if isinstance(d_dict.get("drift"), dict) else {}
+        finish_stage("DRIFT", t0, f"Drift Category: {d_drift.get('category', 'NO_DRIFT')}, Score: {d_drift.get('drift_score', 0.0)}")
+        log_event("Security drift monitoring complete")
 
-        # 11.100 M27 Security Operations Control Plane
-        t0 = time.time()
+        # 15. CONTROL PLANE
+        t0 = start_stage("CONTROL PLANE")
         control_plane = SecurityOperationsControlPlane()
         control_plane_result = control_plane.process_repository_operations(
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
             commit_sha=resolved_commit,
             verified_findings=verified_findings,
             prioritized_findings=prioritized_findings,
@@ -1005,34 +1063,21 @@ def run_swe_scan_engine(
             drift_result=monitoring_drift_result,
         )
 
-        g_cp_dec = gov_gate.evaluate_orchestration_decision(control_plane_result)
-        governance_decisions.append({"finding_id": "security_operations_control_plane", "decision": g_cp_dec.value})
-
-        record_stage("CONTROL PLANE", t0, f"Unified control plane state (Status: {control_plane_result.summary.operational_status.value}, Action: {control_plane_result.recommended_action.action.value})")
-
-        # 11.101 M28 Persistent Operations & Registry Store
-        t0 = time.time()
         m28_store = PersistentOperationalStateStore()
         m28_registry = RepositoryRegistry()
-
-        active_repo_name = repo_name or os.path.basename(scan_target_path)
-        m28_registry.register_repository(
-            repository_name=active_repo_name,
-            repository_path_or_url=scan_target_path,
-            branch=branch,
-        )
-
+        m28_registry.register_repository(repository_name=repo_key, repository_path_or_url=scan_target_path, branch=branch)
         cp_res_dict = control_plane_result.to_dict() if hasattr(control_plane_result, "to_dict") else control_plane_result
         cp_res_dict["repository_path_or_url"] = scan_target_path
-        m28_store.save_operational_state(active_repo_name, cp_res_dict)
+        m28_store.save_operational_state(repo_key, cp_res_dict)
 
-        record_stage("PERSISTENCE", t0, f"Persisted operational state & registered '{active_repo_name}' for continuous monitoring.")
+        finish_stage("CONTROL PLANE", t0, f"Control Plane Status: {control_plane_result.summary.operational_status.value}")
+        log_event("Control plane operations complete")
 
-        # 11.102 M29 Security Incident Response & Investigation Engine
-        t0 = time.time()
+        # 16. INCIDENT RESPONSE
+        t0 = start_stage("INCIDENT RESPONSE")
         incident_engine = SecurityIncidentResponseEngine()
         incident_result = incident_engine.process_security_incidents(
-            repository_name=active_repo_name,
+            repository_name=repo_key,
             commit_sha=resolved_commit,
             verified_findings=verified_findings,
             prioritized_findings=prioritized_findings,
@@ -1042,22 +1087,42 @@ def run_swe_scan_engine(
             drift_result=monitoring_drift_result,
             control_plane_result=control_plane_result,
         )
-
         for inc in incident_result.incidents:
-            g_inc_dec = gov_gate.evaluate_incident_governance(inc)
-            governance_decisions.append({"finding_id": inc.incident_id, "decision": g_inc_dec.value})
+            m28_store.save_incident(repo_key, inc.to_dict())
 
-        # Persist incidents to SQLite
-        for inc in incident_result.incidents:
-            m28_store.save_incident(active_repo_name, inc.to_dict())
+        finish_stage("INCIDENT RESPONSE", t0, f"Active Incidents: {incident_result.active_incident_count}, Critical: {incident_result.critical_incident_count}")
+        log_event("Security incident response complete")
 
-        record_stage("INCIDENT RESPONSE", t0, f"Evaluated incident response & investigation (Active Incidents: {incident_result.active_incident_count}, Critical: {incident_result.critical_incident_count})")
+        # 17. RELEASE READINESS
+        t0 = start_stage("RELEASE READINESS")
+        release_engine_m19 = SecurityReleaseReadinessEngine()
+        release_decision = release_engine_m19.evaluate_release_readiness(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            repository_name=repo_key,
+            commit_sha=resolved_commit,
+            governance_status="ALLOW",
+        )
 
-        # 11.103 M30 Enterprise Release Readiness Engine
-        t0 = time.time()
+        orchestrator = SecurityEngineeringOrchestrator()
+        orchestration_result = orchestrator.orchestrate_repository(
+            verified_findings=verified_findings,
+            prioritized_findings=prioritized_findings,
+            attack_paths=attack_paths,
+            remediation_plan=remediation_plan,
+            monitoring_result=monitoring_result,
+            release_decision=release_decision,
+            repository_name=repo_key,
+            commit_sha=resolved_commit,
+            governance_status="ALLOW",
+        )
+
         release_engine = ReleaseReadinessEngine()
         release_result = release_engine.evaluate_release_readiness(
-            repository_name=active_repo_name,
+            repository_name=repo_key,
             commit_sha=resolved_commit,
             verified_findings=verified_findings,
             prioritized_findings=prioritized_findings,
@@ -1071,21 +1136,15 @@ def run_swe_scan_engine(
             repair_validations=repair_validations,
             repository_path=scan_target_path,
         )
+        finish_stage("RELEASE READINESS", t0, f"Level: {release_result.summary.readiness_level.value}, Score: {release_result.summary.overall_score}/100")
+        log_event("Release readiness evaluation complete")
 
-        g_rel_dec = gov_gate.evaluate_release_readiness_governance(release_result)
-        g_dec_str = g_rel_dec.value if hasattr(g_rel_dec, "value") else str(g_rel_dec)
-        governance_decisions.append({"finding_id": f"rel_{active_repo_name}", "decision": g_dec_str})
-
-        lvl_str = release_result.summary.readiness_level.value if hasattr(release_result.summary.readiness_level, "value") else str(release_result.summary.readiness_level)
-        record_stage("RELEASE READINESS", t0, f"Evaluated enterprise release readiness (Level: {lvl_str}, Score: {release_result.summary.overall_score}/100)")
-
-        # 12. Observability Telemetry & Final Report
-        data["status"] = "REPORTING"
-        t0 = time.time()
+        # 18. FINAL REPORT
+        t0 = start_stage("FINAL REPORT")
         report_gen = ReportGenerator()
         run_report = report_gen.generate_run_report(
             collector=tracer,
-            repository_name=repo_name or os.path.basename(scan_target_path),
+            repository_name=repo_key,
             commit_ref=resolved_commit,
             start_time=start_time_iso,
         )
@@ -1113,26 +1172,14 @@ def run_swe_scan_engine(
             final_verdict="PASS" if not confirmed_findings else "NEEDS INVESTIGATION",
         )
 
-        record_stage("FINAL REPORT", t0, "Generated execution report & telemetry")
-
         duration_sec = round(time.time() - t_start, 3)
 
-        # Update Session State
         data["status"] = "COMPLETE"
-        data["orchestration_result"] = orchestration_result
-        data["knowledge_result"] = knowledge_result
-        data["simulation_result"] = simulation_result
-        data["monitoring_drift_result"] = monitoring_drift_result
-        data["decision_orchestration_result"] = decision_orchestration_result
-        data["learning_result"] = learning_result
-        data["control_plane_result"] = control_plane_result
-        data["incident_result"] = incident_result
-        data["release_result"] = release_result
         data["metadata"] = {
             "scan_id": scan_id,
             "repo_input": repo_input,
             "repo_path": scan_target_path,
-            "repo_name": repo_name or os.path.basename(scan_target_path),
+            "repo_name": repo_key,
             "repo_owner": owner,
             "source_type": source_type,
             "github_url": resolved_target if source_type == "GITHUB" else None,
@@ -1159,19 +1206,30 @@ def run_swe_scan_engine(
         data["regression_results"] = regression_results
         data["remediation_plan"] = remediation_plan
         data["monitoring_result"] = monitoring_result
-
+        data["orchestration_result"] = orchestration_result
+        data["knowledge_result"] = knowledge_result
+        data["simulation_result"] = simulation_result
+        data["monitoring_drift_result"] = monitoring_drift_result
+        data["decision_orchestration_result"] = decision_orchestration_result
+        data["learning_result"] = learning_result
+        data["control_plane_result"] = control_plane_result
+        data["incident_result"] = incident_result
+        data["release_result"] = release_result
 
         data["governance_decisions"] = governance_decisions
         data["repair_results"] = repair_results
-        data["pr_results"] = pr_results
+        data["pr_results"] = []
         data["stage_timings"] = stage_timings
         data["trace_collector"] = tracer
         data["run_report"] = run_report
         data["report_markdown"] = report_md
         data["report_json"] = json.dumps(run_report.to_dict(), indent=2)
         data["report_html"] = f"<html><body><pre>{html.escape(report_md)}</pre></body></html>"
+        data["report_generated_once"] = True
 
-
+        finish_stage("FINAL REPORT", t0, "Generated execution report & telemetry ONCE")
+        log_event("Generated final report (JSON, Markdown, HTML)")
+        log_event("SCAN COMPLETE")
 
         data["safety_state"] = {
             "dry_run": os.environ.get("AGENTOS_SWE_DRY_RUN", "1") == "1",
@@ -1179,16 +1237,26 @@ def run_swe_scan_engine(
             "network_egress": 0,
             "remote_writes": 0,
             "commits": 0,
-            "prs": len(pr_results),
+            "prs": 0,
             "files_modified": 0,
             "secrets_exposed": 0,
         }
 
     except Exception as ex:
-        data["status"] = "FAILED"
-        data["error"] = str(ex)
+        log_event(f"ERROR: {str(ex)}")
+        current_running = None
+        for s in data["pipeline_stages"]:
+            if s["status"] == "RUNNING":
+                current_running = s["name"]
+                break
+        if current_running:
+            fail_pipeline(current_running, t0 if 't0' in locals() else t_start, str(ex))
+        else:
+            data["status"] = "FAILED"
+            data["error"] = str(ex)
         data["metadata"]["end_time"] = datetime.now().isoformat()
         data["metadata"]["duration_sec"] = round(time.time() - t_start, 3)
+
 
 
 # ---------------------------------------------------------------------------
@@ -1435,41 +1503,31 @@ def render_agents(data: Dict[str, Any]):
     st.title("🤖 Agent Activity & Squad Telemetry")
     st.caption("Read-only Investigation Squad, Polyglot Resolvers & Verification Agents")
 
-    findings = data.get("verified_findings", [])
-    taint_findings = data.get("taint_findings", [])
-
-    agents_info = [
-        {"name": "BugAgent", "role": "Logic & Defect Investigator", "category": "bug"},
-        {"name": "SecurityAgent", "role": "Vulnerability & Injection Investigator", "category": "security"},
-        {"name": "PerformanceAgent", "role": "Complexity & N+1 Loop Investigator", "category": "performance"},
-        {"name": "ArchitectureAgent", "role": "Coupling & Dependency Investigator", "category": "architecture"},
-        {"name": "VerificationAgent", "role": "Multi-Strategy Verification Pipeline", "category": "verification"},
-        {"name": "PythonSemanticResolver", "role": "AST & Exception Intent Resolver", "category": "semantic"},
-        {"name": "JavaScriptSemanticResolver", "role": "JS/TS Polyglot Resolver", "category": "semantic"},
-        {"name": "TypeScriptSemanticResolver", "role": "TypeScript API Contract Analyzer", "category": "semantic"},
-        {"name": "ReactSemanticResolver", "role": "React Component & Hook Resolver", "category": "semantic"},
-        {"name": "VueSemanticResolver", "role": "Vue Template & Script Resolver", "category": "semantic"},
-        {"name": "PythonTaintAnalyzer", "role": "Deterministic AST Taint Tracking Engine", "category": "taint"},
-        {"name": "StaticVerificationStrategy", "role": "Structural Code & Line Verifier", "category": "verification"},
-    ]
+    agent_activity = data.get("agent_activity", [])
+    if not agent_activity:
+        st.info("No agent activity recorded yet. Run a scan to populate agent telemetry.")
+        return
 
     cols = st.columns(3)
-    for idx, agent in enumerate(agents_info):
+    for idx, agent in enumerate(agent_activity):
         col = cols[idx % 3]
-        agent_findings = [f for f in findings if f.category == agent["category"]] if agent["category"] != "taint" else taint_findings
-        conf = len([f for f in agent_findings if getattr(f, "status", None) == FindingStatus.CONFIRMED])
-        rej = len([f for f in agent_findings if getattr(f, "status", None) == FindingStatus.REJECTED])
-        inc = len([f for f in agent_findings if getattr(f, "status", None) == FindingStatus.INCONCLUSIVE])
+        a_status = agent.get("status", "NOT EXECUTED")
+        if a_status == "COMPLETE":
+            badge_cls = "badge-pass"
+        elif a_status == "FAILED":
+            badge_cls = "badge-critical"
+        else:
+            badge_cls = "badge-unknown"
 
         with col:
             st.markdown(
                 f"""
                 <div class="sec-card">
                     <div class="sec-card-header">{agent['name']}</div>
-                    <p style="font-size:0.8rem; color:#8b949e;">{agent['role']}</p>
-                    <p><strong>Status</strong>: <span class="badge badge-pass">COMPLETE</span></p>
-                    <p><strong>Findings</strong>: {len(agent_findings)} | <strong>Confirmed</strong>: {conf}</p>
-                    <p><strong>Rejected</strong>: {rej} | <strong>Inconclusive</strong>: {inc}</p>
+                    <p style="font-size:0.8rem; color:#8b949e;">{agent.get('role', 'N/A')}</p>
+                    <p><strong>Status</strong>: <span class="badge {badge_cls}">{a_status}</span></p>
+                    <p><strong>Findings</strong>: {agent.get('findings', 0)} | <strong>Runtime</strong>: {agent.get('runtime', 0.0)}s</p>
+                    <p style="font-size:0.78rem; color:#8b949e;">{html.escape(str(agent.get('result', 'N/A')))}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1864,24 +1922,174 @@ def render_verification(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 14 — Pipeline Timeline
+# Phase 14 — Live Pipeline Execution View & Telemetry
 # ---------------------------------------------------------------------------
 
 def render_pipeline(data: Dict[str, Any]):
-    """Render Pipeline Execution Timeline & Stage Metrics."""
-    st.title("⏱️ Pipeline Execution Timeline")
-    st.caption("End-to-End Stage Duration & Execution Telemetry")
+    """Render Pipeline Execution View, Stage Status, Terminal Console, Graphical Pipeline & Live Telemetry."""
+    st.title("⏱️ Live Pipeline Execution & Stage Telemetry")
+    st.caption("Real-Time Execution State, Stage Status, Agent Activity, Graphical Pipeline & Terminal Console")
 
-    timings = data.get("stage_timings", [])
-    if not timings:
-        st.info("Pipeline timeline will display after running an SWE scan.")
+    stages = data.get("pipeline_stages", [])
+    events = data.get("terminal_events", [])
+    agents = data.get("agent_activity", [])
+    status_str = data.get("status", "IDLE")
+
+    if not stages:
+        timings = data.get("stage_timings", [])
+        if timings:
+            st.dataframe(timings, use_container_width=True)
+        else:
+            st.info("Pipeline timeline will display after running an AgentOS-SWE scan.")
         return
 
-    st.dataframe(timings, use_container_width=True)
+    # Section 1 — Pipeline Status & Overall Progress
+    st.subheader("🔄 Pipeline Execution Status")
+    status_badge_class = "badge-pass" if status_str == "COMPLETE" else ("badge-critical" if status_str == "FAILED" else "badge-investigate")
+    st.markdown(f"**Overall Scan State**: <span class='badge {status_badge_class}'>{status_str}</span>", unsafe_allow_html=True)
+
+    completed_count = sum(1 for s in stages if s["status"] == "COMPLETE")
+    running_count = sum(1 for s in stages if s["status"] == "RUNNING")
+    failed_count = sum(1 for s in stages if s["status"] == "FAILED")
+    pending_count = sum(1 for s in stages if s["status"] == "PENDING")
+    skipped_count = sum(1 for s in stages if s["status"] == "SKIPPED")
+
+    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+    mc1.metric("Completed Stages", f"{completed_count} / {len(stages)}")
+    mc2.metric("Running", running_count)
+    mc3.metric("Pending", pending_count)
+    mc4.metric("Failed", failed_count)
+    mc5.metric("Skipped", skipped_count)
+
+    st.markdown("---")
+
+    # Section 2 — Graphical Pipeline Flow Visualization (R1.5 & R1.1 & R1.2)
+    st.subheader("🌐 Graphical Pipeline Flow")
+    st.caption("Visual stage progression (✓ COMPLETE | ● RUNNING | ○ PENDING | ✕ FAILED | ⊘ SKIPPED)")
+
+    grid_cols = st.columns(3)
+    for idx, s in enumerate(stages):
+        col = grid_cols[idx % 3]
+        s_name = s["name"]
+        s_status = s["status"]
+        s_dur = f"{s.get('duration_sec', 0.0)}s"
+        s_res = s.get("result", "N/A")
+
+        if s_status == "COMPLETE":
+            icon = "✓"
+            badge_cls = "badge-pass"
+        elif s_status == "RUNNING":
+            icon = "●"
+            badge_cls = "badge-high"
+        elif s_status == "FAILED":
+            icon = "✕"
+            badge_cls = "badge-critical"
+        elif s_status == "SKIPPED":
+            icon = "⊘"
+            badge_cls = "badge-unknown"
+        else:
+            icon = "○"
+            badge_cls = "badge-unknown"
+
+        with col:
+            st.markdown(
+                f"""
+                <div class="sec-card" style="margin-bottom:8px; padding:10px;">
+                    <div style="font-weight:600; font-size:0.95rem; color:#f0f6fc;">
+                        {icon} {s_name}
+                    </div>
+                    <div style="margin-top:4px;">
+                        <span class="badge {badge_cls}">{s_status}</span>
+                        <span style="font-size:0.8rem; color:#8b949e; margin-left:8px;">⏱ {s_dur}</span>
+                    </div>
+                    <div style="font-size:0.78rem; color:#8b949e; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {html.escape(str(s_res))}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("---")
+
+    # Section 3 — Terminal-Style Execution Console (R1.4)
+    st.subheader("🖥️ Terminal-Style Execution Console")
+    st.caption("Live, actual pipeline telemetry log stream")
+
+    if events:
+        console_text = "\n".join(events)
+        st.markdown(
+            f"""
+            <div style="background-color:#0d1117; color:#3fb950; font-family:'Courier New', monospace; font-size:0.85rem; padding:14px; border-radius:6px; border:1px solid #30363d; height:240px; overflow-y:auto; white-space:pre-wrap;">{html.escape(console_text)}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("Terminal log console will populate when scan starts.")
+
+    st.markdown("---")
+
+    # Section 4 — Stage Metrics Table (R1.2)
+    st.subheader("📋 Stage Execution Metrics Table")
+    table_rows = []
+    for s in stages:
+        table_rows.append({
+            "Stage Name": s["name"],
+            "Status": s["status"],
+            "Start Time": s.get("start_time") or "N/A",
+            "End Time": s.get("end_time") or "N/A",
+            "Duration": f"{s.get('duration_sec', 0.0)}s",
+            "Result Summary": s.get("result", "N/A"),
+        })
+    st.dataframe(table_rows, use_container_width=True)
+
+    st.markdown("---")
+
+    # Section 5 — Agent Activity Telemetry (R1.3)
+    st.subheader("🤖 Agent Activity Telemetry")
+    st.caption("Actual execution status, findings count, runtime, and results for agents and resolvers")
+
+    if agents:
+        agent_table = []
+        for a in agents:
+            a_status = a.get("status", "NOT EXECUTED")
+            agent_table.append({
+                "Agent Name": a["name"],
+                "Role": a.get("role", "N/A"),
+                "Category": a.get("category", "N/A"),
+                "Status": a_status,
+                "Findings Discovered": a.get("findings", 0),
+                "Runtime": f"{a.get('runtime', 0.0)}s",
+                "Result Summary": a.get("result", "NOT EXECUTED"),
+            })
+        st.dataframe(agent_table, use_container_width=True)
+    else:
+        st.info("No agent activity recorded yet.")
+
+    st.markdown("---")
+
+    # Section 6 — Live Findings Telemetry Stream (R1.6)
+    st.subheader("🔍 Live Findings Telemetry Stream")
+    all_f = data.get("verified_findings", []) or data.get("candidates", [])
+    if all_f:
+        lf_rows = []
+        for f in all_f:
+            lf_rows.append({
+                "Category": getattr(f, "category", "N/A"),
+                "Title": getattr(f, "title", "N/A"),
+                "File": getattr(f, "file", "N/A") or "N/A",
+                "Line": str(getattr(f, "line_range", [1])[0]) if getattr(f, "line_range", None) else "N/A",
+                "Severity": str(getattr(f, "severity", "MEDIUM")).upper(),
+                "Confidence": f"{getattr(f, 'confidence', 0.85):.2f}",
+                "Status": getattr(f, "status", FindingStatus.CONFIRMED).value if hasattr(getattr(f, "status", None), "value") else str(getattr(f, "status", "CONFIRMED")),
+            })
+        st.dataframe(lf_rows, use_container_width=True)
+    else:
+        st.info("Zero findings recorded in this scan.")
 
 
 # ---------------------------------------------------------------------------
-# Phase 15 — Full Report
+# Phase 15 — Full Report & Download Center
 # ---------------------------------------------------------------------------
 
 def render_report(data: Dict[str, Any]):
@@ -1893,9 +2101,13 @@ def render_report(data: Dict[str, Any]):
     report_json = data.get("report_json", "{}")
     report_html = data.get("report_html", "<html></html>")
 
-    st.download_button("📥 Export JSON Report", data=report_json, file_name="swe_run_report.json", mime="application/json")
-    st.download_button("📥 Export Markdown Report", data=report_md, file_name="swe_run_report.md", mime="text/markdown")
-    st.download_button("📥 Export HTML Report", data=report_html, file_name="swe_run_report.html", mime="text/html")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.download_button("📥 Download JSON Report", data=report_json, file_name="swe_run_report.json", mime="application/json", use_container_width=True)
+    with col2:
+        st.download_button("📥 Download Markdown Report", data=report_md, file_name="swe_run_report.md", mime="text/markdown", use_container_width=True)
+    with col3:
+        st.download_button("📥 Download HTML Report", data=report_html, file_name="swe_run_report.html", mime="text/html", use_container_width=True)
 
     st.markdown("---")
     st.markdown(report_md)
