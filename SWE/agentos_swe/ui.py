@@ -275,7 +275,66 @@ from agentos_swe.release import ReleaseReadinessEngine
 
 
 
+# ============================================================
+# MODULE NAVIGATION INDEX
+# ============================================================
+# Quick reference for navigating this single-file UI module.
+#
+# SECTION A — Constants & State Management
+#   DARK_THEME_CSS          CSS dark theme for the Streamlit application
+#   PIPELINE_STAGES_MASTER  Ordered list of all 19 canonical pipeline stages
+#   KNOWN_AGENTS_MASTER     Registry of all 11 analysis agent descriptors
+#   init_session_state()    Initialize / retrieve Streamlit session state dict
+#
+# SECTION B — Pipeline Execution Engine
+#   run_swe_scan_engine()   Full 19-stage security scan execution adapter
+#     ├─ Stages  1-5:  Intake, Graph Build, Investigation, Semantic, Taint
+#     ├─ Stages  6-10: Correlation, Verification, Intelligence, Attack Path, History
+#     ├─ Stages 11-15: Orchestration, Repair, Validation, Learning, Drift
+#     └─ Stages 16-19: Control Plane, Incident Response, Release Readiness, Report
+#
+# SECTION C — Sidebar & Navigation Controls
+#   render_sidebar()        Scan controls and 29-page navigation sidebar
+#
+# SECTION D — Dashboard Page Renderers
+#   render_dashboard()               Page  1 — Executive Overview
+#   render_agents()                  Page  2 — Agent Activity
+#   render_graph()                   Page  3 — Code Graph
+#   render_findings()                Page  4 — Findings Explorer
+#   render_security()                Page  5 — Security / Taint
+#   render_architecture()            Page  6 — Architecture
+#   render_performance()             Page  7 — Performance
+#   render_verification()            Page  8 — Verification
+#   render_pipeline()                Page  9 — Pipeline Timeline & Telemetry
+#   render_report()                  Page 10 — Report & Download Center
+#   render_safety()                  Page 11 — Safety Panel
+#   render_vulnerability_intelligence() Page 12 — Vulnerability Intelligence
+#   render_security_history()        Page 13 — Security History
+#   render_security_intelligence()   Page 14 — Security Intelligence
+#   render_attack_paths()            Page 15 — Attack Paths
+#   render_remediation_center()      Page 16 — Remediation Center
+#   render_security_monitoring()     Page 17 — Security Monitoring
+#   render_release_readiness()       Page 18 — Release Readiness
+#   render_security_engineering()    Page 19 — Security Engineering
+#   render_security_knowledge()      Page 20 — Security Knowledge
+#   render_security_simulation()     Page 21 — Security Simulation
+#   render_security_drift_monitoring() Page 22 — Security Drift Monitoring
+#   render_security_decision_center()  Page 23 — Security Decision Center
+#   render_security_learning_trends()  Page 24 — Security Learning & Trends
+#   render_security_drift_center()     Page 25 — Security Drift Center
+#   render_security_operations_control_plane() Page 26 — Operations Control Plane
+#   render_continuous_security_monitoring()    Page 27 — Continuous Monitoring
+#   render_security_incident_response_center() Page 28 — Incident Response
+#   render_enterprise_release_readiness()      Page 29 — Enterprise Release Readiness
+#
+# SECTION E — Main Entrypoint & Page Router
+#   main()                  Streamlit app entrypoint, CSS injection, page router
+# ============================================================
 
+
+# ---------------------------------------------------------------------------
+# SECTION A — Constants & State Management
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Custom CSS Dark Theme for Security Platform
@@ -541,7 +600,11 @@ def init_session_state() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Core SWE Scanner Pipeline Adapter
+# SECTION B — Pipeline Execution Engine
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Core SWE Scanner Execution Engine
 # ---------------------------------------------------------------------------
 
 def run_swe_scan_engine(
@@ -1323,7 +1386,11 @@ def run_swe_scan_engine(
 
 
 # ---------------------------------------------------------------------------
-# Sidebar & Navigation Controls (Phase 5 & Requirement 8)
+# SECTION C — Sidebar & Navigation Controls
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Sidebar & Navigation Controls
 # ---------------------------------------------------------------------------
 
 def render_sidebar(data: Dict[str, Any]) -> str:
@@ -1434,7 +1501,11 @@ def render_sidebar(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Phase 6 — Overview Dashboard
+# SECTION D — Dashboard Page Renderers (Pages 1–29)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Page 1 — Executive Overview Dashboard
 # ---------------------------------------------------------------------------
 
 def render_dashboard(data: Dict[str, Any]):
@@ -1584,7 +1655,7 @@ def render_dashboard(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 7 — Agent Activity
+# Page 2 — Agent Activity & Component Breakdown
 # ---------------------------------------------------------------------------
 
 def render_agents(data: Dict[str, Any]):
@@ -1624,7 +1695,7 @@ def render_agents(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 8 — Code Graph
+# Page 3 — Code Graph Visualization
 # ---------------------------------------------------------------------------
 
 def render_graph(data: Dict[str, Any]):
@@ -1684,7 +1755,7 @@ def render_graph(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 9 — Findings Explorer & Inspector
+# Page 4 — Findings Explorer & Inspector
 # ---------------------------------------------------------------------------
 
 def render_findings(data: Dict[str, Any]):
@@ -1826,7 +1897,7 @@ def render_findings(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 10 — Security / Taint Page
+# Page 5 — Security & Taint Data-Flow Analysis
 # ---------------------------------------------------------------------------
 
 def render_security(data: Dict[str, Any]):
@@ -1914,7 +1985,7 @@ def render_security(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 11 — Architecture
+# Page 6 — Architecture & Module Role Classification
 # ---------------------------------------------------------------------------
 
 def render_architecture(data: Dict[str, Any]):
@@ -1943,7 +2014,7 @@ def render_architecture(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 12 — Performance
+# Page 7 — Performance Analysis & Loop Detection
 # ---------------------------------------------------------------------------
 
 def render_performance(data: Dict[str, Any]):
@@ -1973,7 +2044,7 @@ def render_performance(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 13 — Verification
+# Page 8 — Independent Multi-Strategy Verification Pipeline
 # ---------------------------------------------------------------------------
 
 def render_verification(data: Dict[str, Any]):
@@ -2011,7 +2082,7 @@ def render_verification(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 14 — Live Pipeline Execution View & Telemetry
+# Page 9 — Pipeline Timeline & Telemetry
 # ---------------------------------------------------------------------------
 
 def render_pipeline(data: Dict[str, Any]):
@@ -2178,7 +2249,7 @@ def render_pipeline(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 15 — Full Report & Download Center
+# Page 10 — Full Report & Download Center
 # ---------------------------------------------------------------------------
 
 def render_report(data: Dict[str, Any]):
@@ -2212,7 +2283,7 @@ def render_report(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 16 — Safety Panel
+# Page 11 — Safety, Risk Governance & Security Invariant Panel
 # ---------------------------------------------------------------------------
 
 def render_safety(data: Dict[str, Any]):
@@ -2243,7 +2314,7 @@ def render_safety(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Phase 17 — Vulnerability Intelligence Panel
+# Page 12 — Vulnerability Intelligence & Repair Validation
 # ---------------------------------------------------------------------------
 
 def render_vulnerability_intelligence(data: Dict[str, Any]):
@@ -2407,7 +2478,7 @@ def render_vulnerability_intelligence(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M14 — Security History & Risk Trend Panel
+# Page 13 — Security History & Risk Trend Panel
 # ---------------------------------------------------------------------------
 
 def render_security_history(data: Dict[str, Any]):
@@ -2539,7 +2610,7 @@ def render_security_history(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M15 — Intelligent Security Prioritization & Cross-Repository Risk Panel
+# Page 14 — Security Intelligence & Cross-Repository Risk
 # ---------------------------------------------------------------------------
 
 def render_security_intelligence(data: Dict[str, Any]):
@@ -2634,7 +2705,7 @@ def render_security_intelligence(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M16 — Autonomous Attack-Path Reasoning & Security Panel
+# Page 15 — Autonomous Attack-Path Reasoning & Visualization
 # ---------------------------------------------------------------------------
 
 def render_attack_paths(data: Dict[str, Any]):
@@ -2725,7 +2796,7 @@ def render_attack_paths(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M17 — Intelligent Security Remediation Center Panel
+# Page 16 — Intelligent Security Remediation Center
 # ---------------------------------------------------------------------------
 
 def render_remediation_center(data: Dict[str, Any]):
@@ -2827,7 +2898,7 @@ def render_remediation_center(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M18 — Continuous Security Monitoring Panel
+# Page 17 — Continuous Security Monitoring
 # ---------------------------------------------------------------------------
 
 def render_security_monitoring(data: Dict[str, Any]):
@@ -2948,7 +3019,7 @@ def render_security_monitoring(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# M19 — Security Release Readiness Panel
+# Page 18 — Security Release Readiness
 # ---------------------------------------------------------------------------
 
 def render_release_readiness(data: Dict[str, Any]):
@@ -3054,6 +3125,10 @@ def render_release_readiness(data: Dict[str, Any]):
     else:
         st.info("Baseline release evaluation active.")
 
+
+# ---------------------------------------------------------------------------
+# Page 19 — Security Engineering Workflow & Decision Pipeline
+# ---------------------------------------------------------------------------
 
 def render_security_engineering(data: Dict[str, Any]):
     """Render Page 19 — Security Engineering Workflow & Decision Pipeline Dashboard."""
@@ -3168,6 +3243,10 @@ def render_security_engineering(data: Dict[str, Any]):
         st.info("Batch posture summary ready for multi-repository runs.")
 
 
+# ---------------------------------------------------------------------------
+# Page 20 — Security Knowledge Graph & Learning Intelligence
+# ---------------------------------------------------------------------------
+
 def render_security_knowledge(data: Dict[str, Any]):
     """Render Page 20 — Security Knowledge Graph & Learning Intelligence Dashboard."""
     st.title("🧠 M21 Security Knowledge Graph & Learning Intelligence")
@@ -3244,6 +3323,10 @@ def render_security_knowledge(data: Dict[str, Any]):
     else:
         st.info("Knowledge graph active.")
 
+
+# ---------------------------------------------------------------------------
+# Page 21 — Safe Security Simulation & Exploitability Validation
+# ---------------------------------------------------------------------------
 
 def render_security_simulation(data: Dict[str, Any]):
     """Render Page 21 — Safe Security Simulation & Exploitability Validation Dashboard."""
@@ -3322,6 +3405,10 @@ def render_security_simulation(data: Dict[str, Any]):
     else:
         st.info("Differential repair analysis ready for patch validation runs.")
 
+
+# ---------------------------------------------------------------------------
+# Page 22 — Security Drift Monitoring
+# ---------------------------------------------------------------------------
 
 def render_security_drift_monitoring(data: Dict[str, Any]):
     """Render Page 22 — Continuous Security Monitoring, Drift Detection & Change Impact Dashboard."""
@@ -3416,6 +3503,10 @@ def render_security_drift_monitoring(data: Dict[str, Any]):
         """
     )
 
+
+# ---------------------------------------------------------------------------
+# Page 23 — Security Decision Orchestration Center
+# ---------------------------------------------------------------------------
 
 def render_security_decision_center(data: Dict[str, Any]):
     """Render Page 23 — Autonomous Security Decision & Remediation Orchestration Dashboard."""
@@ -3586,6 +3677,10 @@ def render_security_decision_center(data: Dict[str, Any]):
             st.dataframe(st.session_state["approval_audit_trail"], use_container_width=True)
 
 
+# ---------------------------------------------------------------------------
+# Page 24 — Security Learning & Adaptive Threat Trends
+# ---------------------------------------------------------------------------
+
 def render_security_learning_trends(data: Dict[str, Any]):
     """Page 24 — Security Learning & Trends."""
     st.title("🧠 Security Learning & Trends Center")
@@ -3642,6 +3737,10 @@ def render_security_learning_trends(data: Dict[str, Any]):
     else:
         st.success("✔ All findings operating at baseline risk (no escalation multipliers).")
 
+
+# ---------------------------------------------------------------------------
+# Page 25 — Security Drift Center
+# ---------------------------------------------------------------------------
 
 def render_security_drift_center(data: Dict[str, Any]):
     """Page 25 — Security Drift Center."""
@@ -3707,6 +3806,10 @@ def render_security_drift_center(data: Dict[str, Any]):
     st.subheader("🛡️ False Positive Protection Status")
     st.info("✔ Safe design patterns (`dict.get()`, test-harness diagnostic handlers, intentional fallbacks, formatting/comment changes) are actively filtered and produce ZERO security drift.")
 
+
+# ---------------------------------------------------------------------------
+# Page 26 — Security Operations Control Plane
+# ---------------------------------------------------------------------------
 
 def render_security_operations_control_plane(data: Dict[str, Any]):
     """Page 26 — Security Operations Control Plane."""
@@ -3827,6 +3930,10 @@ def render_security_operations_control_plane(data: Dict[str, Any]):
         st.info("No control plane audit events logged.")
 
 
+# ---------------------------------------------------------------------------
+# Page 27 — Continuous Security Monitoring Scheduler
+# ---------------------------------------------------------------------------
+
 def render_continuous_security_monitoring(data: Dict[str, Any]):
     """Page 27 — Continuous Security Monitoring."""
     st.title("📡 Continuous Security Monitoring")
@@ -3923,6 +4030,10 @@ def render_continuous_security_monitoring(data: Dict[str, Any]):
     with ctl_col3:
         st.caption("🔒 Safety Invariants Active: AGENTOS_SWE_DRY_RUN=1 | Strictly Read-Only Sandbox Execution")
 
+
+# ---------------------------------------------------------------------------
+# Page 28 — Security Incident Response Center
+# ---------------------------------------------------------------------------
 
 def render_security_incident_response_center(data: Dict[str, Any]):
     """Page 28 — Security Incident Response Center."""
@@ -4081,6 +4192,10 @@ def render_security_incident_response_center(data: Dict[str, Any]):
     else:
         st.info("Zero incidents found in store. Run a security scan to perform automated incident detection.")
 
+
+# ---------------------------------------------------------------------------
+# Page 29 — Enterprise Release Readiness & Final Sign-Off
+# ---------------------------------------------------------------------------
 
 def render_enterprise_release_readiness(data: Dict[str, Any]):
     """Page 29 — Enterprise Release Readiness."""
@@ -4259,7 +4374,7 @@ def render_enterprise_release_readiness(data: Dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
-# Main Router (Phase 2 & Phase 4)
+# SECTION E — Main Entrypoint & Page Router
 # ---------------------------------------------------------------------------
 
 def main():
