@@ -7,12 +7,12 @@ import shutil
 import logging
 from typing import Dict, Any, Optional
 
-from agentos_swe.intake import RepositoryIntake
-from agentos_swe.context import build_repository_context
-from agentos_swe.squad import InvestigationSquad
-from agentos_swe.verification import VerificationPipeline
-from agentos_swe.repair import RepairPipeline
-from agentos_swe.models import FindingStatus
+from agentos_swe.core.intake import RepositoryIntake
+from agentos_swe.core.context import build_repository_context
+from agentos_swe.core.squad import InvestigationSquad
+from agentos_swe.analysis.verification import VerificationPipeline
+from agentos_swe.remediation.repair import RepairPipeline
+from agentos_swe.core.models import FindingStatus
 from agentos_swe.benchmark.models import BenchmarkReport
 from agentos_swe.benchmark.fixtures import BenchmarkFixtures
 from agentos_swe.benchmark.evaluator import BenchmarkEvaluator

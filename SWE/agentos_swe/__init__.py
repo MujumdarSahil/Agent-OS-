@@ -2,14 +2,14 @@
 AgentOS-SWE - Autonomous Software Verification and Repair System
 """
 
-from agentos_swe.exceptions import (
+from agentos_swe.core.exceptions import (
     AgentOSSWEError,
     RepositoryError,
     GraphProviderError,
     GraphBuildError,
     RepositoryContextError,
 )
-from agentos_swe.models import (
+from agentos_swe.core.models import (
     NodeType,
     RelationType,
     FindingStatus,
@@ -20,19 +20,19 @@ from agentos_swe.models import (
     Evidence,
     Finding,
 )
-from agentos_swe.graph import CodeGraphProvider, GraphifyAdapter
-from agentos_swe.intake import RepositoryIntake
-from agentos_swe.context import RepositoryContext, build_repository_context
-from agentos_swe.agents import (
+from agentos_swe.analysis.graph import CodeGraphProvider, GraphifyAdapter
+from agentos_swe.core.intake import RepositoryIntake
+from agentos_swe.core.context import RepositoryContext, build_repository_context
+from agentos_swe.core.agents import (
     BaseInvestigatorAgent,
     BugAgent,
     SecurityAgent,
     PerformanceAgent,
     ArchitectureAgent,
 )
-from agentos_swe.aggregator import FindingAggregator
-from agentos_swe.squad import InvestigationSquad
-from agentos_swe.verification import (
+from agentos_swe.core.aggregator import FindingAggregator
+from agentos_swe.core.squad import InvestigationSquad
+from agentos_swe.analysis.verification import (
     IsolatedSandbox,
     StaticVerificationStrategy,
     GraphVerificationStrategy,
@@ -40,7 +40,7 @@ from agentos_swe.verification import (
     VerificationAgent,
     VerificationPipeline,
 )
-from agentos_swe.repair import (
+from agentos_swe.remediation.repair import (
     ImpactReport,
     FixPlan,
     PatchResult,
@@ -54,7 +54,7 @@ from agentos_swe.repair import (
     IndependentPatchReviewer,
     RepairPipeline,
 )
-from agentos_swe.pr import (
+from agentos_swe.remediation.pr import (
     RiskLevel,
     GovernanceDecision,
     RiskAssessment,
@@ -95,7 +95,7 @@ from agentos_swe.benchmark import (
     ResilienceExperiments,
     BenchmarkRunner,
 )
-from agentos_swe.semantic import (
+from agentos_swe.analysis.semantic import (
     SemanticCategory,
     SemanticCallResult,
     ExceptionIntent,

@@ -1,39 +1,8 @@
-"""
-M15 Intelligent Security Prioritization & Cross-Repository Risk Intelligence Package.
-"""
+"""Domain package facade: agentos_swe.intelligence"""
 
-from agentos_swe.intelligence.models import (
-    PriorityTier,
-    ExploitabilityLevel,
-    ExposureLevel,
-    BlastRadiusLevel,
-    RecurrenceLevel,
-    PrioritizedFinding,
-    CrossRepositoryPattern,
-    SecurityIntelligenceOverview,
-)
-from agentos_swe.intelligence.exploitability import ExploitabilityAnalyzer
-from agentos_swe.intelligence.exposure import ExposureAnalyzer
-from agentos_swe.intelligence.blast_radius import BlastRadiusAnalyzer
-from agentos_swe.intelligence.recurrence import HistoricalRecurrenceAnalyzer
-from agentos_swe.intelligence.cross_repository import CrossRepositoryIntelligenceEngine
-from agentos_swe.intelligence.recommendation import SecurityRecommendationEngine
-from agentos_swe.intelligence.prioritizer import SecurityPriorityEngine
-
-__all__ = [
-    "PriorityTier",
-    "ExploitabilityLevel",
-    "ExposureLevel",
-    "BlastRadiusLevel",
-    "RecurrenceLevel",
-    "PrioritizedFinding",
-    "CrossRepositoryPattern",
-    "SecurityIntelligenceOverview",
-    "ExploitabilityAnalyzer",
-    "ExposureAnalyzer",
-    "BlastRadiusAnalyzer",
-    "HistoricalRecurrenceAnalyzer",
-    "CrossRepositoryIntelligenceEngine",
-    "SecurityRecommendationEngine",
-    "SecurityPriorityEngine",
-]
+from agentos_swe.intelligence.priority import *
+from agentos_swe.intelligence.attackpath import *
+from agentos_swe.intelligence.history import *
+from agentos_swe.intelligence.drift import *
+from agentos_swe.intelligence.knowledge import *
+from agentos_swe.intelligence.learning import *

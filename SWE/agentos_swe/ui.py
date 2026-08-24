@@ -138,7 +138,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 # Import SWE backend & analysis engines
-from agentos_swe.models import (
+from agentos_swe.core.models import (
     Finding,
     FindingStatus,
     Evidence,
@@ -149,17 +149,17 @@ from agentos_swe.models import (
     NodeType,
     RelationType,
 )
-from agentos_swe.intake import RepositoryIntake
-from agentos_swe.context import build_repository_context, RepositoryContext
-from agentos_swe.squad import InvestigationSquad
-from agentos_swe.verification.pipeline import VerificationPipeline
-from agentos_swe.verification.sandbox import IsolatedSandbox
-from agentos_swe.repair.pipeline import RepairPipeline
+from agentos_swe.core.intake import RepositoryIntake
+from agentos_swe.core.context import build_repository_context, RepositoryContext
+from agentos_swe.core.squad import InvestigationSquad
+from agentos_swe.analysis.verification.pipeline import VerificationPipeline
+from agentos_swe.analysis.verification.sandbox import IsolatedSandbox
+from agentos_swe.remediation.repair.pipeline import RepairPipeline
 
-from agentos_swe.repair.models import RepairStatus
-from agentos_swe.pr.governance_gate import GovernanceGate
-from agentos_swe.pr.pipeline import PRPipeline
-from agentos_swe.pr.models import GovernanceDecision
+from agentos_swe.remediation.repair.models import RepairStatus
+from agentos_swe.remediation.pr.governance_gate import GovernanceGate
+from agentos_swe.remediation.pr.pipeline import PRPipeline
+from agentos_swe.remediation.pr.models import GovernanceDecision
 from agentos_swe.security.taint.python_analyzer import PythonTaintAnalyzer
 from agentos_swe.security.taint.models import (
     TaintFinding,
@@ -182,7 +182,7 @@ from agentos_swe.observability.events import (
 from agentos_swe.benchmark.fixtures import BenchmarkFixtures
 
 # M13 Correlation & Repair Imports
-from agentos_swe.correlation import (
+from agentos_swe.remediation.correlation import (
     EvidenceCorrelator,
     RootCauseAnalyzer,
     RootCauseCategory,
@@ -190,16 +190,16 @@ from agentos_swe.correlation import (
     EvidenceChain,
     ConfidenceExplanation,
 )
-from agentos_swe.repair.repair_strategy import IntelligentRepairEngine
-from agentos_swe.repair.patch_validator import SandboxedPatchValidator
-from agentos_swe.repair.security_regression import SecurityRegressionAnalyzer
-from agentos_swe.repair.repair_validator import RealWorldRepairValidator
-from agentos_swe.repair.models import (
+from agentos_swe.remediation.repair.repair_strategy import IntelligentRepairEngine
+from agentos_swe.remediation.repair.patch_validator import SandboxedPatchValidator
+from agentos_swe.remediation.repair.security_regression import SecurityRegressionAnalyzer
+from agentos_swe.remediation.repair.repair_validator import RealWorldRepairValidator
+from agentos_swe.remediation.repair.models import (
     RepairVerdict,
     PatchQualityMetrics,
     RepairValidationResult,
 )
-from agentos_swe.history import (
+from agentos_swe.intelligence.history import (
     HistoricalScanStore,
     HistoricalScanComparator,
     ScanRecord,
@@ -217,7 +217,7 @@ from agentos_swe.intelligence import (
     ExposureLevel,
     BlastRadiusLevel,
 )
-from agentos_swe.attackpath import (
+from agentos_swe.intelligence.attackpath import (
     AttackPathCorrelator,
     AttackGraphBuilder,
     AutonomousSecurityInvestigator,
@@ -234,7 +234,7 @@ from agentos_swe.remediation import (
     EffortCategory,
     RemediationGraphBuilder,
 )
-from agentos_swe.monitoring import (
+from agentos_swe.operations.monitoring import (
     SecurityMonitor,
     SecurityMonitoringResult,
     RegressionSeverity,
@@ -251,7 +251,7 @@ from agentos_swe.release import (
     SecurityGateVerdict,
     ReleaseDeltaState,
 )
-from agentos_swe.orchestration import (
+from agentos_swe.operations.orchestration import (
     SecurityEngineeringOrchestrator,
     SecurityDecisionOrchestrator,
     WorkflowState,
@@ -260,15 +260,15 @@ from agentos_swe.orchestration import (
     SecurityOrchestrationResult,
     SecurityEngineeringSummary,
 )
-from agentos_swe.knowledge import SecurityKnowledgeEngine
-from agentos_swe.simulation import SecuritySimulationEngine
-from agentos_swe.monitoring import SecurityMonitoringEngine
-from agentos_swe.learning import ContinuousSecurityLearningEngine
-from agentos_swe.drift import SecurityMonitoringDriftEngine
-from agentos_swe.controlplane import SecurityOperationsControlPlane
+from agentos_swe.intelligence.knowledge import SecurityKnowledgeEngine
+from agentos_swe.remediation.simulation import SecuritySimulationEngine
+from agentos_swe.operations.monitoring import SecurityMonitoringEngine
+from agentos_swe.intelligence.learning import ContinuousSecurityLearningEngine
+from agentos_swe.intelligence.drift import SecurityMonitoringDriftEngine
+from agentos_swe.operations.controlplane import SecurityOperationsControlPlane
 from agentos_swe.persistence import PersistentOperationalStateStore, RepositoryRegistry
-from agentos_swe.monitoring import ContinuousMonitoringScheduler, SecurityMonitoringRunner
-from agentos_swe.incident import SecurityIncidentResponseEngine
+from agentos_swe.operations.monitoring import ContinuousMonitoringScheduler, SecurityMonitoringRunner
+from agentos_swe.operations.incident import SecurityIncidentResponseEngine
 from agentos_swe.release import ReleaseReadinessEngine
 
 
@@ -3942,7 +3942,7 @@ def render_security_incident_response_center(data: Dict[str, Any]):
     if inc_res and hasattr(inc_res, "incidents") and inc_res.incidents:
         incidents = inc_res.incidents
     elif stored_incidents_raw:
-        from agentos_swe.incident.models import SecurityIncident
+        from agentos_swe.operations.incident.models import SecurityIncident
         incidents = [SecurityIncident.from_dict(d) for d in stored_incidents_raw]
 
     # 1. Global Incident Status

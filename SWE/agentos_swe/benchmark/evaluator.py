@@ -5,8 +5,8 @@ BenchmarkEvaluator - Computes Precision, Recall, F1, Verification Accuracy, Repa
 import logging
 from typing import List, Dict, Any, Tuple
 
-from agentos_swe.models import Finding, FindingStatus
-from agentos_swe.repair.models import ValidatedPatch
+from agentos_swe.core.models import Finding, FindingStatus
+from agentos_swe.remediation.repair.models import ValidatedPatch
 from agentos_swe.benchmark.models import (
     GroundTruthCase,
     ExpectedStatus,
