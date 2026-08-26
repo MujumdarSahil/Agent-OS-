@@ -155,6 +155,6 @@ class SemanticProviderRegistry:
             provider = self.get_provider_for_file(file_path)
             if hasattr(provider, "analyze_security_patterns"):
                 return getattr(provider, "analyze_security_patterns")(file_path, content)
-        except Exception:
-            pass
+        except Exception as ex:
+            logger.warning(f"[SemanticProviderRegistry] Security pattern analysis failed for '{file_path}': {ex}")
         return []

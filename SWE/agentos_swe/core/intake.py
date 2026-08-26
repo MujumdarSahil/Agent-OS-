@@ -130,8 +130,8 @@ class RepositoryIntake:
                         return ref_path.read_text().strip()
                 else:
                     return content
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug(f"[RepositoryIntake] Could not read .git/HEAD: {ex}")
 
         try:
             res = subprocess.run(
@@ -143,8 +143,8 @@ class RepositoryIntake:
             )
             if res.returncode == 0 and res.stdout.strip():
                 return res.stdout.strip()
-        except Exception:
-            pass
+        except Exception as ex:
+            logger.debug(f"[RepositoryIntake] git rev-parse failed: {ex}")
 
         return None
 

@@ -57,7 +57,8 @@ class PerformanceAgent(BaseInvestigatorAgent):
         findings: List[Finding] = []
         try:
             tree = ast.parse(snippet, filename=rel_file)
-        except Exception:
+        except Exception as ex:
+            logger.warning(f"[PerformanceAgent] AST parse failed for '{rel_file}': {ex}")
             return findings
 
         for node in ast.walk(tree):

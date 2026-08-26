@@ -35,6 +35,7 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.json
 
 # Logs
 *.log
@@ -46,16 +47,29 @@ Thumbs.db
 # Environment (API keys — never commit)
 .env
 
+# Linters / caches
+.ruff_cache/
+
 # AgentOS specific
 *.db
+*.sqlite
 *.faiss
 chroma_db/
 *.pem
 *.key
 *.agentpack
 keys/
+
+# Runtime outputs — generated during scans (never commit)
 outputs/
 scratch/
+
+# Generated archives
+*.zip
+
+# Operational checkpoints and state
+checkpoints/
+
 
 
 

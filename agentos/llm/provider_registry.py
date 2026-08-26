@@ -287,3 +287,22 @@ def get_available_providers() -> List[Dict[str, Any]]:
                 available.append(prov_copy)
     available.sort(key=lambda x: x["priority"])
     return available
+
+
+def is_any_provider_configured() -> bool:
+    """
+    Returns True if at least one provider in PROVIDER_REGISTRY has its required API key
+    present in os.environ, or if local Ollama server is reachable.
+    """
+    for prov in PROVIDER_REGISTRY:
+        key_env = prov.get("api_key_env")
+        if key_env and os.environ.get(key_env, "").strip():
+            return True
+    try:
+        from agentos.llm.router_factory import check_ollama_reachable
+        if check_ollama_reachable():
+            return True
+    except Exception:
+        pass
+    return False
+

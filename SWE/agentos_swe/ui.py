@@ -734,8 +734,14 @@ def run_swe_scan_engine(
 
     log_event("Starting AgentOS-SWE scan")
 
-    if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
-        os.environ["AGENTOS_MOCK_LLM"] = "1"
+    try:
+        from agentos.llm.provider_registry import is_any_provider_configured
+        if not is_any_provider_configured():
+            os.environ["AGENTOS_MOCK_LLM"] = "1"
+    except Exception:
+        if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+            os.environ["AGENTOS_MOCK_LLM"] = "1"
+
 
     scan_id = f"swe_scan_{uuid.uuid4().hex[:8]}"
     start_time_iso = datetime.now().isoformat()

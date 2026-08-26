@@ -79,8 +79,8 @@ class GraphifyAdapter(CodeGraphProvider):
                 graph_data = graphify.build_graph(repo_path)
                 self._load_from_graphify_json(graph_data)
                 return True
-        except Exception:
-            pass
+        except Exception as ex:
+            logger.warning(f"[GraphifyAdapter] Module import/build failed: {ex}")
 
         # 2. Try Graphify CLI invocation
         import shutil
@@ -96,8 +96,8 @@ class GraphifyAdapter(CodeGraphProvider):
                     data = json.loads(result.stdout)
                     self._load_from_graphify_json(data)
                     return True
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning(f"[GraphifyAdapter] CLI execution failed: {ex}")
 
         return False
 

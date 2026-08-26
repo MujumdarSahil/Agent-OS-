@@ -77,6 +77,8 @@ class InvestigationSquad(Squad):
 
         raw_findings: List[Finding] = []
 
+        print(f"[DEBUG_LLM] SQUAD: analyze_repository executing on {context.repository_path}, source_files={context.source_files}", flush=True)
+
         # 1. Execute Bug Investigation
         logger.info("[InvestigationSquad] Running BugAgent...")
         bug_findings = self.bug_agent.investigate(context)

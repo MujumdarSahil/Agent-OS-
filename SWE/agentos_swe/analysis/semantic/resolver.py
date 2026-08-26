@@ -399,8 +399,8 @@ class PythonSemanticResolver(SemanticCodeProvider):
                         provider="PythonSemanticResolver",
                         rule="framework_app_root",
                     )
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning(f"[PythonSemanticResolver] Module role resolution failed for '{file_path}': {ex}")
 
         return ModuleRoleResult(
             role=ModuleRole.LIBRARY_MODULE,

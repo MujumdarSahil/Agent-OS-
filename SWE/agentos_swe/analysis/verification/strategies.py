@@ -307,8 +307,8 @@ if __name__ == "__main__":
                 if res["success"]:
                     ev = Evidence(
                         source=EvidenceSource.TEST,
-                        kind=EvidenceKind.VERIFIED,
-                        description=f"Isolated sandbox test reproduction executed successfully for '{finding.title}'.",
+                        kind=EvidenceKind.OBSERVED,
+                        description=f"File presence check only — exploit not reproduced for '{finding.title}'.",
                         payload={"exit_code": res["exit_code"], "stdout": res["stdout"]},
                     )
                     return True, ev

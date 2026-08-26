@@ -1,4 +1,4 @@
-# AgentOS-SWE Milestone Index (M0–M30, R1–R3)
+# AgentOS-SWE Milestone Index (M0–M30, R1–R11)
 
 ## Architectural Evolution Summary
 
@@ -27,9 +27,19 @@
 - **M28**: Persistent Operational State Store & Repository Registry
 - **M29**: Security Incident Response Engine & Timeline
 - **M30**: Enterprise Release Readiness & Safety Audit
-- **R1**: Single-File UI Hardening & Rerun Safety
-- **R2**: Real-Time Execution Telemetry, Live Pipeline Visualization & Report Package Export
-- **R3**: Responsibility-Driven Repository Restructuring & Maintainability Hardening
+
+## Engineering & Hardening Passes
+
+- **R1**: Finite Execution & Scan Lifecycle Hardening — Streamlit rerun safety, IDLE→COMPLETE state machine
+- **R2**: Real-Time Execution Telemetry, Live Pipeline Visualization & 13-Artifact Report Package Export
+- **R3**: Responsibility-Driven Repository Restructuring — flat layout → 10-domain architecture
 - **R4**: Post-Restructuring Architecture Validation, Import Hardening & Facade Cleanup
-- **R5**: Production Repository Hygiene, Build Validation & Final Maintainability Hardening
+- **R5**: Production Repository Hygiene, Build Validation & Maintainability Hardening
+- **R6**: Developer Experience & GitHub Readiness — README, developer guide, documentation index
+- **R7**: Final Production Readiness & Engineering Audit — confirmed PASS across all invariants
+- **R8**: Repository Reality & Consistency Audit — found ISSUE-R8-1 (DecisionEvidence missing)
+- **R8-1**: Import Graph Regression Fix — added DecisionEvidence, restored 403/403 imports
+- **R9**: Dependency Hygiene & Final Quality Audit — verdict: RELEASE READY
+- **R10**: Production Code Quality Deep Audit — confirmed all 21 public APIs, 0 duplicate logic
+- **R11**: UI Maintainability Polish — module navigation index, section headers for all 29 pages
 

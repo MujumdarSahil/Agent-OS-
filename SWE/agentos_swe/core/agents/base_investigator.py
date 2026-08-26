@@ -70,9 +70,9 @@ class BaseInvestigatorAgent(Agent):
             return None
 
         try:
-            with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(full_path, "r", encoding="utf-8-sig", errors="replace") as f:
                 lines = [f.readline() for _ in range(max_lines)]
-                return "".join(lines)
+                return "".join(lines).lstrip("\ufeff")
         except Exception as e:
             logger.debug(f"Failed reading snippet for {relative_path}: {e}")
             return None
@@ -90,7 +90,9 @@ class BaseInvestigatorAgent(Agent):
         messages.append({"role": "user", "content": prompt})
 
         try:
+            print("[DEBUG_LLM] SQUAD: about to call LLM", flush=True)
             response = self.llm_client.complete(messages=messages)
+            print(f"[DEBUG_LLM] SQUAD: LLM call returned {response}", flush=True)
             if isinstance(response, dict):
                 choices = response.get("choices", [])
                 if choices and isinstance(choices[0], dict):

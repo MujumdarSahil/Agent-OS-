@@ -203,8 +203,8 @@ if __name__ == "__main__":
                     patched_content = f.read()
                 res = self.taint_analyzer.analyze(target_file, patched_content)
                 post_patch_taints = res.findings
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning(f"[RepairValidator] Taint analysis re-evaluation failed for '{target_file}': {ex}")
 
         # Evaluate if targeted vulnerability disappeared
         vulnerability_eliminated = True

@@ -267,7 +267,8 @@ class SecurityAgent(BaseInvestigatorAgent):
         findings: List[Finding] = []
         try:
             tree = ast.parse(snippet, filename=rel_file)
-        except Exception:
+        except Exception as ex:
+            logger.warning(f"[SecurityAgent] AST parse failed for '{rel_file}': {ex}")
             return findings
 
         for node in ast.walk(tree):
@@ -302,7 +303,13 @@ class SecurityAgent(BaseInvestigatorAgent):
                         if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
                             is_shell_true = True
                             break
-                    if is_shell_true:
+                    
+                    # Ignore hardcoded static command strings (e.g. subprocess.run("echo static", shell=True))
+                    is_static_cmd = False
+                    if node.args and isinstance(node.args[0], ast.Constant):
+                        is_static_cmd = True
+
+                    if is_shell_true and not is_static_cmd:
                         ev_ast = Evidence(
                             source=EvidenceSource.STATIC_ANALYSIS,
                             kind=EvidenceKind.OBSERVED,
@@ -310,7 +317,7 @@ class SecurityAgent(BaseInvestigatorAgent):
                             payload={"file": rel_file, "line": line_no},
                         )
                         ev_infer = Evidence(
-                            source=EvidenceSource.LLM_REASONING,
+                            source=EvidenceSource.STATIC_ANALYSIS,
                             kind=EvidenceKind.INFERRED,
                             description="shell=True with un-sanitized arguments allows command injection vulnerabilities.",
                         )
