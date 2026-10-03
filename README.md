@@ -300,8 +300,8 @@ python agentos/examples/sample_cybersecurity_squad_run.py
 
 ### MCP Demos (Teaching Examples)
 AgentOS includes two minimal teaching examples to show how agents, tools, and MCP servers connect:
-- [Demo 1: Custom Local notes.json MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
-- [Demo 2: External Context7 Documentation MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
+- [Demo 1: Custom Local notes.json MCP Server](examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
+- [Demo 2: External Context7 Documentation MCP Server](examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
 See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and detailed framework specifications.
 
