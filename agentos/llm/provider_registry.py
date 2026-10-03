@@ -18,6 +18,9 @@ LiteLLM prefixes: openrouter/, together_ai/, fireworks_ai/, deepseek/, groq/
 
 from typing import List, Dict, Any
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 from agentos.exceptions import AgentOSLLMError
 
@@ -302,7 +305,7 @@ def is_any_provider_configured() -> bool:
         from agentos.llm.router_factory import check_ollama_reachable
         if check_ollama_reachable():
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Error checking Ollama reachability: {e}")
     return False
 

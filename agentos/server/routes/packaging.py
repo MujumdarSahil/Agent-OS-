@@ -58,8 +58,8 @@ async def verify_pack(body: PackVerifyRequest, request: Request):
         if valid:
             try:
                 fingerprint = get_signer_fingerprint(body.pack_path)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Could not retrieve signer fingerprint for {body.pack_path}: {e}")
         return PackVerifyResponse(
             valid=valid,
             signer_fingerprint=fingerprint,
