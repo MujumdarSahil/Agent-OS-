@@ -36,8 +36,8 @@ def check_ollama_reachable_live(base_url: Optional[str] = None) -> bool:
         response = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=1.0)
         if response.status_code == 200:
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Ollama probe failed: {e}")
     return False
 
 

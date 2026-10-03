@@ -12,10 +12,13 @@ chain complexity needed for this use case.
 import base64
 import hashlib
 import json
+import logging
 import os
 import zipfile
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Key management
@@ -165,7 +168,8 @@ def verify_pack(pack_path: str) -> bool:
         public_key.verify(sig_bytes, digest)
         return True
 
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Signature verification failed for {pack_path}: {e}")
         return False
 
 
@@ -175,7 +179,8 @@ def get_signer_fingerprint(pack_path: str) -> Optional[str]:
         with zipfile.ZipFile(pack_path, "r") as zf:
             manifest = json.loads(zf.read("manifest.json").decode())
         return manifest.get("public_key_fingerprint")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Could not extract signer fingerprint from {pack_path}: {e}")
         return None
 
 

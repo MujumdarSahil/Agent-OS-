@@ -21,8 +21,11 @@ See PHASE3_LIMITATIONS.md for the full documented tradeoffs.
 
 import base64
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from agentos.packaging.signer import _load_private_key
 
@@ -113,7 +116,8 @@ def verify_license_str(license_key_str: str, pack_manifest: Dict[str, Any]) -> b
 
         return True
 
-    except Exception:
+    except Exception as e:
+        logger.warning(f"License key verification failed with exception: {e}")
         return False
 
 

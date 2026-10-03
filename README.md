@@ -11,16 +11,16 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
 
 - **Two-Layer Hierarchical Governance Model** (fast keyword check + optional semantic LLM-judge) for fine-grained safety policy enforcement
 - **Squad Memory Sharing Network** with layered, permissioned memories: Squad, Mission, Private, Episodic, and Autobiographical
-- **Real-Time Collaboration** using WebSockets for low-latency multi-agent interactions
-- **Multi-Agent Planning Graph (MAGP)** that models tasks/subtasks as graphs and supports negotiation and parallelization
-- **Role-Merging & Hybrid Agents** to temporarily create composite agents combining skills and memory
-- **Resource-Aware Agents** that monitor CPU, memory, API cost, tokens, and wall-time and adapt strategies
-- **Distributed MCP Skill Graph (DMSG)**: MCP servers as nodes, skills as edges, path-finding for skills
-- **Unified Memory Bus (UMB)**: semantic, pluggable memory layer across agents and squads
-- **Task Router (DMARP)**: Dynamic Multi-Agent Routing Protocol for intelligent task assignment
+- **Real-Time Collaboration**: WebSocket streaming endpoint (`/ws/runs/{run_id}`) for multi-agent event streaming (untested via automated suites; relies on dashboard connection)
+- **Multi-Agent Planning Graph (MAGP)**: Task graph construction and dependency ordering (rule-based template decomposition; dynamic negotiation and parallel execution runners are un-implemented)
+- **Role-Merging**: `Agent.merge_role()` helper for combining skill lists between agents (standalone composite `HybridAgent` classes are un-implemented)
+- **Resource Monitoring**: `ResourceMonitor` process monitoring for memory, CPU, token usage, and API costs (adaptive execution strategy adjustment is un-implemented)
+- **Distributed MCP Skill Graph (DMSG)**: `MCPRegistry` skill registration and NetworkX shortest-path routing (untested via automated pytest suites)
+- **Unified Memory Bus (UMB)**: Semantic, pluggable memory layer across agents and squads with layered permission scopes
+- **Task Router (DMARP)**: Skill-match, workload-balanced, and hybrid task assignment routing (untested via automated pytest suites)
 - **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
 - **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
-- **Expanded Fallback Chain**: Multi-provider registry including OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier, GLM-5.2 free tier, Gemma 4 31B free tier, and Nemotron 3 Nano Omni free tier), Together AI, Fireworks, DeepSeek, Hugging Face Inference API (experimental), and Ollama.
+- **Expanded Fallback Chain**: Multi-provider registry featuring **verified integration** with OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier, GLM-5.2 free tier, Gemma 4 31B free tier, and Nemotron 3 Nano Omni free tier), and local Ollama. Together AI, Fireworks, DeepSeek, and Hugging Face Inference API (experimental) entries are configured in the provider registry and supported via LiteLLM routing, pending cassette/live user API key verification.
   > **Note on Laguna S 2.1 Free Tier:** Context window is capped at **262,144 tokens** on the free endpoint (NOT full 1M). Poolside's free-tier terms state inputs/outputs may be used for training; avoid sending proprietary code.
   > **Note on Vision-Capable Models:** Models such as `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` support reading and analyzing image inputs (multimodal vision input). They perform image **reading/understanding only** and do NOT support image generation.
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
@@ -300,10 +300,22 @@ python agentos/examples/sample_cybersecurity_squad_run.py
 
 ### MCP Demos (Teaching Examples)
 AgentOS includes two minimal teaching examples to show how agents, tools, and MCP servers connect:
-- [Demo 1: Custom Local notes.json MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
-- [Demo 2: External Context7 Documentation MCP Server](file:///c:/Users/mujum/OneDrive/Desktop/Agent%20OS/examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
+- [Demo 1: Custom Local notes.json MCP Server](examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
+- [Demo 2: External Context7 Documentation MCP Server](examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
-See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and known framework limitations.
+See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and detailed framework specifications.
+
+## ⚠️ Known Limitations
+
+- **Provider Verification Status**: Multi-provider fallback chain has verified VCR cassette/mock test coverage for OpenAI, Anthropic, Gemini, Groq, OpenRouter, and Ollama. Together AI, Fireworks, DeepSeek, and Hugging Face Inference API entries are defined in `provider_registry.py` and supported via LiteLLM routing, but are marked as pending live API / VCR cassette verification until a user configures their respective API keys.
+- **Vector Store Database Drivers**: `UMBAdapter` supports vector memory integration via pluggable backends. Standard unit tests execute against in-memory (simple/FAISS) backends; external vector engines (ChromaDB, PGVector) require external database services and driver installation in host environments.
+- **Local Ollama Probe Behavior**: Connectivity probe `check_ollama_reachable()` performs non-blocking HTTP probes (`http://localhost:11434/api/tags`) with a 1.0s timeout and non-fatal logging. When Ollama is offline, calls gracefully fall back to alternative providers in the fallback chain.
+- **WebSocket Streaming**: WebSocket endpoint (`/ws/runs/{run_id}`) and `WebSocketServer` exist for execution event streaming, but lack automated unit/integration test coverage in pytest; operation relies on manual dashboard connection.
+- **MAGP Planning Scope**: `Planner` builds DAG subtask graphs and dependency ordering, but LLM-based task decomposition and dynamic agent negotiation/parallelization protocols are un-implemented (uses rule-based template decomposition and static task graphs).
+- **Role-Merging Scope**: Role-merging is implemented via `Agent.merge_role()` which combines skill lists between agents; standalone composite `HybridAgent` classes and memory merging are un-implemented.
+- **Resource Monitoring Scope**: `ResourceMonitor` collects process memory, CPU utilization, wall-time, token usage, and API costs, but adaptive agent execution strategies (automatically modifying agent behavior when thresholds are exceeded) are un-implemented and untested.
+- **DMSG Test Coverage**: `MCPRegistry` and NetworkX-based `Pathfinder` exist for registering MCP tools and finding skill paths, but lack automated pytest test suites.
+- **DMARP Task Router Test Coverage**: `TaskRouter` implements skill-matching, workload-balanced, and hybrid task assignment routing algorithms, but lacks a dedicated automated pytest test suite.
 
 ## Test Coverage
 

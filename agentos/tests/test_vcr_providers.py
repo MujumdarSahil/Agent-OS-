@@ -1,7 +1,7 @@
 import os
 import base64
 import pytest
-import vcr
+vcr = pytest.importorskip("vcr")
 from dotenv import load_dotenv
 load_dotenv()
 from unittest.mock import patch

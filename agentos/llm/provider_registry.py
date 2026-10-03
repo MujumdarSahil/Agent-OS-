@@ -18,6 +18,9 @@ LiteLLM prefixes: openrouter/, together_ai/, fireworks_ai/, deepseek/, groq/
 
 from typing import List, Dict, Any
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 from agentos.exceptions import AgentOSLLMError
 
@@ -287,3 +290,22 @@ def get_available_providers() -> List[Dict[str, Any]]:
                 available.append(prov_copy)
     available.sort(key=lambda x: x["priority"])
     return available
+
+
+def is_any_provider_configured() -> bool:
+    """
+    Returns True if at least one provider in PROVIDER_REGISTRY has its required API key
+    present in os.environ, or if local Ollama server is reachable.
+    """
+    for prov in PROVIDER_REGISTRY:
+        key_env = prov.get("api_key_env")
+        if key_env and os.environ.get(key_env, "").strip():
+            return True
+    try:
+        from agentos.llm.router_factory import check_ollama_reachable
+        if check_ollama_reachable():
+            return True
+    except Exception as e:
+        logger.debug(f"Error checking Ollama reachability: {e}")
+    return False
+

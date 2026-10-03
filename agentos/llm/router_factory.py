@@ -33,8 +33,8 @@ def check_ollama_reachable() -> bool:
         response = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=1.0)
         if response.status_code == 200:
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Ollama connectivity probe failed: {e}")
     return False
 
 def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
