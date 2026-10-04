@@ -319,18 +319,13 @@ async def get_job_status(model_id: str, token: str = Depends(verify_token)):
 
 @app.get("/api/modelhub/metrics")
 async def get_modelhub_metrics(token: str = Depends(verify_token)):
-    """Get ModelHub metrics (stub)."""
+    """Get ModelHub metrics (not tracked)."""
     try:
-        from agentos.modelhub.llm_connector import LLMConnector  # noqa: F401
-
         return {
             "success": True,
-            "metrics": {
-                "total_tokens": 1000,
-                "total_calls": 50,
-                "cache_hit_rate": 0.3,
-                "average_latency": 0.5,
-            },
+            "status": "not_tracked",
+            "metrics": None,
+            "message": "Usage and token metrics are not currently tracked.",
         }
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
@@ -525,20 +520,14 @@ async def get_job_status(model_id: str, token: str = Depends(verify_token)):
 
 @app.get("/api/modelhub/metrics")
 async def get_modelhub_metrics(token: str = Depends(verify_token)):
-    """Get ModelHub metrics"""
+    """Get ModelHub metrics (not tracked)."""
     try:
-        
-        # Stub metrics
         return {
             "success": True,
-            "metrics": {
-                "total_tokens": 1000,
-                "total_calls": 50,
-                "cache_hit_rate": 0.3,
-                "average_latency": 0.5,
-            }
+            "status": "not_tracked",
+            "metrics": None,
+            "message": "Usage and token metrics are not currently tracked.",
         }
-    
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))

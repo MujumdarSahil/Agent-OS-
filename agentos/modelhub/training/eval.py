@@ -41,13 +41,10 @@ class ModelEvaluator:
             "metrics": {},
         }
         
+        results["status"] = "not_implemented"
+        results["message"] = "Model evaluation metric computation is not implemented yet."
         for metric in metrics:
-            if metric == "accuracy":
-                results["metrics"]["accuracy"] = 0.85  # Stub
-            elif metric == "f1":
-                results["metrics"]["f1"] = 0.82  # Stub
-            elif metric == "hallucination_rate":
-                results["metrics"]["hallucination_rate"] = 0.05  # Stub
+            results["metrics"][metric] = None
         
         logger.info(f"Evaluation completed for {model_id}")
         return results
