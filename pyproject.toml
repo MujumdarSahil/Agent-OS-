@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=65", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentos"
@@ -47,7 +47,7 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 
 [tool.setuptools.packages.find]
 where = [".", "SWE"]
-include = ["agentos*"]
+include = ["agentos*", "agentos_swe*"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "SWE"]

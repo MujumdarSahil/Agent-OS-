@@ -2,14 +2,14 @@
 AgentOS-SWE - Autonomous Software Verification and Repair System
 """
 
-from agentos_swe.core.exceptions import (
+from .core.exceptions import (
     AgentOSSWEError,
     RepositoryError,
     GraphProviderError,
     GraphBuildError,
     RepositoryContextError,
 )
-from agentos_swe.core.models import (
+from .core.models import (
     NodeType,
     RelationType,
     FindingStatus,
@@ -20,19 +20,19 @@ from agentos_swe.core.models import (
     Evidence,
     Finding,
 )
-from agentos_swe.analysis.graph import CodeGraphProvider, GraphifyAdapter
-from agentos_swe.core.intake import RepositoryIntake
-from agentos_swe.core.context import RepositoryContext, build_repository_context
-from agentos_swe.core.agents import (
+from .analysis.graph import CodeGraphProvider, GraphifyAdapter
+from .core.intake import RepositoryIntake
+from .core.context import RepositoryContext, build_repository_context
+from .core.agents import (
     BaseInvestigatorAgent,
     BugAgent,
     SecurityAgent,
     PerformanceAgent,
     ArchitectureAgent,
 )
-from agentos_swe.core.aggregator import FindingAggregator
-from agentos_swe.core.squad import InvestigationSquad
-from agentos_swe.analysis.verification import (
+from .core.aggregator import FindingAggregator
+from .core.squad import InvestigationSquad
+from .analysis.verification import (
     IsolatedSandbox,
     StaticVerificationStrategy,
     GraphVerificationStrategy,
@@ -40,7 +40,7 @@ from agentos_swe.analysis.verification import (
     VerificationAgent,
     VerificationPipeline,
 )
-from agentos_swe.remediation.repair import (
+from .remediation.repair import (
     ImpactReport,
     FixPlan,
     PatchResult,
@@ -54,7 +54,7 @@ from agentos_swe.remediation.repair import (
     IndependentPatchReviewer,
     RepairPipeline,
 )
-from agentos_swe.remediation.pr import (
+from .remediation.pr import (
     RiskLevel,
     GovernanceDecision,
     RiskAssessment,
@@ -67,13 +67,13 @@ from agentos_swe.remediation.pr import (
     PRDescriptionGenerator,
     PRPipeline,
 )
-from agentos_swe.security import (
+from .security import (
     ResourceLimits,
     ExecutionMetrics,
     CommandPolicy,
     SecretProtection,
 )
-from agentos_swe.observability import (
+from .observability import (
     TraceEvent,
     AgentMetrics,
     FindingMetrics,
@@ -82,7 +82,7 @@ from agentos_swe.observability import (
     TraceCollector,
     ReportGenerator,
 )
-from agentos_swe.benchmark import (
+from .benchmark import (
     GroundTruthCase,
     ExpectedStatus,
     DetectionMetrics,
@@ -95,7 +95,7 @@ from agentos_swe.benchmark import (
     ResilienceExperiments,
     BenchmarkRunner,
 )
-from agentos_swe.analysis.semantic import (
+from .analysis.semantic import (
     SemanticCategory,
     SemanticCallResult,
     ExceptionIntent,

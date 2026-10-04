@@ -21,8 +21,8 @@ setup(
     description="A production-grade multi-agent framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/agentos/agentos",
-    packages=find_packages(),
+    package_dir={"": ".", "agentos_swe": "SWE/agentos_swe"},
+    packages=find_packages() + ["agentos_swe"] + [f"agentos_swe.{p}" for p in find_packages(where="SWE/agentos_swe")],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
