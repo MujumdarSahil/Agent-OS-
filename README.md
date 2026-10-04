@@ -26,6 +26,12 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
 - **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](docs/EXTENDING.md) for details.
 
+## 🛡️ AgentOS-SWE Extension
+
+AgentOS includes **AgentOS-SWE**, an enterprise autonomous software verification, security intelligence, and automated repair platform built on the AgentOS framework. It provides a complete 13-stage security engineering lifecycle — from AST code graph intake to automated repair proposal generation and release readiness scoring across a single-file 29-page Streamlit dashboard.
+
+For complete documentation, system architecture, dashboard guide, and security lifecycle details, see **[README_SWE.md](README_SWE.md)**.
+
 ## Installation
 
 ```bash

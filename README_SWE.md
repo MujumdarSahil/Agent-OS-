@@ -486,37 +486,32 @@ The following documented limitations describe the exact current capabilities and
 - **One-Hop Literal Heuristic (Taint Tracking Scope)**: Subprocess `shell=True` detection checks whether the command argument is an `ast.Constant` literal. It does not perform full inter-procedural data-flow tracking or recognize validation gates; sanitized dynamic values produce false positives identical to un-sanitized values (documented test case: `sanitized_but_dynamic.py`).
 - **Secret Scanning Pattern Scope**: Secret scanning in `SecurityAgent._scan_secrets` detects hardcoded credentials matching AWS Access Keys (`AKIA...`), GitHub Personal Access Tokens (`ghp_...`), and generic variable assignments containing key/password/secret/token keywords. Sentinels, redacted tokens, and placeholders (`YOUR_API_KEY_HERE`, `sk-mock-key-*`, `[REDACTED_*]`, `***`) are filtered out. Non-standard key formats or unassigned string literals without keyword variable names fall outside static regex pattern scope.
 - **Sandbox Verification Scope**: The isolated sandbox test reproduction fixture confirms source file existence on disk (`os.path.exists`), not exploit execution or payload reproduction (`File presence check only — exploit not reproduced`).
+- **Repair Generation Scope**: Deterministic repair generation in `IntelligentRepairEngine` maps identified vulnerability root causes (e.g., `COMMAND_INJECTION`, `SQL_INJECTION`, `UNSAFE_DESERIALIZATION`, `EXCEPTION_SWALLOWING`) to pattern-replacement strategies (e.g., converting `shell=True` to `shell=False`, `pickle.loads` to `json.loads`, `yaml.load` to `yaml.safe_load`). The generated patch diff preserves AST syntax validity (`ast.parse`) and array-based subprocess execution semantics, but relies on pre-coded pattern transformations rather than arbitrary LLM code synthesis.
 - **Security Score Model**: The score displayed to users across the UI dashboard, report bundle (`security.json`, `executive_summary.md`), and release readiness evaluation is **currently authoritative** via `risk_reduction.py`'s `current_security_score` model (clamped floor of 10 for un-remediated high/critical findings). A separate linear deduction formula exists in `history/scoring.py` (`SecurityScorer`), but is **not** used for the displayed score — it is used internally by `HistoricalComparator` (`intelligence/history/comparator.py`) strictly for historical scan delta comparison and score trend analysis.
 
 ---
 
-## 📸 Screenshots & Demo
+## 📸 Dashboard & User Interface
 
-> **Note**: Screenshots should be captured by running the dashboard against the built-in `Synthetic Benchmark` scan mode, which requires no external repository.
+AgentOS-SWE features a single-file Streamlit dashboard (`SWE/agentos_swe/ui.py`) providing 29 dedicated visualization and control pages across the full security engineering lifecycle.
 
-### Recommended Screenshots to Capture
-
-To launch the dashboard for screenshot capture:
+### Launching the Dashboard
 
 ```bash
 AGENTOS_SWE_DRY_RUN=1 AGENTOS_MOCK_LLM=1 streamlit run SWE/agentos_swe/ui.py
 ```
 
-Then select **"Synthetic Benchmark"** as the Scan Mode and click **"🔍 START SWE SCAN"**.
+Select **"Synthetic Benchmark"** as the Scan Mode and click **"🔍 START SWE SCAN"** to execute a self-contained, offline audit without requiring external target repositories or live LLM credentials.
 
-| # | Page | What to Capture |
-| :--- | :--- | :--- |
-| 1 | **Executive Overview** (Page 1) | Final verdict banner, repository info card, metric columns |
-| 2 | **Pipeline Timeline** (Page 9) | Live 19-stage execution with green checkmarks and timings |
-| 3 | **Terminal Console** | Real-time terminal telemetry output with stage events |
-| 4 | **Findings Explorer** (Page 4) | Finding cards with severity badges and code context |
-| 5 | **Attack Paths** (Page 15) | Multi-hop attack graph visualization |
-| 6 | **Security Decision Center** (Page 23) | Global decision banner and policy evaluation |
-| 7 | **Security Drift Center** (Page 25) | Drift score and baseline delta chart |
-| 8 | **Security Operations Control Plane** (Page 26) | Operational health dashboard |
-| 9 | **Incident Response** (Page 28) | Active incident timeline |
-| 10 | **Enterprise Release Readiness** (Page 29) | Release score gauge and gate evaluation table |
-| 11 | **Report Download** (Page 10) | Report bundle structure and download button |
+### Primary Interface Views (29 Pages)
+
+| Page Category | Key Views & Features |
+| :--- | :--- |
+| **Overview & Intake** | Executive Overview (P1), Agent Activity (P2), Code Graph (P3), Findings Explorer (P4) |
+| **Security & Intelligence** | Security/Taint (P5), Vulnerability Intelligence (P12), Priority Tiers (P14), Multi-Hop Attack Paths (P15) |
+| **Remediation & Governance** | Remediation Center (P16), Security Decision Center (P23), Enterprise Release Readiness (P29) |
+| **Operations & Incident** | Security Drift Center (P25), Control Plane (P26), Incident Response (P28) |
+| **Observability & Reports** | Pipeline Timeline (P9), Safety Panel (P11), 13-Artifact Report Downloads (P10) |
 
 ---
 
