@@ -32,6 +32,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_PLACEHOLDER_REGEX = re.compile(
+    r"(?i)(redacted|placeholder|your[_-]?api[_-]?key|your[_-]|dummy|example|change[_-]?me|fixme|\*{3,}|<[^>]+>)"
+)
+
 SECRET_PATTERNS = [
     (r"(?i)(api[_-]?key|secret[_-]?key|password|auth[_-]?token)\s*=\s*['\"]([^'\"]{8,})['\"]", "Hardcoded Secret / Password"),
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
@@ -244,6 +248,9 @@ class SecurityAgent(BaseInvestigatorAgent):
             for pattern, title in SECRET_PATTERNS:
                 match = re.search(pattern, line)
                 if match:
+                    val = match.group(2) if (match.lastindex and match.lastindex >= 2) else match.group(0)
+                    if _PLACEHOLDER_REGEX.search(val):
+                        continue
                     ev_secret = Evidence(
                         source=EvidenceSource.STATIC_ANALYSIS,
                         kind=EvidenceKind.OBSERVED,

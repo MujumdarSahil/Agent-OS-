@@ -77,6 +77,24 @@ def test_security_agent_investigation(tmp_path):
         assert f.category == "security"
 
 
+def test_security_agent_secret_scanning_precision():
+    agent = SecurityAgent()
+
+    real_code = "aws_key = 'AKIA1234567890ABCDEF'\napi_key = 'sk-proj-QGjoaPmdYf7ykJQF2vuaAkhkEmyvFk0vpET43LfhhoNhs8E'\n"
+    real_findings = agent._scan_secrets("config_auth.py", real_code)
+    assert len(real_findings) == 2
+    assert any(f.title == "AWS Access Key ID" for f in real_findings)
+    assert any(f.title == "Hardcoded Secret / Password" for f in real_findings)
+
+    fp_code = "user_id = '123e4567-e89b-12d3-a456-426614174000'\nmock_key = 'sk-mock-key-12345'\napi_key = 'YOUR_API_KEY_HERE'\n"
+    fp_findings = agent._scan_secrets("config_auth.py", fp_code)
+    assert len(fp_findings) == 0
+
+    redacted_code = "aws_key = 'AKIA***REDACTED***'\napi_key = 'sk-***REDACTED***'\n"
+    redacted_findings = agent._scan_secrets("config_auth.py", redacted_code)
+    assert len(redacted_findings) == 0
+
+
 def test_performance_agent_investigation(tmp_path):
     repo_dir = tmp_path / "perf_repo"
     repo_dir.mkdir()
