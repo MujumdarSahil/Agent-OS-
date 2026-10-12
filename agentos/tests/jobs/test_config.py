@@ -34,6 +34,15 @@ def test_default_db_path_is_outside_repo():
         db_path.relative_to(repo_root)
 
 
+def test_default_db_path_localappdata_unset(monkeypatch: pytest.MonkeyPatch):
+    """When LOCALAPPDATA is unset or empty, get_default_db_path falls back safely."""
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    from agentos.jobs.config import get_default_db_path
+    path = get_default_db_path()
+    assert path.name == "jobs.db"
+    assert "jobs" in path.parts
+
+
 def test_repo_path_db_rejected():
     """Confirm paths inside the repository directory are rejected."""
     repo_root = get_repo_root()

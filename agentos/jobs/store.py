@@ -82,7 +82,15 @@ MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_audit_log_job_id ON audit_log(job_id);
         """,
-    )
+    ),
+    (
+        2,
+        "Add raw_count and parsed_count tracking to source_health table",
+        """
+        ALTER TABLE source_health ADD COLUMN last_raw_count INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE source_health ADD COLUMN last_parsed_count INTEGER NOT NULL DEFAULT 0;
+        """,
+    ),
 ]
 
 
@@ -382,6 +390,8 @@ class JobStore:
         source: str,
         success: bool,
         error_message: Optional[str] = None,
+        raw_count: int = 0,
+        parsed_count: int = 0,
     ) -> None:
         """Records execution health metrics for a source adapter."""
         now_str = datetime.now(timezone.utc).isoformat()
@@ -393,24 +403,56 @@ class JobStore:
             if success:
                 if row:
                     conn.execute(
-                        "UPDATE source_health SET last_success_at = ?, consecutive_failures = 0, last_error_message = NULL WHERE source = ?",
-                        (now_str, source),
+                        """
+                        UPDATE source_health SET
+                            last_success_at = ?,
+                            consecutive_failures = 0,
+                            last_error_message = NULL,
+                            last_raw_count = ?,
+                            last_parsed_count = ?
+                        WHERE source = ?
+                        """,
+                        (now_str, raw_count, parsed_count, source),
                     )
                 else:
                     conn.execute(
-                        "INSERT INTO source_health (source, last_success_at, consecutive_failures) VALUES (?, ?, 0)",
-                        (source, now_str),
+                        """
+                        INSERT INTO source_health (
+                            source, last_success_at, consecutive_failures, last_raw_count, last_parsed_count
+                        ) VALUES (?, ?, 0, ?, ?)
+                        """,
+                        (source, now_str, raw_count, parsed_count),
                     )
             else:
                 consecutive = (row["consecutive_failures"] + 1) if row else 1
                 if row:
                     conn.execute(
-                        "UPDATE source_health SET last_error_at = ?, consecutive_failures = ?, last_error_message = ? WHERE source = ?",
-                        (now_str, consecutive, error_message, source),
+                        """
+                        UPDATE source_health SET
+                            last_error_at = ?,
+                            consecutive_failures = ?,
+                            last_error_message = ?,
+                            last_raw_count = ?,
+                            last_parsed_count = ?
+                        WHERE source = ?
+                        """,
+                        (now_str, consecutive, error_message, raw_count, parsed_count, source),
                     )
                 else:
                     conn.execute(
-                        "INSERT INTO source_health (source, last_error_at, consecutive_failures, last_error_message) VALUES (?, ?, ?, ?)",
-                        (source, now_str, consecutive, error_message),
+                        """
+                        INSERT INTO source_health (
+                            source, last_error_at, consecutive_failures, last_error_message, last_raw_count, last_parsed_count
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (source, now_str, consecutive, error_message, raw_count, parsed_count),
                     )
             conn.commit()
+
+    def get_source_health(self, source: str) -> Optional[Dict[str, Any]]:
+        """Retrieves source health row for a source."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM source_health WHERE source = ?", (source,))
+            row = cursor.fetchone()
+            return dict(row) if row else None

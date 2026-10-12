@@ -11,6 +11,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Set
 from pydantic import BaseModel, Field, model_validator
 
+from agentos.jobs.normalize import compute_dedupe_key
+
 
 class JobStatus(str, Enum):
     """Lifecycle status states for a job opportunity."""
@@ -133,6 +135,5 @@ class Job(BaseModel):
     @model_validator(mode="after")
     def compute_dedupe_key(self) -> Job:
         if not self.dedupe_key:
-            normalized = f"{self.company.lower().strip()}|{self.title.lower().strip()}|{self.location.lower().strip()}"
-            self.dedupe_key = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+            self.dedupe_key = compute_dedupe_key(self.company, self.title, self.location)
         return self

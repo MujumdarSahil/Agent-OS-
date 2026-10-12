@@ -24,8 +24,8 @@ def get_default_db_path() -> Path:
     """Returns the default SQLite DB path outside the repository."""
     if os.name == "nt":
         local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            base = Path(local_app_data)
+        if local_app_data and local_app_data.strip():
+            base = Path(local_app_data.strip())
         else:
             base = Path.home() / "AppData" / "Local"
         return base / "AgentOS" / "jobs" / "jobs.db"
@@ -65,6 +65,19 @@ class JobsConfig(BaseModel):
     run_timeout_seconds: int = Field(default=300, gt=0)
     db_path: str = Field(default_factory=lambda: str(get_default_db_path()))
     notify_email_enabled: bool = False
+    greenhouse_boards: List[str] = Field(default_factory=list)
+
+    @field_validator("greenhouse_boards", mode="after")
+    @classmethod
+    def validate_greenhouse_boards(cls, v: List[str]) -> List[str]:
+        import re
+        for board in v:
+            if not re.match(r"^[a-z0-9_-]{1,64}$", board):
+                raise ValueError(
+                    f"Invalid Greenhouse board token '{board}'. "
+                    f"Must match ^[a-z0-9_-]{{1,64}}$ to prevent URL injection."
+                )
+        return v
 
     @field_validator("db_path", mode="after")
     @classmethod

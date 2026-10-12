@@ -7,11 +7,9 @@ import subprocess
 
 
 def test_feature_flag_defaults():
-    """Confirm feature flag is disabled by default across package and config."""
-    import agentos.jobs
+    """Confirm JobsConfig.enabled is the single source of truth and disabled by default."""
     from agentos.jobs.config import JobsConfig
 
-    assert agentos.jobs.ENABLED is False
     assert JobsConfig().enabled is False
 
 

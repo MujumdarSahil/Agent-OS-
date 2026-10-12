@@ -12,7 +12,7 @@ from agentos.jobs.models import (
     ScoreComponent,
     InvalidStatusTransitionError,
 )
-from agentos.jobs.store import JobStore, apply_migrations
+from agentos.jobs.store import JobStore, apply_migrations, MIGRATIONS
 
 
 def test_migrations_fresh_db_and_idempotence(tmp_path: Path):
@@ -21,16 +21,16 @@ def test_migrations_fresh_db_and_idempotence(tmp_path: Path):
 
     # Run migrations once
     store = JobStore(db_file)
-    assert store.get_schema_version() == 1
+    assert store.get_schema_version() == len(MIGRATIONS)
 
     # Re-running migrations manually must return 0 new migrations applied
     with sqlite3.connect(db_file) as conn:
         applied_again = apply_migrations(conn)
         assert applied_again == 0
 
-    # Instantiating store a second time remains at version 1
+    # Instantiating store a second time remains at latest version
     store2 = JobStore(db_file)
-    assert store2.get_schema_version() == 1
+    assert store2.get_schema_version() == len(MIGRATIONS)
 
 
 def test_upsert_idempotency_and_last_seen_update(tmp_path: Path):
@@ -192,3 +192,44 @@ def test_run_and_source_health_logging(tmp_path: Path):
     # Source health: 1 failure then 1 success
     store.record_source_health("test_feed", success=False, error_message="HTTP 500")
     store.record_source_health("test_feed", success=True)
+
+
+def test_store_creates_missing_parent_directory(tmp_path: Path):
+    """Confirm JobStore creates any missing parent directory for db_path."""
+    deep_db = tmp_path / "deep" / "nested" / "dir" / "jobs.db"
+    assert not deep_db.parent.exists()
+    store = JobStore(deep_db)
+    assert deep_db.parent.exists()
+    assert deep_db.exists()
+    assert store.get_schema_version() == len(MIGRATIONS)
+
+
+def test_stored_timestamps_are_timezone_aware_utc(tmp_path: Path):
+    """Confirm all stored timestamps are parseable as timezone-aware UTC ISO-8601 strings."""
+    from datetime import datetime
+    db_file = tmp_path / "test_ts.db"
+    store = JobStore(db_file)
+
+    job = Job(
+        source="feed",
+        source_job_id="ts-1",
+        company="TechCorp",
+        title="Developer",
+        location="Remote",
+        url="https://example.com/ts-1",
+    )
+    saved = store.upsert_job(job)
+
+    dt_first = datetime.fromisoformat(saved.first_seen)
+    assert dt_first.tzinfo is not None
+    assert dt_first.utcoffset().total_seconds() == 0
+
+    dt_last = datetime.fromisoformat(saved.last_seen)
+    assert dt_last.tzinfo is not None
+    assert dt_last.utcoffset().total_seconds() == 0
+
+    logs = store.get_audit_log(saved.id)
+    assert len(logs) == 1
+    dt_audit = datetime.fromisoformat(logs[0]["created_at"])
+    assert dt_audit.tzinfo is not None
+    assert dt_audit.utcoffset().total_seconds() == 0

@@ -21,6 +21,9 @@ locations:
 # Enabled source adapter names
 sources: []
 
+# Greenhouse public board tokens (e.g. anthropic, databricks)
+greenhouse_boards: []
+
 # LLM provider governance: default empty (no LLM calls allowed)
 allowed_providers: []
 max_llm_calls_per_run: 0
