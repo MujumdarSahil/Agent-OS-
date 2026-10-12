@@ -1,0 +1,33 @@
+# AgentOS Job Application Agent Configuration Example
+# Generic defaults only — no personal, secret, or specific salary values.
+
+enabled: false
+
+# Search preferences
+roles:
+  - "Software Engineer"
+  - "Machine Learning Engineer"
+
+experience_min: 2
+experience_max: 8
+
+locations:
+  - "Remote"
+
+# Optional salary bounds (in annual USD)
+# salary_min: 100000
+# salary_max: 180000
+
+# Enabled source adapter names
+sources: []
+
+# LLM provider governance: default empty (no LLM calls allowed)
+allowed_providers: []
+max_llm_calls_per_run: 0
+
+# Execution constraints
+run_timeout_seconds: 300
+notify_email_enabled: false
+
+# Database path (optional override; default stores in %LOCALAPPDATA%/AgentOS/jobs/jobs.db)
+# db_path: "C:/Data/AgentOS/jobs/jobs.db"
