@@ -464,6 +464,20 @@ class TestProviderFallbackOrderingCharacterization:
                     models_fast = [m["litellm_params"]["model"] for m in router_fast.model_list]
                     assert models_fast[0] == "openai/mock-fast"
 
+    def test_is_any_provider_configured_truthy(self):
+        from agentos.llm.provider_registry import is_any_provider_configured
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-mock-key"}):
+            assert is_any_provider_configured() is True
+
+    def test_is_any_provider_configured_falsy_and_ollama(self):
+        from agentos.llm.provider_registry import is_any_provider_configured
+        clean_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+        with patch.dict(os.environ, clean_env, clear=True):
+            with patch("agentos.llm.router_factory.check_ollama_reachable", return_value=False):
+                assert is_any_provider_configured() is False
+            with patch("agentos.llm.router_factory.check_ollama_reachable", return_value=True):
+                assert is_any_provider_configured() is True
+
 
 # =====================================================================
 # 6. CLI Characterization Tests (new-project, validate, run) [MOCK]
