@@ -1,9 +1,9 @@
 # AgentOS Framework
 
 [![CI Build Status](https://github.com/MujumdarSahil/Agent-OS-/actions/workflows/ci.yml/badge.svg)](https://github.com/MujumdarSahil/Agent-OS-/actions)
-[![Coverage Status](https://img.shields.io/badge/Coverage-98%25-green.svg)](#test-coverage)
+[![Coverage Status](https://img.shields.io/badge/Coverage-48%25-yellow.svg)](#test-coverage)
 
-A production-grade, research-worthy, and startup-ready multi-agent framework built on top of **CrewAI**, **LangChain/LangGraph**, and **LiteLLM**. Instead of reinventing agent execution from scratch, AgentOS integrates these powerful libraries under a clean, class-based interface, supporting squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity.
+A multi-agent framework built on top of **CrewAI** and **LiteLLM** (with experimental/stub **LangGraph** hooks). Instead of reinventing agent execution from scratch, AgentOS integrates these libraries under a clean, class-based interface, supporting squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity. Note: LangGraph execution is currently a stub (`to_langgraph_node()` raises `NotImplementedError`) planned for formal evaluation in the Phase 1.5 flow engine spike.
 
 ## Features
 
@@ -20,7 +20,7 @@ A production-grade, research-worthy, and startup-ready multi-agent framework bui
 - **Task Router (DMARP)**: Skill-match, workload-balanced, and hybrid task assignment routing (untested via automated pytest suites)
 - **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
 - **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
-- **Expanded Fallback Chain**: Multi-provider registry featuring **verified integration** with OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier, GLM-5.2 free tier, Gemma 4 31B free tier, and Nemotron 3 Nano Omni free tier), and local Ollama. Together AI, Fireworks, DeepSeek, and Hugging Face Inference API (experimental) entries are configured in the provider registry and supported via LiteLLM routing, pending cassette/live user API key verification.
+- **Expanded Fallback Chain**: Multi-provider registry featuring **verified integration** with OpenAI, Anthropic, Gemini, Groq, OpenRouter (including Poolside Laguna S 2.1 free tier, GLM-5.2 free tier, and Gemma 4 31B free tier), and local Ollama. Together AI, Fireworks, DeepSeek, OpenRouter Nemotron 3 Nano Omni free tier (recorded upstream 504 abort during test capture; pending clean live recording), and Hugging Face Inference API (experimental) entries are configured in the provider registry and supported via LiteLLM routing, pending cassette/live user API key verification.
   > **Note on Laguna S 2.1 Free Tier:** Context window is capped at **262,144 tokens** on the free endpoint (NOT full 1M). Poolside's free-tier terms state inputs/outputs may be used for training; avoid sending proprietary code.
   > **Note on Vision-Capable Models:** Models such as `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` support reading and analyzing image inputs (multimodal vision input). They perform image **reading/understanding only** and do NOT support image generation.
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
@@ -311,36 +311,47 @@ AgentOS includes two minimal teaching examples to show how agents, tools, and MC
 
 See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and detailed framework specifications.
 
-## ⚠️ Known Limitations
+## ⚠️ Known Limitations & Claims Audit
 
-- **Provider Verification Status**: Multi-provider fallback chain has verified VCR cassette/mock test coverage for OpenAI, Anthropic, Gemini, Groq, OpenRouter, and Ollama. Together AI, Fireworks, DeepSeek, and Hugging Face Inference API entries are defined in `provider_registry.py` and supported via LiteLLM routing, but are marked as pending live API / VCR cassette verification until a user configures their respective API keys.
-- **Vector Store Database Drivers**: `UMBAdapter` supports vector memory integration via pluggable backends. Standard unit tests execute against in-memory (simple/FAISS) backends; external vector engines (ChromaDB, PGVector) require external database services and driver installation in host environments.
+- **Provider Verification Status**: Multi-provider fallback chain has verified VCR cassette/mock test coverage for OpenAI, Anthropic, Gemini, Groq, OpenRouter (Poolside Laguna S 2.1, GLM-5.2, Gemma 4 31B), and Ollama. Together AI, Fireworks, DeepSeek, OpenRouter Nemotron 3 Nano Omni (recorded upstream 504 abort during test capture), and Hugging Face Inference API entries are configured in `provider_registry.py` and supported via LiteLLM routing, but are marked as pending live API / VCR cassette verification.
+- **UMB Vector Backends**: `UMBAdapter` requested backends `faiss`, `chroma`, and `pgvector` are un-implemented and emit explicit `UserWarning` / `logger.warning` events while safely falling back to the built-in in-memory `SimpleVectorStore`.
+- **LangGraph Integration**: Agent execution is built on CrewAI and LiteLLM; LangGraph node generation (`Agent.to_langgraph_node()`) is an experimental stub raising `NotImplementedError`, scheduled for evaluation in Phase 1.5 flow engine spike.
+- **Agent Strategies (`agentos/core/agent_strategies/`)**: `ReActStrategy`, `PALStrategy`, `PlanActReflectStrategy`, and `TreeOfThoughtsStrategy` are experimental code stubs (`_think` and `_act` return static mock dictionaries), have zero imports in core Agent classes, and are untested.
+- **Model Cascades & Safety Verifiers**: `ModelCascade` (`modelhub/safety/model_cascade.py`) is an un-tested stub returning formatted string drafts without executing real LLM calls. `VerifierModel` implements regex/keyword checks for toxicity/policy violations; hallucination verification is a hardcoded score stub.
+- **Multi-Squad Federation**: `FederatedMission` implements ordered sequential handoffs (Squad A → Squad B) via context string injection with stage-level checkpointing; parallel squad execution, cross-squad shared memory, and dynamic negotiation protocols are un-implemented.
+- **DMSG MCP Registry**: `MCPRegistry` (`agentos/dmsg/registry.py`) maintains an in-memory dictionary of metadata nodes and auto-registers local mock security MCP tools; it does not connect to external servers over STDIO/SSE directly.
+- **Squad Memory Layers**: `Episodic` and `Autobiographical` exist solely as enum values in `MemoryPermission`; there is no episodic consolidation, reflection, or decay engine. `Squad.shared_memory_ref` is stored on the instance but is not accessed by `run_mission()`.
 - **Local Ollama Probe Behavior**: Connectivity probe `check_ollama_reachable()` performs non-blocking HTTP probes (`http://localhost:11434/api/tags`) with a 1.0s timeout and non-fatal logging. When Ollama is offline, calls gracefully fall back to alternative providers in the fallback chain.
 - **WebSocket Streaming**: WebSocket endpoint (`/ws/runs/{run_id}`) and `WebSocketServer` exist for execution event streaming, but lack automated unit/integration test coverage in pytest; operation relies on manual dashboard connection.
 - **MAGP Planning Scope**: `Planner` builds DAG subtask graphs and dependency ordering, but LLM-based task decomposition and dynamic agent negotiation/parallelization protocols are un-implemented (uses rule-based template decomposition and static task graphs).
 - **Role-Merging Scope**: Role-merging is implemented via `Agent.merge_role()` which combines skill lists between agents; standalone composite `HybridAgent` classes and memory merging are un-implemented.
 - **Resource Monitoring Scope**: `ResourceMonitor` collects process memory, CPU utilization, wall-time, token usage, and API costs, but adaptive agent execution strategies (automatically modifying agent behavior when thresholds are exceeded) are un-implemented and untested.
-- **DMSG Test Coverage**: `MCPRegistry` and NetworkX-based `Pathfinder` exist for registering MCP tools and finding skill paths, but lack automated pytest test suites.
-- **DMARP Task Router Test Coverage**: `TaskRouter` implements skill-matching, workload-balanced, and hybrid task assignment routing algorithms, but lacks a dedicated automated pytest test suite.
+- **Task Router (DMARP) Test Coverage**: `TaskRouter` implements skill-matching, workload-balanced, and hybrid task assignment routing algorithms, but lacks a dedicated automated pytest test suite.
 
 ## Test Coverage
 
-We maintain a high standard of coverage across our core orchestration and LLM integration layers:
+Overall framework test coverage: **48%** (measured across 11,091 statements by `pytest --cov=agentos` offline with mock LLM). Core orchestration, state, and provider layers maintain high verification:
 
-| Module / File | Coverage |
-| :--- | :---: |
-| `agentos/core/checkpoint.py` | 94% |
-| `agentos/core/governance.py` | 91% |
-| `agentos/core/squad.py` | 89% |
-| `agentos/core/federation.py` | 88% |
-| `agentos/core/umb_adapter.py` | 98% |
-| `agentos/llm/llm_client.py` | 80% |
-| `agentos/llm/router_factory.py` | 80% |
-| `agentos/llm/provider_registry.py` | 100% |
+| Module / File | Statements | Missing | Coverage | Status |
+| :--- | :---: | :---: | :---: | :---: |
+| `agentos/core/checkpoint.py` | 70 | 4 | **94%** | Verified (Unit + Characterization) |
+| `agentos/core/governance.py` | 299 | 27 | **91%** | Verified (Unit + LLM Judge) |
+| `agentos/core/agent.py` | 96 | 10 | **90%** | Verified (Unit + CrewAI Mock) |
+| `agentos/core/squad.py` | 210 | 23 | **89%** | Verified (Sequential Execution) |
+| `agentos/core/federation.py` | 104 | 13 | **88%** | Verified (Sequential Handoff) |
+| `agentos/core/umb_adapter.py` | 158 | 3 | **98%** | Verified (SimpleVectorStore + Fallback Warning) |
+| `agentos/core/config_models.py` | 33 | 0 | **100%** | Verified (Pydantic Validation) |
+| `agentos/llm/llm_client.py` | 184 | 8 | **96%** | Verified (Fallback & Mock Routing) |
+| `agentos/llm/router_factory.py` | 62 | 12 | **81%** | Verified (Priority & Tags Ordering) |
+| `agentos/llm/provider_registry.py` | 33 | 11 | **67%** | Verified (Cassette / Available Checks) |
+| `agentos/server/app.py` | 76 | 9 | **88%** | Verified (FastAPI Routes) |
+| `agentos/server/run_manager.py` | 66 | 6 | **91%** | Verified (Async State Tracking) |
+| `agentos/packaging/signer.py` | 97 | 14 | **86%** | Verified (Ed25519 Signing) |
+| `agentos/packaging/pack_format.py` | 141 | 35 | **75%** | Verified (.agentpack Archive) |
 
 To run the coverage test suite locally, use:
 ```bash
-pytest --cov=agentos --cov-report=term-missing
+pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=term
 ```
 
 ## License

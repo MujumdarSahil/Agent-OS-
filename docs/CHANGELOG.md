@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - 2026-10-17
+### Added
+- **v1 Characterization Suite** (`agentos/tests/test_characterization_v1.py`): 32 offline characterization tests pinning current behavior for `RunManager`, `SQLiteCheckpointStore`, `UMBAdapter`, `config_models`, provider routing, and CLI (`new-project`, `validate`, `run`).
+- **UMB Fallback Warning**: `UMBAdapter` now emits explicit `warnings.warn(..., UserWarning)` and `logger.warning(...)` when requested backends (`faiss`, `chroma`, `pgvector`) safely fall back to `SimpleVectorStore`.
+
+### Removed
+- **Dead Duplicate Backends & UIs**: Removed `agentos/ui/backend`, `agentos/ui/frontend` (and untracked committed node_modules), and `agentos/ui/streamlit_app.py` in favor of unified `agentos/server/`.
+- **Dead Stubs**: Removed `agentos/core/kg_integration.py` and `agentos/core/kg_rag.py` after verifying zero imports and zero references across the repository.
+
+### Changed
+- **Provider Verification & Triage**: Triaged `openrouter_nemotron_3_nano_omni_free` cassette (upstream 504 abort during test recording); marked Nemotron 3 Nano Omni as unverified in `README.md` and skipped replay in VCR suite pending fresh live recording.
+- **Claims Audit & Coverage Correction**: Replaced static 98% coverage badge and table with real metrics from fresh `pytest --cov=agentos` run (48% overall framework coverage). Documented execution limitations for LangGraph (stub raising `NotImplementedError`), `agent_strategies/` (stubs), model cascades, and squad memory layers.
+
 ## [0.2.0] - 2026-07-01
 ### Added
 - Created `agentos/__version__.py` as the single source of truth for the package version.
