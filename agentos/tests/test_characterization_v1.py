@@ -257,16 +257,47 @@ class TestUMBAdapterCharacterization:
     """
 
     @pytest.mark.parametrize("requested_backend", ["faiss", "chroma", "pgvector", "simple", "other_backend"])
-    def test_silent_fallback_to_simple_vector_store(self, requested_backend):
-        adapter = UMBAdapter(backend=requested_backend)
+    def test_fallback_store_type_and_warning(self, requested_backend):
+        if requested_backend == "simple":
+            adapter = UMBAdapter(backend=requested_backend)
+        else:
+            with pytest.warns(UserWarning, match="falling back to SimpleVectorStore"):
+                adapter = UMBAdapter(backend=requested_backend)
         assert adapter.backend_type == requested_backend
-        # In current v1, all requested backends instantiate SimpleVectorStore
         assert isinstance(adapter.store, SimpleVectorStore)
+        assert type(adapter.store) is SimpleVectorStore
+
+    @pytest.mark.parametrize("backend", ["faiss", "chroma", "pgvector"])
+    @pytest.mark.asyncio
+    async def test_fallback_backend_does_not_persist_across_reinstantiation(self, backend):
+        """
+        Pins CURRENT v1 behavior: Because requested backends fall back to the in-memory
+        SimpleVectorStore, state is volatile and does NOT persist across new instances.
+        """
+        with pytest.warns(UserWarning):
+            adapter1 = UMBAdapter(backend=backend)
+        await adapter1.upsert({
+            "id": "ephemeral_doc",
+            "text": "Ephemeral memory entry",
+            "metadata": {"test": "reinstantiation"}
+        })
+        results1 = await adapter1.query("Ephemeral", top_k=5)
+        assert len(results1) == 1
+        assert results1[0]["id"] == "ephemeral_doc"
+
+        # Re-instantiate adapter with the same backend
+        with pytest.warns(UserWarning):
+            adapter2 = UMBAdapter(backend=backend)
+        results2 = await adapter2.query("Ephemeral", top_k=5)
+        # Asserts data did NOT persist across re-instantiation
+        assert len(results2) == 0
+        assert len(adapter2.store.entries) == 0
 
     @pytest.mark.asyncio
     async def test_fallback_store_operations_work(self):
         # Verify store operations function normally despite fallback
-        adapter = UMBAdapter(backend="faiss")
+        with pytest.warns(UserWarning):
+            adapter = UMBAdapter(backend="faiss")
         entry_id = await adapter.upsert({
             "id": "doc1",
             "text": "Antigravity characterization test document",
