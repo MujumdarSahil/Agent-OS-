@@ -2,9 +2,9 @@ name: CI Build & Lint
 
 on:
   push:
-    branches: [ main, framework ]
+    branches: [ main, framework, "2.0" ]
   pull_request:
-    branches: [ main, framework ]
+    branches: [ main, framework, "2.0" ]
 
 jobs:
   python-ci:
