@@ -70,6 +70,13 @@ scratch/
 # Operational checkpoints and state
 checkpoints/
 
+# Frontend / Node
+node_modules/
+.env.local
+
+# Database storage
+mongo_data/
+
 
 
 

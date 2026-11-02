@@ -2,9 +2,9 @@ name: CI Build & Lint
 
 on:
   push:
-    branches: [ main, framework ]
+    branches: [ main, framework, "2.0" ]
   pull_request:
-    branches: [ main, framework ]
+    branches: [ main, framework, "2.0" ]
 
 jobs:
   python-ci:
@@ -24,12 +24,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest-cov ruff pip-audit
+          pip install -e .
+          pip install -e examples/external_plugin_demo
 
       - name: Run Tests with Coverage
         env:
           AGENTOS_MOCK_LLM: "1"
         run: |
-          pytest --cov=agentos --cov-report=json
+          pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=json
 
       - name: Enforce Core & LLM Coverage
         run: |
@@ -62,7 +64,7 @@ jobs:
 
       - name: Audit Frontend Dependencies
         working-directory: agentos/frontend
-        run: npm audit
+        run: npm audit --audit-level=critical
 
       - name: Run ESLint
         working-directory: agentos/frontend
