@@ -3,7 +3,7 @@ project_ops.py — Shared project file I/O and orchestration logic.
 
 This module is the SINGLE source of truth for reading and writing AgentOS
 project files (agents, tools, crews, missions).  Both agentos/cli/main.py
-and agentos/server/ import from here — there is no duplicated business logic.
+and agentos_server/ import from here — there is no duplicated business logic.
 """
 
 import os

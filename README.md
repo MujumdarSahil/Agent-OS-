@@ -293,10 +293,10 @@ If you prefer to run the components in separate terminals:
 
 ```bash
 # Start the FastAPI backend
-python -m uvicorn agentos.server.app:create_app --factory --reload --port 8000
+python -m uvicorn agentos_server.app:create_app --factory --reload --port 8000
 
 # Start the React frontend
-cd agentos/frontend
+cd ui
 npm install
 npm run dev -- --port 5173
 ```
@@ -344,14 +344,14 @@ Overall framework test coverage: **49%** (measured across 11,110 statements by `
 | `agentos/llm/llm_client.py` | 184 | 8 | **96%** | Verified (Fallback & Mock Routing) |
 | `agentos/llm/router_factory.py` | 62 | 12 | **81%** | Verified (Priority & Tags Ordering) |
 | `agentos/llm/provider_registry.py` | 33 | 11 | **67%** | Verified (Cassette / Available Checks) |
-| `agentos/server/app.py` | 76 | 9 | **88%** | Verified (FastAPI Routes) |
-| `agentos/server/run_manager.py` | 66 | 6 | **91%** | Verified (Async State Tracking) |
+| `agentos_server/app.py` | 76 | 9 | **88%** | Verified (FastAPI Routes) |
+| `agentos_server/run_manager.py` | 66 | 6 | **91%** | Verified (Async State Tracking) |
 | `agentos/packaging/signer.py` | 97 | 14 | **86%** | Verified (Ed25519 Signing) |
 | `agentos/packaging/pack_format.py` | 141 | 35 | **75%** | Verified (.agentpack Archive) |
 
 To run the coverage test suite locally, use:
 ```bash
-pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=term
+pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=term
 ```
 
 ## License
