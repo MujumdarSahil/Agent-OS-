@@ -124,15 +124,26 @@ async def test_simple_vector_store_edge_cases():
 
 @pytest.mark.asyncio
 async def test_umb_backends():
-    """Test initializing different backends"""
-    umb_faiss = UMBAdapter(backend="faiss")
+    """Test initializing different backends emits UserWarning and falls back to SimpleVectorStore"""
+    with pytest.warns(UserWarning, match="falling back to SimpleVectorStore"):
+        umb_faiss = UMBAdapter(backend="faiss")
     assert umb_faiss.backend_type == "faiss"
+    assert isinstance(umb_faiss.store, SimpleVectorStore)
     
-    umb_chroma = UMBAdapter(backend="chroma")
+    with pytest.warns(UserWarning, match="falling back to SimpleVectorStore"):
+        umb_chroma = UMBAdapter(backend="chroma")
     assert umb_chroma.backend_type == "chroma"
+    assert isinstance(umb_chroma.store, SimpleVectorStore)
+
+    with pytest.warns(UserWarning, match="falling back to SimpleVectorStore"):
+        umb_pgvector = UMBAdapter(backend="pgvector")
+    assert umb_pgvector.backend_type == "pgvector"
+    assert isinstance(umb_pgvector.store, SimpleVectorStore)
     
-    umb_other = UMBAdapter(backend="other_unknown")
+    with pytest.warns(UserWarning, match="falling back to SimpleVectorStore"):
+        umb_other = UMBAdapter(backend="other_unknown")
     assert umb_other.backend_type == "other_unknown"
+    assert isinstance(umb_other.store, SimpleVectorStore)
 
 
 @pytest.mark.asyncio

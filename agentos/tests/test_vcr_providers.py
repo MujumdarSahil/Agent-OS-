@@ -22,6 +22,8 @@ def test_provider_endpoint(prov):
     # We skip ollama tests because they require a local running instance
     if "ollama" in name:
         pytest.skip("Skipping Ollama provider test (requires local service)")
+    if name == "openrouter_nemotron_3_nano_omni_free":
+        pytest.skip("Nemotron 3 Nano Omni cassette recorded upstream 504 abort; marked unverified in README")
         
     cassette_path = os.path.join("agentos/tests/cassettes", f"{name}.yaml")
     cassette_exists = os.path.exists(cassette_path)

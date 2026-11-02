@@ -6,6 +6,10 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import uuid
+import logging
+import warnings
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryPermission(Enum):
@@ -140,13 +144,21 @@ class UMBAdapter:
         # Initialize backend
         if backend == "simple":
             self.store = SimpleVectorStore()
-        elif backend == "faiss":
-            # TODO: Implement FAISS backend
-            self.store = SimpleVectorStore()
-        elif backend == "chroma":
-            # TODO: Implement Chroma backend
+        elif backend in ("faiss", "chroma", "pgvector"):
+            msg = (
+                f"Requested UMB backend '{backend}' is not implemented; "
+                f"falling back to SimpleVectorStore."
+            )
+            logger.warning(msg)
+            warnings.warn(msg, UserWarning, stacklevel=2)
             self.store = SimpleVectorStore()
         else:
+            msg = (
+                f"Unrecognized UMB backend '{backend}'; "
+                f"falling back to SimpleVectorStore."
+            )
+            logger.warning(msg)
+            warnings.warn(msg, UserWarning, stacklevel=2)
             self.store = SimpleVectorStore()
     
     def _default_embedding(self, text: str) -> List[float]:

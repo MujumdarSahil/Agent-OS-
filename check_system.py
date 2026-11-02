@@ -312,7 +312,7 @@ async def check_ui_backend():
     results = {}
     
     try:
-        from agentos.ui.backend.main import app
+        from agentos.server.app import app
         results["FastAPI App"] = True
         print_success("FastAPI backend imported")
         
