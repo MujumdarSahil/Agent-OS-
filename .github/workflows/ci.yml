@@ -31,7 +31,7 @@ jobs:
         env:
           AGENTOS_MOCK_LLM: "1"
         run: |
-          pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=json
+          pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=json
 
       - name: Enforce Core & LLM Coverage
         run: |
@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Python Linter (ruff)
         run: |
-          ruff check agentos
+          ruff check agentos agentos_server
 
       - name: Run Dependency Audit (pip-audit check for HIGH/CRITICAL)
         run: |
@@ -56,20 +56,20 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: agentos/frontend/package-lock.json
+          cache-dependency-path: ui/package-lock.json
 
       - name: Install Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm install
 
       - name: Audit Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm audit --audit-level=critical
 
       - name: Run ESLint
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run lint
 
       - name: Type Check and Build Frontend
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run build

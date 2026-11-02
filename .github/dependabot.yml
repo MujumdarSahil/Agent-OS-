@@ -6,6 +6,6 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "npm"
-    directory: "/agentos/frontend"
+    directory: "/ui"
     schedule:
       interval: "weekly"
