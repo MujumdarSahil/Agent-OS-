@@ -12,4 +12,4 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 . "$ENV_FILE"
-echo "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:27017/?replicaSet=rs0&authSource=admin"
+echo "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:${AGENTOS_MONGO_PORT:-27017}/?replicaSet=rs0&authSource=admin"

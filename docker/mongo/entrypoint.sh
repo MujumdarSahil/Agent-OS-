@@ -11,4 +11,5 @@ fi
 chmod 400 "$KEYFILE"
 chown mongodb:mongodb "$KEYFILE"
 
-exec docker-entrypoint.sh mongod --replSet rs0 --keyFile "$KEYFILE" --bind_ip_all
+exec docker-entrypoint.sh mongod --replSet rs0 --keyFile "$KEYFILE" --bind_ip_all \
+  --port "${AGENTOS_MONGO_PORT:-27017}"

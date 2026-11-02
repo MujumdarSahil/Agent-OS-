@@ -6,6 +6,10 @@
 #
 # Published on 127.0.0.1 only. Credentials live in docker/.env.mongo (gitignored);
 # the replica-set keyfile is generated inside the container on first start.
+#
+# Port: set AGENTOS_MONGO_PORT (default 27017) in the shell for both steps if another
+# MongoDB already uses 27017. mongod listens on the same port inside the container
+# because a replica-set member advertises its own host:port to clients.
 name: agentos-mongo
 
 services:
@@ -15,8 +19,10 @@ services:
     restart: unless-stopped
     entrypoint: ["bash", "/agentos/entrypoint.sh"]
     env_file: .env.mongo
+    environment:
+      AGENTOS_MONGO_PORT: "${AGENTOS_MONGO_PORT:-27017}"
     ports:
-      - "127.0.0.1:27017:27017"
+      - "127.0.0.1:${AGENTOS_MONGO_PORT:-27017}:${AGENTOS_MONGO_PORT:-27017}"
     volumes:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
@@ -26,10 +32,10 @@ services:
       test:
         - CMD-SHELL
         - >
-          mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD"
+          mongosh --quiet --port "$$AGENTOS_MONGO_PORT"
+          -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD"
           --authenticationDatabase admin --eval
-          "try { rs.status().myState === 1 ? 0 : 1 } catch (e) {
-             rs.initiate({_id: 'rs0', members: [{_id: 0, host: '127.0.0.1:27017'}]}); 1 }"
+          "try { rs.status().myState === 1 ? 0 : 1 } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: '127.0.0.1:' + process.env.AGENTOS_MONGO_PORT}]}); 1 }"
           | grep -q '^0$$'
       interval: 5s
       timeout: 10s

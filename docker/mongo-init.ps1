@@ -16,5 +16,6 @@ if (-not (Test-Path $envFile)) {
 
 $vals = @{}
 Get-Content $envFile | ForEach-Object { $k, $v = $_ -split '=', 2; $vals[$k] = $v }
-$uri = "mongodb://$($vals.MONGO_INITDB_ROOT_USERNAME):$($vals.MONGO_INITDB_ROOT_PASSWORD)@127.0.0.1:27017/?replicaSet=rs0&authSource=admin"
+$port = if ($env:AGENTOS_MONGO_PORT) { $env:AGENTOS_MONGO_PORT } else { "27017" }
+$uri = "mongodb://$($vals.MONGO_INITDB_ROOT_USERNAME):$($vals.MONGO_INITDB_ROOT_PASSWORD)@127.0.0.1:$port/?replicaSet=rs0&authSource=admin"
 Write-Host "`nSet for this shell:`n  `$env:AGENTOS_MONGO_URI=`"$uri`""
