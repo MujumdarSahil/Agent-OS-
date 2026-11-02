@@ -2,7 +2,7 @@
 FastAPI app factory for the AgentOS backend server.
 
 Usage:
-    from agentos.server.app import create_app
+    from agentos_server.app import create_app
     app = create_app(project_path="/path/to/my-project")
 """
 
@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from agentos.server.run_manager import RunManager
+from agentos_server.run_manager import RunManager
 from agentos.core.governance import GovernanceEngine
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     # Load API keys from .env (repo root first, then project directory overrides)
     try:
         from dotenv import load_dotenv
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         root_env = os.path.join(repo_root, ".env")
         if os.path.exists(root_env):
             load_dotenv(root_env)
@@ -94,20 +94,20 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     # -----------------------------------------------------------------------
     # Register API routes
     # -----------------------------------------------------------------------
-    from agentos.server.routes.health import router as health_router
-    from agentos.server.routes.agents import router as agents_router
-    from agentos.server.routes.tools import router as tools_router
-    from agentos.server.routes.crews import router as crews_router
-    from agentos.server.routes.missions import router as missions_router
-    from agentos.server.routes.runs import router as runs_router
-    from agentos.server.routes.checkpoints import router as checkpoints_router
-    from agentos.server.routes.builder import router as builder_router
-    from agentos.server.routes.mcp_plugins import router as mcp_router
-    from agentos.server.routes.governance import router as governance_router
-    from agentos.server.routes.packaging import router as packaging_router
-    from agentos.server.routes.templates import router as templates_router
-    from agentos.server.routes.federation import router as federation_router
-    from agentos.server.routes.providers import router as providers_router
+    from agentos_server.routes.health import router as health_router
+    from agentos_server.routes.agents import router as agents_router
+    from agentos_server.routes.tools import router as tools_router
+    from agentos_server.routes.crews import router as crews_router
+    from agentos_server.routes.missions import router as missions_router
+    from agentos_server.routes.runs import router as runs_router
+    from agentos_server.routes.checkpoints import router as checkpoints_router
+    from agentos_server.routes.builder import router as builder_router
+    from agentos_server.routes.mcp_plugins import router as mcp_router
+    from agentos_server.routes.governance import router as governance_router
+    from agentos_server.routes.packaging import router as packaging_router
+    from agentos_server.routes.templates import router as templates_router
+    from agentos_server.routes.federation import router as federation_router
+    from agentos_server.routes.providers import router as providers_router
 
     app.include_router(health_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
@@ -125,12 +125,12 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app.include_router(providers_router, prefix="/api")
 
     # -----------------------------------------------------------------------
-    # Serve built frontend in production mode
+    # Serve built frontend in production mode: packaged copy first (wheel
+    # installs), then the ui/ build output (source checkouts).
     # -----------------------------------------------------------------------
-    frontend_dist = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "agentos", "frontend", "dist",
-    )
+    package_static = os.path.join(os.path.dirname(__file__), "static")
+    checkout_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "dist")
+    frontend_dist = package_static if os.path.isfile(os.path.join(package_static, "index.html")) else checkout_dist
     if os.path.exists(frontend_dist):
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
         logger.info(f"Serving frontend from {frontend_dist}")

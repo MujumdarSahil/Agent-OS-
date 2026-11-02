@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 from agentos.core.config_models import MissionYAMLConfig
 from agentos.core.project_ops import list_missions, write_mission, read_mission, is_valid_project
-from agentos.server.models import RunStartResponse, RunRequest
+from agentos_server.models import RunStartResponse, RunRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["missions"])

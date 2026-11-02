@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.core.checkpoint import SQLiteCheckpointStore
-from agentos.server.models import CheckpointRecord
+from agentos_server.models import CheckpointRecord
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["checkpoints"])

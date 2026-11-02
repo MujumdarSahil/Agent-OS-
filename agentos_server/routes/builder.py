@@ -17,7 +17,7 @@ from agentos.builder.tool_builder import ToolBuilder
 from agentos.builder.crew_builder import CrewBuilder
 from agentos.core.project_ops import load_project_config
 from agentos.llm import LLMClient
-from agentos.server.models import (
+from agentos_server.models import (
     BuilderDescriptionRequest,
     BuilderPreviewResponse,
     BuilderConfirmRequest,
