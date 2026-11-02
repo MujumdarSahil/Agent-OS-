@@ -1,0 +1,12 @@
+> AGENTOS_MONGO_PORT=27018 docker compose -f docker/compose.mongo.yml down -v && up -d --wait   (fresh volumes)
+Container agentos-mongo Healthy (exit=0)
+> docker ps
+agentos-mongo | Up 48 seconds (healthy) | 127.0.0.1:27018->27018/tcp
+> docker exec agentos-mongo ls -l /data/configdb/rs0.keyfile
+-r-------- 1 mongodb mongodb 1024 Nov  2 11:11 /data/configdb/rs0.keyfile
+> unauthenticated: mongosh --eval 'db.adminCommand({listDatabases:1})'
+MongoServerError: Command listDatabases requires authentication
+> host-side PyMongo check (replicaSet URI, credentials from docker/.env.mongo, not printed)
+{'set': 'rs0', 'members': [('127.0.0.1:27018', 'PRIMARY')]}
+topology: rs0 primary via replicaSet URI ok
+wrong password rejected: OperationFailure
