@@ -661,6 +661,93 @@ def build_crew(
 
 
 # =====================================================================
+# STORAGE TRANSFER COMMANDS (2.0, sub-milestone 1.3)
+# =====================================================================
+
+def _print_transfer_report(report, title: str) -> None:
+    table = Table(title=title)
+    table.add_column("Entity", style="cyan")
+    table.add_column("Count", justify="right")
+    for kind, n in sorted(report.counts.items()):
+        table.add_row(kind, str(n))
+    console.print(table)
+    if report.secrets_imported:
+        console.print(f"[green]Encrypted into the vault:[/green] {', '.join(report.secrets_imported)}")
+    for line in report.skipped:
+        console.print(f"[yellow]Skipped:[/yellow] {line}")
+
+
+async def _open_transfer_storage(backend: str, mongo_uri: Optional[str], db: Optional[str], directory: Optional[str]):
+    from agentos.storage import open_storage
+
+    if backend == "file":
+        if not directory:
+            console.print("[bold red]Error:[/bold red] --dir is required with the file backend.")
+            raise typer.Exit(code=1)
+        return await open_storage(directory, backend="file")
+    return await open_storage(backend=backend, mongo_uri=mongo_uri, db_name=db)
+
+
+@app.command("import")
+def import_cmd(
+    project_path: str,
+    to: str = typer.Option("mongo", "--to", help="Target backend: mongo or file"),
+    mongo_uri: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_URI", show_default=False,
+                                            help="MongoDB URI (prefer the AGENTOS_MONGO_URI env var)"),
+    db: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_DB", help="MongoDB database name"),
+    target_dir: Optional[str] = typer.Option(None, "--dir", help="Target project directory for --to file"),
+    no_env: bool = typer.Option(False, "--no-env", help="Do not import provider keys from the project's .env"),
+):
+    """Import a v1 YAML project into a storage backend; .env provider keys go into the encrypted vault."""
+    import asyncio
+    from agentos.security.vault import MasterKey, Vault
+    from agentos.storage.transfer import import_project
+
+    async def _run():
+        target = await _open_transfer_storage(to, mongo_uri, db, target_dir)
+        try:
+            vault = None if no_env else Vault(target.credentials, MasterKey.load())
+            return await import_project(project_path, target, vault=vault, import_env=not no_env)
+        finally:
+            await target.close()
+
+    try:
+        report = asyncio.run(_run())
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    _print_transfer_report(report, f"Imported {project_path} into {to}")
+
+
+@app.command("export")
+def export_cmd(
+    out_dir: str,
+    source: str = typer.Option("mongo", "--from", help="Source backend: mongo or file"),
+    mongo_uri: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_URI", show_default=False,
+                                            help="MongoDB URI (prefer the AGENTOS_MONGO_URI env var)"),
+    db: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_DB", help="MongoDB database name"),
+    source_dir: Optional[str] = typer.Option(None, "--dir", help="Source project directory for --from file"),
+):
+    """Export a storage backend to a v1-compatible project directory. Credentials are never exported."""
+    import asyncio
+    from agentos.storage.transfer import export_project
+
+    async def _run():
+        src = await _open_transfer_storage(source, mongo_uri, db, source_dir)
+        try:
+            return await export_project(src, out_dir)
+        finally:
+            await src.close()
+
+    try:
+        report = asyncio.run(_run())
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    _print_transfer_report(report, f"Exported {source} to {out_dir}")
+
+
+# =====================================================================
 # PACKAGING COMMANDS (Phase 3)
 # =====================================================================
 
