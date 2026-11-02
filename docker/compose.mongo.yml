@@ -1,0 +1,41 @@
+# AgentOS Platform-mode MongoDB: single-node replica set "rs0" with keyfile auth.
+#
+#   1. Create credentials once:   pwsh docker/mongo-init.ps1   (or: sh docker/mongo-init.sh)
+#   2. Start:                     docker compose -f docker/compose.mongo.yml up -d --wait
+#   3. Use the AGENTOS_MONGO_URI printed by step 1.
+#
+# Published on 127.0.0.1 only. Credentials live in docker/.env.mongo (gitignored);
+# the replica-set keyfile is generated inside the container on first start.
+name: agentos-mongo
+
+services:
+  mongo:
+    image: mongo:8.0
+    container_name: agentos-mongo
+    restart: unless-stopped
+    entrypoint: ["bash", "/agentos/entrypoint.sh"]
+    env_file: .env.mongo
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - ./mongo/entrypoint.sh:/agentos/entrypoint.sh:ro
+    healthcheck:
+      # Initiates the replica set on first run, then reports healthy once this node is PRIMARY.
+      test:
+        - CMD-SHELL
+        - >
+          mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin --eval
+          "try { rs.status().myState === 1 ? 0 : 1 } catch (e) {
+             rs.initiate({_id: 'rs0', members: [{_id: 0, host: '127.0.0.1:27017'}]}); 1 }"
+          | grep -q '^0$$'
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  mongo-data:
+  mongo-config:
