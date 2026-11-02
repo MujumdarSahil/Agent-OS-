@@ -167,6 +167,15 @@ async def test_mcp_server_roundtrip_defaults_disabled(storage):
     assert got == server and got.enabled is False
 
 
+def test_timestamps_are_utc_millisecond_precision():
+    # BSON stores milliseconds; normalising in the model keeps both backends lossless.
+    from datetime import datetime, timezone
+
+    run = RunRecord(run_id="r", mission_name="m", created_at=datetime(2026, 1, 2, 3, 4, 5, 678901))
+    assert run.created_at == datetime(2026, 1, 2, 3, 4, 5, 678000, tzinfo=timezone.utc)
+    assert utcnow().microsecond % 1000 == 0
+
+
 def test_mcp_server_requires_target():
     with pytest.raises(ValidationError):
         MCPServerRecord(name="x", transport="stdio")

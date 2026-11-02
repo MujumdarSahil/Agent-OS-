@@ -6,16 +6,27 @@ v1 projects. Everything else is new in 2.0.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AfterValidator, BaseModel, Field, model_validator
 
 from agentos.core.config_models import AgentYAMLConfig, CrewYAMLConfig, MissionYAMLConfig
 from agentos.core.project_ops import _slug
 
 
+def _normalize_ts(value: datetime) -> datetime:
+    """UTC, millisecond precision: what BSON can store, so every backend round-trips exactly."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    value = value.astimezone(timezone.utc)
+    return value.replace(microsecond=value.microsecond // 1000 * 1000)
+
+
+Timestamp = Annotated[datetime, AfterValidator(_normalize_ts)]
+
+
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return _normalize_ts(datetime.now(timezone.utc))
 
 
 def entity_key(name: str) -> str:
@@ -90,8 +101,8 @@ class EncryptedSecretRecord(BaseModel):
     nonce: str  # base64
     ciphertext: str  # base64, includes the GCM tag
     hint: str = ""  # masked display value, never the secret
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+    created_at: Timestamp = Field(default_factory=utcnow)
+    updated_at: Timestamp = Field(default_factory=utcnow)
 
 
 class RunRecord(BaseModel):
@@ -102,8 +113,8 @@ class RunRecord(BaseModel):
     outputs: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
     provider: Optional[str] = None
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+    created_at: Timestamp = Field(default_factory=utcnow)
+    updated_at: Timestamp = Field(default_factory=utcnow)
 
 
 class EventRecord(BaseModel):
@@ -112,4 +123,4 @@ class EventRecord(BaseModel):
     seq: int = Field(..., ge=1)
     type: str
     data: Dict[str, Any] = Field(default_factory=dict)
-    ts: datetime = Field(default_factory=utcnow)
+    ts: Timestamp = Field(default_factory=utcnow)
