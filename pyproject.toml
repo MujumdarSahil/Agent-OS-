@@ -19,6 +19,32 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 
+# Runtime dependencies of the wheel. requirements.txt stays the full dev/CI set.
+# Heavy or optional backends are extras (spec principle 7); their adapters import
+# them lazily and fall back with a warning when missing.
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "crewai>=0.28.8",
+    "litellm>=1.35.0",
+    "langchain-core>=0.1.30",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "cryptography>=41.0.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.0.0", "transformers>=4.35.0", "peft>=0.7.0", "bitsandbytes>=0.41.0"]
+vector = ["faiss-cpu>=1.7.4", "chromadb>=0.4.0"]
+postgres = ["psycopg2-binary>=2.9.0"]
+ui-legacy = ["streamlit>=1.40.0"]
+dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "flake8>=6.1.0", "vcrpy>=6.0.0"]
+
 # NOTE: keep setup.py temporarily in place for editable install compatibility.
 # pyproject.toml is the authoritative metadata source going forward.
 # The console_scripts entry point is duplicated here from setup.py.
@@ -47,7 +73,11 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 
 [tool.setuptools.packages.find]
 where = [".", "SWE"]
-include = ["agentos*", "agentos_swe*"]
+include = ["agentos*", "agentos_server*", "agentos_swe*"]
+
+# Built React UI ships inside agentos_server (copied by `npm run build:package` in ui/).
+[tool.setuptools.package-data]
+agentos_server = ["static/*", "static/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "SWE"]
