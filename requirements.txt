@@ -21,6 +21,9 @@ transformers>=4.35.0
 peft>=0.7.0
 bitsandbytes>=0.41.0
 
+# Platform mode storage (optional; wheel extra: agentos[platform])
+pymongo>=4.13,<5
+
 # Vector databases (optional)
 faiss-cpu>=1.7.4
 chromadb>=0.4.0
