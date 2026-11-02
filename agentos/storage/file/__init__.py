@@ -29,8 +29,10 @@ from agentos.storage.models import (
     AgentRecord,
     EncryptedSecretRecord,
     EventRecord,
+    PROJECT_SETTINGS,
     MCPServerRecord,
     MissionRecord,
+    ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
     SquadRecord,
@@ -323,10 +325,20 @@ class FileEventRepository:
 
 
 class FileCheckpointRepository:
-    """Async wrapper over the v1 SQLiteCheckpointStore (same db file the v1 runtime uses)."""
+    """
+    Async wrapper over the v1 SQLiteCheckpointStore (same db file the v1 runtime uses).
+    The db is opened on first use, so reading a project never creates files in it.
+    """
 
     def __init__(self, project_path: str):
-        self._store = SQLiteCheckpointStore(os.path.join(project_path, "checkpoints", "run_history.db"))
+        self._db_path = os.path.join(project_path, "checkpoints", "run_history.db")
+        self._store_instance: Optional[SQLiteCheckpointStore] = None
+
+    @property
+    def _store(self) -> SQLiteCheckpointStore:
+        if self._store_instance is None:
+            self._store_instance = SQLiteCheckpointStore(self._db_path)
+        return self._store_instance
 
     async def save_checkpoint(self, mission_id: str, task_index: int, state: Dict[str, Any]) -> None:
         await asyncio.to_thread(self._store.save_checkpoint, mission_id, task_index, dict(state))
@@ -339,6 +351,30 @@ class FileCheckpointRepository:
 
     async def mark_complete(self, mission_id: str) -> None:
         await asyncio.to_thread(self._store.mark_complete, mission_id)
+
+
+class FileSettingsRepository:
+    """``agentos.config.yaml`` exposed as the single "project" settings record."""
+
+    def __init__(self, project_path: str):
+        self._p = project_path
+        self._path = Path(project_path) / "agentos.config.yaml"
+
+    async def list(self) -> List[ProjectSettingsRecord]:
+        record = await self.get(PROJECT_SETTINGS)
+        return [record] if record else []
+
+    async def get(self, name: str) -> Optional[ProjectSettingsRecord]:
+        if entity_key(name) != PROJECT_SETTINGS or not self._path.exists():
+            return None
+        return ProjectSettingsRecord(**project_ops.load_project_config(self._p).model_dump())
+
+    async def put(self, item: ProjectSettingsRecord) -> None:
+        # File names are the files themselves here, so v1_file_names is not persisted.
+        _atomic_write(self._path, yaml.safe_dump(item.model_dump(exclude={"name", "v1_file_names"})))
+
+    async def delete(self, name: str) -> bool:
+        raise ReadOnlyEntityError("agentos.config.yaml defines the project; delete the project directory instead")
 
 
 def default_vault_path() -> Path:
@@ -362,4 +398,6 @@ def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> St
         runs=FileRunRepository(project_path),
         checkpoints=FileCheckpointRepository(project_path),
         events=FileEventRepository(project_path),
+        settings=FileSettingsRepository(project_path),
+        location=project_path,
     )
