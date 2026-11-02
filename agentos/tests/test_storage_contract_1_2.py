@@ -61,15 +61,22 @@ async def storage(request, tmp_path):
         yield s
 
 
+def _mongo_unavailable(reason: str):
+    # CI's mongo-live job sets AGENTOS_REQUIRE_LIVE_MONGO=1 so a broken Mongo fails instead of skipping.
+    if os.environ.get("AGENTOS_REQUIRE_LIVE_MONGO") == "1":
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 async def _live_mongo_storage():
     """Yield Mongo storage on a throwaway database, or skip with the LIVE reason."""
     if not MONGO_URI:
-        pytest.skip(MONGO_SKIP_REASON)
+        _mongo_unavailable(MONGO_SKIP_REASON)
     db_name = f"agentos_test_{uuid.uuid4().hex[:12]}"
     try:
         s = await open_storage(backend="mongo", mongo_uri=MONGO_URI, db_name=db_name)
     except Exception as e:  # server selection timeout, auth failure, ...
-        pytest.skip(f"{MONGO_SKIP_REASON} ({type(e).__name__}: {e})")
+        _mongo_unavailable(f"{MONGO_SKIP_REASON} ({type(e).__name__}: {e})")
     yield s
     await s.close()
     from pymongo import AsyncMongoClient
