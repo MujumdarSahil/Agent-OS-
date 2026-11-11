@@ -13,6 +13,7 @@ observability, Phase 4 intelligence + model connectivity, Phase 5 ML Studio + re
 
 ## Environment
 Windows, PowerShell. Python: `.\venv\Scripts\python.exe`. Mock LLM: `$env:AGENTOS_MOCK_LLM="1"`.
+When saving raw output in Windows PowerShell, use `| Tee-Object -FilePath <f> -Encoding utf8` (PowerShell 7) or `| Out-File -Encoding utf8`.
 Docker Desktop must be running for LIVE tests (check with `docker ps`).
 Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `agentos_server`
 (`agentos.server.*` is a deprecated alias shim).
