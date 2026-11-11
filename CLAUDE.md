@@ -45,6 +45,8 @@ After 1.1b (server tests moved): agentos/tests + agentos_server/tests + agentos/
 196 passed, 17 skipped (169 + 27 restructure tests). `python check_wheel_install.py` must pass.
 After 1.2: same suites 222 passed, 28 skipped without Mongo (the extra 11 are LIVE Mongo cases,
 skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 233 passed, 17 skipped.
+After 1.3: same suites 253 passed, 32 skipped without Mongo (the extra 15 are LIVE Mongo cases,
+skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 268 passed, 17 skipped.
 LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (set AGENTOS_MONGO_PORT if
 27017 is taken; this machine runs a native MongoDB service on 27017, use 27018).
 
