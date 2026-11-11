@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
 
-from agentos.server.models import ToolScaffoldRequest, ToolInfo
+from agentos_server.models import ToolScaffoldRequest, ToolInfo
 from agentos.core.project_ops import list_tools, scaffold_tool, is_valid_project
 
 logger = logging.getLogger(__name__)

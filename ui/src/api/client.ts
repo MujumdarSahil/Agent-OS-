@@ -7,7 +7,7 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Types mirroring agentos/server/models.py
+// Types mirroring agentos_server/models.py
 
 export interface Agent {
   name: string

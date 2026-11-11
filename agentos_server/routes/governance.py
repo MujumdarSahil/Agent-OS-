@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.core.governance import GovernanceEngine
-from agentos.server.models import PolicyInfo, PolicyCreateRequest
+from agentos_server.models import PolicyInfo, PolicyCreateRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["governance"])

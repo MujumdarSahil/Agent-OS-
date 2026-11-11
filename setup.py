@@ -7,8 +7,8 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+# Runtime dependencies are declared in pyproject.toml ([project].dependencies);
+# setuptools ignores install_requires here whenever a [project] table exists.
 
 version_vars = {}
 with open("agentos/__version__.py", "r", encoding="utf-8") as f:
@@ -32,7 +32,6 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.11",
-    install_requires=requirements,
     entry_points={
         "console_scripts": [
             "agentos=agentos.app:main",

@@ -12,7 +12,7 @@ import litellm
 
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
 from agentos.llm.router_factory import build_router
-from agentos.server.models import (
+from agentos_server.models import (
     ProviderStatusResponse,
     ProviderKeysRequest,
     ProviderKeysResponse,

@@ -6,14 +6,16 @@ used by other people: NEVER commit to or merge into `main`.
 Active work is branch `2.0` (AgentOS 2.0: flow engine, MongoDB, React UI, governance,
 observability, ML Studio). One sub-milestone = one feature branch off `2.0` = one PR into
 `2.0`, merged only after the owner approves the evidence report.
-Plan of record: Phase 1 foundation (1.0b, 1.1a done; 1.1b restructure, 1.2 Mongo repos,
-1.3 importer, 1.4 UI + vault, 1.5 engine spike/ADR), Phase 2 flow engine, Phase 3
-observability + governance, Phase 4 ML Studio + release.
+Plan of record (spec "AgentOS 2.0: Product and Architecture Spec", 2 Nov 2026, five gated phases):
+Phase 1 foundation (1.0b, 1.1a done; 1.1b restructure, 1.2 Mongo repos, 1.3 importer,
+1.4 UI + vault, 1.5 engine spike/ADR), Phase 2 flow engine, Phase 3 security, governance +
+observability, Phase 4 intelligence + model connectivity, Phase 5 ML Studio + release.
 
 ## Environment
 Windows, PowerShell. Python: `.\venv\Scripts\python.exe`. Mock LLM: `$env:AGENTOS_MOCK_LLM="1"`.
 Docker Desktop must be running for LIVE tests (check with `docker ps`).
-Frontend: `agentos/frontend` (npm).
+Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `agentos_server`
+(`agentos.server.*` is a deprecated alias shim).
 
 ## Standing rules
 1. Evidence first. Never say something works, is fixed, or passes without raw terminal
@@ -39,6 +41,12 @@ Frontend: `agentos/frontend` (npm).
 agentos/tests + agentos/server/tests + agentos/packaging/tests: 169 passed, 17 skipped.
 SWE/tests/swe: 671 passed. Requirement: no new failures, skip count must not rise without
 a documented reason.
+After 1.1b (server tests moved): agentos/tests + agentos_server/tests + agentos/packaging/tests:
+196 passed, 17 skipped (169 + 27 restructure tests). `python check_wheel_install.py` must pass.
+After 1.2: same suites 222 passed, 28 skipped without Mongo (the extra 11 are LIVE Mongo cases,
+skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 233 passed, 17 skipped.
+LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (set AGENTOS_MONGO_PORT if
+27017 is taken; this machine runs a native MongoDB service on 27017, use 27018).
 
 ## Architecture constraints (2.0)
 - Ports and adapters: domain and flow engine live in `agentos` with no FastAPI/Mongo

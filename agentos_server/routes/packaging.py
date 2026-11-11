@@ -4,7 +4,7 @@ import os
 
 from fastapi import APIRouter, HTTPException, Request
 
-from agentos.server.models import (
+from agentos_server.models import (
     PackBuildRequest, PackSignRequest, PackVerifyRequest,
     PackVerifyResponse, PackInstallRequest,
 )

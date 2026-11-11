@@ -10,7 +10,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
-from agentos.server.models import RunStatusResponse
+from agentos_server.models import RunStatusResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["runs"])
@@ -42,7 +42,7 @@ async def stream_run(websocket: WebSocket, run_id: str):
     but the background task continues and remains poll-able.
     """
     # Import here to avoid circular at module level
-    from agentos.server.app import create_app  # noqa – used only for type hint
+    from agentos_server.app import create_app  # noqa – used only for type hint
     app = websocket.app
     run_manager = app.state.run_manager
     state = run_manager.get(run_id)

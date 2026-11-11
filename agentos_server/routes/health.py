@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from agentos.server.models import HealthResponse
+from agentos_server.models import HealthResponse
 from agentos.core.project_ops import list_agents, list_tools, list_crews, list_missions, is_valid_project
 
 from agentos.__version__ import __version__

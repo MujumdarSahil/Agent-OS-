@@ -80,3 +80,9 @@ mongo_data/
 
 
 
+
+# Built UI copied into the server package for wheels (npm run build:package)
+agentos_server/static/
+
+# Local MongoDB credentials (docker/mongo-init.*)
+docker/.env.mongo

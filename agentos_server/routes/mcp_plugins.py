@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.core.project_ops import list_mcp_plugins, scaffold_mcp_plugin
-from agentos.server.models import MCPPluginInfo, MCPPluginScaffoldRequest
+from agentos_server.models import MCPPluginInfo, MCPPluginScaffoldRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["mcp-plugins"])
