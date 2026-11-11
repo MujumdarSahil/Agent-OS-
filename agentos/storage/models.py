@@ -10,7 +10,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
 
-from agentos.core.config_models import AgentYAMLConfig, CrewYAMLConfig, MissionYAMLConfig
+from agentos.core.config_models import AgentYAMLConfig, CrewYAMLConfig, MissionYAMLConfig, ProjectConfig
 from agentos.core.project_ops import _slug
 
 
@@ -36,6 +36,17 @@ def entity_key(name: str) -> str:
 
 AgentRecord = AgentYAMLConfig
 MissionRecord = MissionYAMLConfig
+
+PROJECT_SETTINGS = "project"
+
+
+class ProjectSettingsRecord(ProjectConfig):
+    """``agentos.config.yaml`` as a stored entity; there is one record, named "project"."""
+    name: Literal["project"] = PROJECT_SETTINGS
+    # v1 file stems that differ from the entity slug, e.g. {"missions": {"plangoal": "plan_goal"}}.
+    # Kept so an export restores the original file names (`agentos run --mission plan_goal`
+    # finds missions by file name). Never written into agentos.config.yaml.
+    v1_file_names: Dict[str, Dict[str, str]] = Field(default_factory=dict)
 
 
 class SquadRecord(CrewYAMLConfig):
