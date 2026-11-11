@@ -43,6 +43,10 @@ SWE/tests/swe: 671 passed. Requirement: no new failures, skip count must not ris
 a documented reason.
 After 1.1b (server tests moved): agentos/tests + agentos_server/tests + agentos/packaging/tests:
 196 passed, 17 skipped (169 + 27 restructure tests). `python check_wheel_install.py` must pass.
+After 1.2: same suites 222 passed, 28 skipped without Mongo (the extra 11 are LIVE Mongo cases,
+skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 233 passed, 17 skipped.
+LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (set AGENTOS_MONGO_PORT if
+27017 is taken; this machine runs a native MongoDB service on 27017, use 27018).
 
 ## Architecture constraints (2.0)
 - Ports and adapters: domain and flow engine live in `agentos` with no FastAPI/Mongo
