@@ -3,13 +3,29 @@
 ## Context
 AgentOS is a multi-agent framework (Python/FastAPI core, React UI). `main` is public and
 used by other people: NEVER commit to or merge into `main`.
-Active work is branch `2.0` (AgentOS 2.0: flow engine, MongoDB, React UI, governance,
-observability, ML Studio). One sub-milestone = one feature branch off `2.0` = one PR into
+Active work is branch `2.0` (AgentOS 2.0: flow engine, security labels/IFC, MongoDB, React UI,
+governance, observability). One sub-milestone = one feature branch off `2.0` = one PR into
 `2.0`, merged only after the owner approves the evidence report.
-Plan of record (spec "AgentOS 2.0: Product and Architecture Spec", 2 Nov 2026, five gated phases):
-Phase 1 foundation (1.0b, 1.1a done; 1.1b restructure, 1.2 Mongo repos, 1.3 importer,
-1.4 UI + vault, 1.5 engine spike/ADR), Phase 2 flow engine, Phase 3 security, governance +
-observability, Phase 4 intelligence + model connectivity, Phase 5 ML Studio + release.
+Plan of record is **Plan v2.1**; refer to [docs/SPEC_2.0.md](file:///docs/SPEC_2.0.md) for the authoritative
+phase plan, architecture specification, and security invariants.
+
+### Plan v2.1 Key Owner Decisions
+- **ML Studio:** Removed from 2.0 (keep "model endpoint as tool"; training goes to the 2.1 backlog).
+- **Sub-Milestone Order:** 1.5 engine spike + ADR 0001 before 1.4 UI.
+- **Security Labels:** Core engine requirement: every value carries integrity (`trusted`/`untrusted`),
+  confidentiality, and provenance (source node run IDs and event sequence numbers).
+- **Label Propagation Rule:** LLM outputs inherit the join (most restrictive) of input labels; they are
+  NOT untrusted by default. Untrusted sources: webhooks, HTTP responses, email, files from outside, tool and MCP outputs.
+  Threat model assumption: model provider is not malicious; attacker controls content.
+- **Sound Declassification:** Validators upgrade integrity ONLY for constrained outputs (enum, bool,
+  bounded number, allowlist match, verified signature). Free-text fields stay untrusted even after passing schema.
+  Quarantined extraction must output only such constrained types.
+- **Tool Mediation Proxy:** All agent tool calls mediated by an AgentOS proxy (CrewAI never calls tools directly).
+- **Research Track:** AgentDojo harness and workflow-injection benchmark; metrics: attack success rate
+  (incl. adaptive), utility, overhead, static-check false positives.
+- **Phase 4 Trimmed:** Scoped strictly to eval harness, Ollama fallback, minimal knowledge base.
+- **Phase 5 Focused:** Packs carrying flows/prompts/policies, one-command install, v1->2.0 migration guide,
+  upgrade/backup/restore, SBOM + signed releases, docs, phishing-triage demo flow, beta.
 
 ## Environment
 Windows, PowerShell. Python: `.\venv\Scripts\python.exe`. Mock LLM: `$env:AGENTOS_MOCK_LLM="1"`.
@@ -38,18 +54,11 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
 10. If a requirement is ambiguous or has trade-offs, stop and ask with options and a
     recommendation. Do not choose silently.
 
-## Baseline (2.0 after 1.1a)
-agentos/tests + agentos/server/tests + agentos/packaging/tests: 169 passed, 17 skipped.
-SWE/tests/swe: 671 passed. Requirement: no new failures, skip count must not rise without
-a documented reason.
-After 1.1b (server tests moved): agentos/tests + agentos_server/tests + agentos/packaging/tests:
-196 passed, 17 skipped (169 + 27 restructure tests). `python check_wheel_install.py` must pass.
-After 1.2: same suites 222 passed, 28 skipped without Mongo (the extra 11 are LIVE Mongo cases,
-skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 233 passed, 17 skipped.
-After 1.3: same suites 253 passed, 32 skipped without Mongo (the extra 15 are LIVE Mongo cases,
-skip reason "LIVE Mongo not available"); with AGENTOS_MONGO_URI set: 268 passed, 17 skipped.
-LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (set AGENTOS_MONGO_PORT if
-27017 is taken; this machine runs a native MongoDB service on 27017, use 27018).
+## Baseline (2.0 after 1.3 + audit-fail-closed)
+- agentos/tests + agentos_server/tests + agentos/packaging/tests + tests/ci: 280 passed, 17 skipped with LIVE Mongo (265 passed, 32 skipped without Mongo).
+- SWE/tests/swe: 671 passed.
+- Requirement: no new failures, skip count must not rise without a documented reason.
+- LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (default image `mongo:8.2.12`, port 27018 if native Mongo is on 27017).
 
 ## Architecture constraints (2.0)
 - Ports and adapters: domain and flow engine live in `agentos` with no FastAPI/Mongo
@@ -63,6 +72,15 @@ LIVE Mongo: `docker compose -f docker/compose.mongo.yml up -d --wait` (set AGENT
   plaintext secrets.
 - Stored tool code is stored but NOT executed outside a sandbox. MCP stdio servers need an
   allowlist and auth.
+- Flow Engine & Security:
+  - Security labels: values carry integrity (`trusted`/`untrusted`), confidentiality, and provenance (source node run IDs and event sequence numbers).
+  - NodeSpecs declare sinks (external send like email/chat/HTTP POST, writes, deletes, shell/code, payments) and per-argument rules (e.g. `send_email`: `to` must be trusted or allowlisted; `body` may be untrusted only if all recipients internal).
+  - Sending `secret`-labeled data to any external sink is a sink violation.
+  - Static flow check at publish; runtime monitor enforces label joins and sink contracts.
+  - All agent/CrewAI tool calls mediated by an AgentOS tool proxy.
+  - Explicit declassification nodes only (`approval`, `validator`, `quarantined_extraction`); validators upgrade integrity only for constrained types.
+  - Insider editor protection: only admins can create declassification policies, allowlists, or trusted-tool flags; all changes audited (Phase 2 gap: admin config/token only until Phase 3 RBAC).
+  - Event-sourced execution with an append-only provenance graph.
 - Heavy dependencies (torch, chromadb, faiss, psycopg) are optional extras.
 - Every flow node type has a contract test before it appears in the UI palette.
 
