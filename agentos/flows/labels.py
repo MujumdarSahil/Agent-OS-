@@ -105,6 +105,36 @@ class Label:
             result = result.join(lbl)
         return result
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize label to a dictionary suitable for JSON / event storage."""
+        return {
+            "integrity": self.integrity,
+            "confidentiality": self.confidentiality,
+            "sources": sorted(self.sources),
+        }
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Pydantic compatibility serializer."""
+        return self.to_dict()
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Label:
+        """Deserialize label from dictionary."""
+        return cls(
+            integrity=data.get("integrity", Integrity.UNTRUSTED.value),
+            confidentiality=data.get("confidentiality", Confidentiality.INTERNAL.value),
+            sources=frozenset(data.get("sources", ())),
+        )
+
+    @classmethod
+    def model_validate(cls, data: Any) -> Label:
+        """Pydantic compatibility deserializer."""
+        if isinstance(data, cls):
+            return data
+        if isinstance(data, dict):
+            return cls.from_dict(data)
+        raise ValueError(f"Cannot validate Label from {type(data).__name__}: {data!r}")
+
 
 @dataclass(frozen=True)
 class Labeled(Generic[T]):

@@ -10,20 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agentos.flows.labels import Confidentiality, Integrity, Label
+from agentos.flows.labels import Confidentiality, Label
 from agentos.flows.models import FlowDefinition, NodeDefinition
 from agentos.flows.policy import SecurityPolicy
+from agentos.flows.rules import RuleViolation, evaluate_sink_argument_rule
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
 
-
-@dataclass
-class Violation:
-    """Represents a security policy violation discovered during static analysis."""
-
-    node_id: str
-    target_arg: str
-    path: list[str]
-    reason: str
+# Backwards compatibility alias
+Violation = RuleViolation
 
 
 @dataclass
@@ -31,7 +25,7 @@ class PublishVerificationResult:
     """Outcome of publish-time static flow verification."""
 
     is_valid: bool
-    violations: list[Violation] = field(default_factory=list)
+    violations: list[RuleViolation] = field(default_factory=list)
 
     @property
     def error_message(self) -> str:
@@ -53,7 +47,7 @@ class StaticFlowAnalyzer:
 
     def verify(self) -> PublishVerificationResult:
         """Statically inspect flow graph and verify that sink arguments satisfy security policies."""
-        violations: list[Violation] = []
+        violations: list[RuleViolation] = []
 
         # 1. Propagate labels across graph edges (including back-edges) to a fixpoint
         node_output_labels, node_effective_inbound, node_paths = self._propagate_labels_fixpoint()
@@ -138,7 +132,7 @@ class StaticFlowAnalyzer:
                     if not src_labels:
                         continue
 
-                    # Item 1: Every edge carries the join of all source output labels, mapped or not
+                    # Every edge carries the join of all source output labels, mapped or not
                     src_join_all = Label.join_all(list(src_labels.values()), default=Label.trusted())
                     inbound_labels.append(src_join_all)
 
@@ -192,16 +186,16 @@ class StaticFlowAnalyzer:
         arg_labels: dict[str, Label],
         effective_inbound: Label,
         current_path: list[str],
-        violations: list[Violation],
+        violations: list[RuleViolation],
     ) -> None:
-        """Verify sink arguments on direct sink nodes."""
+        """Verify sink arguments on direct sink nodes using the shared rule engine."""
         pinned_args = node.pinned_args
 
-        # Confidentiality check: Any secret-labeled argument to an EXTERNAL_SEND sink is a violation
+        # Confidentiality check for unmapped wildcard inputs
         if spec.side_effect == SideEffectClass.EXTERNAL_SEND:
             if effective_inbound.confidentiality == Confidentiality.SECRET.value:
                 violations.append(
-                    Violation(
+                    RuleViolation(
                         node_id=node_id,
                         target_arg="*",
                         path=current_path,
@@ -211,21 +205,8 @@ class StaticFlowAnalyzer:
                         ),
                     )
                 )
-            for arg_name, lbl in arg_labels.items():
-                if lbl.confidentiality == Confidentiality.SECRET.value:
-                    violations.append(
-                        Violation(
-                            node_id=node_id,
-                            target_arg=arg_name,
-                            path=current_path,
-                            reason=(
-                                f"Confidentiality violation: secret-labeled data cannot be passed "
-                                f"to EXTERNAL_SEND sink {node_id!r} (arg: {arg_name!r})."
-                            ),
-                        )
-                    )
 
-        # Integrity & conditional rules check
+        # Evaluate rules using shared engine
         for arg_name, rule in spec.sink_rules.items():
             is_pinned = arg_name in pinned_args
             arriving_label = (
@@ -234,9 +215,7 @@ class StaticFlowAnalyzer:
                 else arg_labels.get(arg_name, effective_inbound)
             )
 
-            # Check if this argument is approved by an approval node targeting this sink node
-            # Part 0.a: an argument counts as approved only if that argument's value is mapped
-            # from the approval node's output on the edge into the sink (the human saw that exact value).
+            # Part 0.a: Argument is approved only if mapped on edge from approval node
             is_approved = False
             for edge in self.flow.edges:
                 if edge.target == node_id and arg_name in edge.arg_mapping:
@@ -250,47 +229,20 @@ class StaticFlowAnalyzer:
                             is_approved = True
                             break
 
-            # 1. Required integrity check
-            if rule.required_integrity == Integrity.TRUSTED.value and not is_pinned and not is_approved:
-                if arriving_label.integrity == Integrity.UNTRUSTED.value:
-                    violations.append(
-                        Violation(
-                            node_id=node_id,
-                            target_arg=arg_name,
-                            path=current_path,
-                            reason=(
-                                f"Sink node {node_id!r} requires trusted argument {arg_name!r}, "
-                                f"but received untrusted data from source(s) {sorted(arriving_label.sources)}."
-                            ),
-                        )
-                    )
-
-            # 2. Body internal recipients rule (Item 7)
-            if rule.condition == "body_internal_recipients_only":
-                recipient = pinned_args.get("to")
-                recipient_is_internal = False
-                if recipient and isinstance(recipient, str):
-                    recipient_is_internal = self.policy.is_internal_email(recipient)
-
-                # If body was explicitly approved by approval node, approval allows it
-                body_is_approved = is_approved
-
-                if (
-                    arriving_label.integrity == Integrity.UNTRUSTED.value
-                    and not recipient_is_internal
-                    and not body_is_approved
-                ):
-                    violations.append(
-                        Violation(
-                            node_id=node_id,
-                            target_arg=arg_name,
-                            path=current_path,
-                            reason=(
-                                f"Untrusted body cannot be sent to external recipient {recipient!r}. "
-                                "Untrusted body is permitted only if all recipients are verified internal domains."
-                            ),
-                        )
-                    )
+            arg_violations = evaluate_sink_argument_rule(
+                node_id=node_id,
+                spec=spec,
+                arg_name=arg_name,
+                rule=rule,
+                arriving_label=arriving_label,
+                effective_inbound_label=effective_inbound,
+                is_pinned=is_pinned,
+                is_approved=is_approved,
+                pinned_to_val=pinned_args.get("to"),
+                policy=self.policy,
+                path=current_path,
+            )
+            violations.extend(arg_violations)
 
     def _check_agent_tool_sinks(
         self,
@@ -298,18 +250,13 @@ class StaticFlowAnalyzer:
         node: NodeDefinition,
         agent_input_label: Label,
         current_path: list[str],
-        violations: list[Violation],
+        violations: list[RuleViolation],
     ) -> None:
-        """Verify sink tools attached to agent nodes.
-
-        Item 3: Tool, HTTP, and MCP outputs are untrusted sources.
-        If an agent has ANY tool whose output is untrusted, its context label
-        for sink checks is untrusted.
-        """
+        """Verify sink tools attached to agent nodes using the shared rule engine."""
         tools = node.config.get("tools", [])
         pinned_args = node.pinned_args
 
-        # Check if any attached tool produces untrusted output (tools are untrusted sources)
+        # Accumulate agent context: tools producing untrusted output degrade context to untrusted
         agent_context_label = agent_input_label
         for tool_name in tools:
             tool_spec = BUILTIN_NODE_SPECS.get(tool_name)
@@ -328,7 +275,7 @@ class StaticFlowAnalyzer:
             if tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
                 if agent_context_label.confidentiality == Confidentiality.SECRET.value:
                     violations.append(
-                        Violation(
+                        RuleViolation(
                             node_id=node_id,
                             target_arg=tool_name,
                             path=current_path + [tool_name],
@@ -345,45 +292,30 @@ class StaticFlowAnalyzer:
             for arg_name, rule in tool_spec.sink_rules.items():
                 canonical_pinned_key = f"{tool_name}.{arg_name}"
                 is_pinned = canonical_pinned_key in pinned_args or arg_name in pinned_args
+                arriving_label = (
+                    Label.trusted(sources={node_id})
+                    if is_pinned
+                    else agent_context_label
+                )
+                to_val = (
+                    pinned_args.get(f"{tool_name}.to")
+                    or pinned_args.get("to")
+                )
 
-                # Required integrity check
-                if rule.required_integrity == Integrity.TRUSTED.value and not is_pinned:
-                    if agent_context_label.integrity == Integrity.UNTRUSTED.value:
-                        violations.append(
-                            Violation(
-                                node_id=node_id,
-                                target_arg=canonical_pinned_key,
-                                path=current_path + [tool_name],
-                                reason=(
-                                    f"Sink tool {tool_name!r} attached to agent {node_id!r} requires "
-                                    f"trusted argument {arg_name!r}, but argument is unpinned and "
-                                    f"agent context is untrusted from source(s) {sorted(agent_context_label.sources)}."
-                                ),
-                            )
-                        )
-
-                # Conditional body check for agent tools (Item 7)
-                if rule.condition == "body_internal_recipients_only":
-                    to_val = (
-                        pinned_args.get(f"{tool_name}.to")
-                        or pinned_args.get("to")
-                    )
-                    recipient_is_internal = False
-                    if to_val and isinstance(to_val, str):
-                        recipient_is_internal = self.policy.is_internal_email(to_val)
-
-                    if agent_context_label.integrity == Integrity.UNTRUSTED.value and not recipient_is_internal:
-                        violations.append(
-                            Violation(
-                                node_id=node_id,
-                                target_arg=f"{tool_name}.{arg_name}",
-                                path=current_path + [tool_name],
-                                reason=(
-                                    f"Untrusted body cannot be sent to external recipient {to_val!r}. "
-                                    "Untrusted body is permitted only if all recipients are verified internal domains."
-                                ),
-                            )
-                        )
+                arg_violations = evaluate_sink_argument_rule(
+                    node_id=node_id,
+                    spec=tool_spec,
+                    arg_name=canonical_pinned_key,
+                    rule=rule,
+                    arriving_label=arriving_label,
+                    effective_inbound_label=agent_context_label,
+                    is_pinned=is_pinned,
+                    is_approved=False,  # Approval cannot declassify agent context in general
+                    pinned_to_val=to_val,
+                    policy=self.policy,
+                    path=current_path + [tool_name],
+                )
+                violations.extend(arg_violations)
 
     def _compute_output_labels(
         self,
@@ -399,13 +331,12 @@ class StaticFlowAnalyzer:
             lbl = Label.untrusted(sources={node_id})
             return {"payload": lbl, "headers": lbl, "*": lbl}
 
-        # 2. Tool nodes produce untrusted output explicitly (Item 3)
+        # 2. Tool nodes produce untrusted output explicitly
         if node.type in ("tool", "fetch_url"):
             lbl = Label.untrusted(sources={node_id})
             return {"result": lbl, "content": lbl, "*": lbl}
 
-        # 3. Approval node: Item 8 - human approval declassifies only the approved args
-        # on the approved sink node directly; approval node's output data retains inbound label.
+        # 3. Approval node: human approval declassifies only approved args on approved sink node directly
         if node.type == "approval":
             approved_flag = Label.trusted(
                 confidentiality=effective_inbound.confidentiality,
@@ -417,7 +348,7 @@ class StaticFlowAnalyzer:
                 "*": effective_inbound,
             }
 
-        # 4. Validator node: Item 2 & b - field_type is required, unknown/missing -> untrusted;
+        # 4. Validator node: field_type is required, unknown/missing -> untrusted;
         # allowlist_match requires admin allowlist_name (inline allowlist is forbidden).
         if node.type == "validator":
             field_name = node.config.get("field", "data")
