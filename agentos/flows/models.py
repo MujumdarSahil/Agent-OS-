@@ -1,12 +1,14 @@
 """Flow graph data models and structural validation (DAG + bounded loops).
 
 Flow definitions declare nodes, directed edges with argument mapping, and entrypoints.
-The validator enforces that flows are acyclic graphs with explicit bounded loops only.
+The validator enforces that flows are acyclic graphs with explicit bounded loops only,
+validates node configs against jsonschema, and rejects unknown tools.
 """
 
 from __future__ import annotations
 
 from typing import Any
+import jsonschema
 from pydantic import BaseModel, Field, model_validator
 
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec
@@ -26,8 +28,9 @@ class NodeDefinition(BaseModel):
     id: str
     type: str
     config: dict[str, Any] = Field(default_factory=dict)
-    # Pinned arguments configured by author (e.g. to="security@corp.local")
-    # Pinned arguments carry trusted integrity and cannot be overridden by models.
+    # One canonical pinning syntax: node.pinned_args
+    # Direct sinks use argument name (e.g. "to": "team@corp.local")
+    # Agent tools use "tool.arg" (e.g. "send_email.to": "team@corp.local")
     pinned_args: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -54,66 +57,128 @@ class FlowDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_structure(self) -> FlowDefinition:
-        """Validate node specs, agent hardening, entrypoint, and DAG topology."""
+        """Validate node specs, agent hardening, schema validation, and DAG topology."""
         if self.entrypoint not in self.nodes:
             raise InvalidFlowConfigError(
                 f"Entrypoint {self.entrypoint!r} is not defined in nodes"
             )
 
-        # 1. Validate node specifications and hardening
+        # 1. Validate node specifications and schemas
         for node_id, node in self.nodes.items():
             spec = BUILTIN_NODE_SPECS.get(node.type)
             if not spec:
                 raise InvalidFlowConfigError(f"Unknown node type {node.type!r} on node {node_id!r}")
 
-            # Hardening rules for agent nodes
-            if node.type == "agent":
-                self._validate_agent_hardening(node_id, node)
+            # Validate node config against spec.config_schema via jsonschema
+            if spec.config_schema:
+                try:
+                    jsonschema.validate(instance=node.config, schema=spec.config_schema)
+                except jsonschema.ValidationError as err:
+                    raise InvalidFlowConfigError(
+                        f"Node {node_id!r} config schema validation failed: {err.message}"
+                    ) from err
 
-        # 2. Validate edge references
+            # Specific rules for agent nodes
+            if node.type == "agent":
+                self._validate_agent_node(node_id, node)
+
+            # Specific rules for validator nodes
+            if node.type == "validator":
+                self._validate_validator_node(node_id, node)
+
+            # Specific rules for approval nodes
+            if node.type == "approval":
+                self._validate_approval_node(node_id, node)
+
+        # 2. Validate edge references and output fields (unknown source field is a publish error)
         for edge in self.edges:
             if edge.source not in self.nodes:
                 raise InvalidFlowConfigError(f"Edge references unknown source node: {edge.source!r}")
             if edge.target not in self.nodes:
                 raise InvalidFlowConfigError(f"Edge references unknown target node: {edge.target!r}")
 
+            src_node = self.nodes[edge.source]
+            src_spec = BUILTIN_NODE_SPECS.get(src_node.type)
+            if src_spec and src_spec.output_schema.get("properties"):
+                allowed_props = set(src_spec.output_schema["properties"].keys())
+                if src_node.type == "validator" and "field" in src_node.config:
+                    allowed_props.add(src_node.config["field"])
+                for target_arg, src_field in edge.arg_mapping.items():
+                    if src_field not in allowed_props:
+                        raise InvalidFlowConfigError(
+                            f"Edge from {edge.source!r} to {edge.target!r} references unknown source output field "
+                            f"{src_field!r}. Source node {edge.source!r} (type: {src_node.type!r}) outputs: "
+                            f"{sorted(allowed_props)}."
+                        )
+
         # 3. Validate DAG topology (DAG + explicit bounded loops only)
         self._validate_dag_topology()
 
         return self
 
-    def _validate_agent_hardening(self, node_id: str, node: NodeDefinition) -> None:
-        """Enforce strict security hardening on agent nodes."""
+    def _validate_agent_node(self, node_id: str, node: NodeDefinition) -> None:
+        """Enforce strict security hardening and tool spec verification on agent nodes."""
         cfg = node.config
-        # Reject configurations that attempt to enable unsafe CrewAI capabilities
-        if cfg.get("cache", False) is True:
+
+        # Validate that all referenced tools exist (fail closed on unknown tools)
+        tools = cfg.get("tools", [])
+        for tool_name in tools:
+            if tool_name not in BUILTIN_NODE_SPECS:
+                raise InvalidFlowConfigError(
+                    f"Agent node {node_id!r} references unknown tool {tool_name!r}. "
+                    "Unknown tools are rejected at publish (fail closed)."
+                )
+
+    def _validate_validator_node(self, node_id: str, node: NodeDefinition) -> None:
+        """Validate validator node configuration soundness."""
+        field_type = node.config.get("field_type")
+        if not field_type:
             raise InvalidFlowConfigError(
-                f"Agent node {node_id!r}: cache must be False (cached tool executions bypass proxy auditing)"
-            )
-        if cfg.get("allow_delegation", False) is True:
-            raise InvalidFlowConfigError(
-                f"Agent node {node_id!r}: allow_delegation must be False"
-            )
-        if cfg.get("allow_code_execution", False) is True:
-            raise InvalidFlowConfigError(
-                f"Agent node {node_id!r}: allow_code_execution must be False (code execution must be an isolated sandbox node)"
+                f"Validator node {node_id!r} requires 'field_type' to be specified."
             )
 
-        # Reject configurations that pass raw MCP servers or unwrapped external tools directly
-        if "mcp_servers" in cfg or "raw_tools" in cfg:
+        if field_type == "allowlist_match":
+            allowlist = node.config.get("allowlist")
+            allowlist_name = node.config.get("allowlist_name")
+            if not allowlist and not allowlist_name:
+                raise InvalidFlowConfigError(
+                    f"Validator node {node_id!r} with field_type='allowlist_match' requires a non-empty allowlist or allowlist_name."
+                )
+            if allowlist is not None and len(allowlist) == 0:
+                raise InvalidFlowConfigError(
+                    f"Validator node {node_id!r} with field_type='allowlist_match' requires a non-empty allowlist."
+                )
+
+    def _validate_approval_node(self, node_id: str, node: NodeDefinition) -> None:
+        """Validate approval node configuration targeting."""
+        approves = node.config.get("approves", {})
+        sink_node = approves.get("sink_node")
+        args = approves.get("args")
+
+        if not sink_node:
+            raise InvalidFlowConfigError(f"Approval node {node_id!r} requires 'approves.sink_node'.")
+        if sink_node not in self.nodes:
             raise InvalidFlowConfigError(
-                f"Agent node {node_id!r}: raw MCP servers and unwrapped tools cannot be supplied directly to agent; tools must route via AgentOS Tool Proxy"
+                f"Approval node {node_id!r} approves non-existent sink node {sink_node!r}."
+            )
+        target_node = self.nodes[sink_node]
+        if target_node.type == "agent":
+            raise InvalidFlowConfigError(
+                f"Approval node {node_id!r} targets an agent node {sink_node!r}. "
+                "Approval cannot declassify agent context in general; an approval node placed before an agent does not make the agent context trusted."
+            )
+        if not args or not isinstance(args, list) or len(args) == 0:
+            raise InvalidFlowConfigError(
+                f"Approval node {node_id!r} requires a non-empty list of approved 'args'."
             )
 
     def _validate_dag_topology(self) -> None:
         """Verify that the flow graph has no general cycles outside explicit bounded loops."""
-        # Build adjacency graph, excluding allowed back-edges managed by declared loops
         adj: dict[str, list[str]] = {node_id: [] for node_id in self.nodes}
         in_degree: dict[str, int] = {node_id: 0 for node_id in self.nodes}
 
-        # Identify declared loop back-edges
         loop_back_edges: set[tuple[str, str]] = set()
-        for loop_id, loop_info in self.loops.items():
+        for loop_info in self.loops.values():
             back_edge = loop_info.get("back_edge")
             if back_edge and isinstance(back_edge, (list, tuple)) and len(back_edge) == 2:
                 loop_back_edges.add((str(back_edge[0]), str(back_edge[1])))
@@ -125,7 +190,6 @@ class FlowDefinition(BaseModel):
             adj[edge.source].append(edge.target)
             in_degree[edge.target] += 1
 
-        # Kahn's algorithm for cycle detection
         queue = [n for n, d in in_degree.items() if d == 0]
         visited_count = 0
 

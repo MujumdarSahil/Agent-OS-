@@ -5,6 +5,7 @@ from agentos.flows.models import (
     FlowDefinition,
     NodeDefinition,
 )
+from agentos.flows.policy import SecurityPolicy
 from agentos.flows.static_analyzer import StaticFlowAnalyzer
 
 
@@ -66,23 +67,35 @@ def test_test_b_static_pass_with_allowlist_validator():
 
 def test_test_b_static_pass_with_human_approval():
     """Test B (Passing Variant 2): Inserting a human approval node before the sink passes static check."""
+    policy = SecurityPolicy(internal_domains={"corp.local"})
     flow = FlowDefinition(
         id="approval_flow",
         entrypoint="webhook_in",
         nodes={
             "webhook_in": NodeDefinition(id="webhook_in", type="webhook_trigger"),
             "agent_node": NodeDefinition(id="agent_node", type="agent", config={"role": "Assistant"}),
-            "approval_node": NodeDefinition(id="approval_node", type="approval", config={"prompt": "Approve email"}),
-            "email_sink": NodeDefinition(id="email_sink", type="send_email"),
+            "approval_node": NodeDefinition(
+                id="approval_node",
+                type="approval",
+                config={
+                    "prompt": "Approve email",
+                    "approves": {"sink_node": "email_sink", "args": ["to", "body"]},
+                },
+            ),
+            "email_sink": NodeDefinition(
+                id="email_sink",
+                type="send_email",
+                pinned_args={"to": "secops@corp.local"},
+            ),
         },
         edges=[
             EdgeDefinition(source="webhook_in", target="agent_node", arg_mapping={"task": "payload"}),
             EdgeDefinition(source="agent_node", target="approval_node", arg_mapping={"data": "output"}),
-            EdgeDefinition(source="approval_node", target="email_sink", arg_mapping={"to": "approved", "body": "data"}),
+            EdgeDefinition(source="approval_node", target="email_sink", arg_mapping={"body": "data"}),
         ],
     )
 
-    analyzer = StaticFlowAnalyzer(flow)
+    analyzer = StaticFlowAnalyzer(flow, policy=policy)
     result = analyzer.verify()
     assert result.is_valid
     assert len(result.violations) == 0
@@ -122,6 +135,8 @@ def test_instruction_4_agent_attached_sink_tool_unpinned_rejected_pinned_passes(
     Webhook -> agent(send_email tool, `to` unpinned) is rejected.
     With `to` pinned in author config, it passes.
     """
+    policy = SecurityPolicy(internal_domains={"corp.local"})
+
     # 1. Unpinned variant: agent has send_email tool attached, but `to` is not pinned
     unpinned_flow = FlowDefinition(
         id="unpinned_agent_flow",
@@ -139,7 +154,7 @@ def test_instruction_4_agent_attached_sink_tool_unpinned_rejected_pinned_passes(
         ],
     )
 
-    analyzer_unpinned = StaticFlowAnalyzer(unpinned_flow)
+    analyzer_unpinned = StaticFlowAnalyzer(unpinned_flow, policy=policy)
     res_unpinned = analyzer_unpinned.verify()
     assert not res_unpinned.is_valid
     assert len(res_unpinned.violations) > 0
@@ -166,7 +181,7 @@ def test_instruction_4_agent_attached_sink_tool_unpinned_rejected_pinned_passes(
         ],
     )
 
-    analyzer_pinned = StaticFlowAnalyzer(pinned_flow)
+    analyzer_pinned = StaticFlowAnalyzer(pinned_flow, policy=policy)
     res_pinned = analyzer_pinned.verify()
     assert res_pinned.is_valid
     assert len(res_pinned.violations) == 0
@@ -174,6 +189,7 @@ def test_instruction_4_agent_attached_sink_tool_unpinned_rejected_pinned_passes(
 
 def test_test_f_static_benign_flow_passes():
     """Static part of Test F: Benign flow with pinned recipient passes verification."""
+    policy = SecurityPolicy(internal_domains={"corp.local"})
     flow = FlowDefinition(
         id="test_f_static_benign",
         entrypoint="webhook_in",
@@ -182,7 +198,8 @@ def test_test_f_static_benign_flow_passes():
             "agent_node": NodeDefinition(
                 id="agent_node",
                 type="agent",
-                config={"role": "Summarizer", "tools": ["send_email"], "pinned_to": "team@corp.local"},
+                config={"role": "Summarizer", "tools": ["send_email"]},
+                pinned_args={"send_email.to": "team@corp.local"},
             ),
         },
         edges=[
@@ -190,7 +207,7 @@ def test_test_f_static_benign_flow_passes():
         ],
     )
 
-    analyzer = StaticFlowAnalyzer(flow)
+    analyzer = StaticFlowAnalyzer(flow, policy=policy)
     result = analyzer.verify()
     assert result.is_valid
     assert len(result.violations) == 0

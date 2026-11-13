@@ -14,8 +14,8 @@ from agentos.flows.models import (
 
 
 def test_agent_node_hardening_rules():
-    # Cache=True must be rejected
-    with pytest.raises((ValidationError, InvalidFlowConfigError), match="cache must be False"):
+    # Cache=True must be rejected by schema
+    with pytest.raises((ValidationError, InvalidFlowConfigError), match="config schema validation failed"):
         FlowDefinition(
             id="bad_cache",
             entrypoint="agent_1",
@@ -23,7 +23,7 @@ def test_agent_node_hardening_rules():
         )
 
     # allow_delegation=True must be rejected
-    with pytest.raises((ValidationError, InvalidFlowConfigError), match="allow_delegation must be False"):
+    with pytest.raises((ValidationError, InvalidFlowConfigError), match="config schema validation failed"):
         FlowDefinition(
             id="bad_delegation",
             entrypoint="agent_1",
@@ -31,15 +31,15 @@ def test_agent_node_hardening_rules():
         )
 
     # allow_code_execution=True must be rejected
-    with pytest.raises((ValidationError, InvalidFlowConfigError), match="allow_code_execution must be False"):
+    with pytest.raises((ValidationError, InvalidFlowConfigError), match="config schema validation failed"):
         FlowDefinition(
             id="bad_code_exec",
             entrypoint="agent_1",
             nodes={"agent_1": NodeDefinition(id="agent_1", type="agent", config={"allow_code_execution": True})},
         )
 
-    # Direct raw MCP servers or raw tools must be rejected
-    with pytest.raises((ValidationError, InvalidFlowConfigError), match="raw MCP servers and unwrapped tools cannot be supplied"):
+    # Direct raw MCP servers or raw tools must be rejected (additionalProperties: False)
+    with pytest.raises((ValidationError, InvalidFlowConfigError), match="config schema validation failed"):
         FlowDefinition(
             id="bad_mcp",
             entrypoint="agent_1",

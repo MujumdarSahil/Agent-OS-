@@ -17,6 +17,9 @@ from agentos.flows.models import (
     InvalidFlowConfigError,
     NodeDefinition,
 )
+from agentos.flows.policy import (
+    SecurityPolicy,
+)
 from agentos.flows.specs import (
     BUILTIN_NODE_SPECS,
     NodeSpec,
@@ -42,6 +45,7 @@ __all__ = [
     "NodeDefinition",
     "NodeSpec",
     "PublishVerificationResult",
+    "SecurityPolicy",
     "SideEffectClass",
     "SinkArgumentRule",
     "StaticFlowAnalyzer",
