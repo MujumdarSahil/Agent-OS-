@@ -129,5 +129,9 @@ git switch fix/2.0-audit-fail-closed
 
 ## (f) PR link and CI result
 
-- **Pull Request:** Pending opening into base `2.0`.
-- **CI Status:** Pending push and monitoring.
+- **Pull Request:** [#20 (fix/2.0-audit-fail-closed -> 2.0)](https://github.com/MujumdarSahil/Agent-OS-/pull/20)
+- **CI Status:** Green (GitHub Actions Run [43386803398](https://github.com/MujumdarSahil/Agent-OS-/actions/runs/43386803398)):
+  - `frontend-ci`: pass (49s)
+  - `mongo-live`: pass (2m 23s)
+  - `wheel-install`: pass (2m 27s)
+  - `python-ci`: pass (3m 36s)
