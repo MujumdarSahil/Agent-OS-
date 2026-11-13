@@ -13,6 +13,8 @@ Every tool call by an agent is mediated through the AgentOSToolProxy:
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from typing import Any, Callable
 
 from crewai.tools import BaseTool
@@ -83,7 +85,19 @@ class AgentOSToolProxy:
 
     async def invoke(self, agent_node_id: str, tool_name: str, call_args: dict[str, Any]) -> Any:
         """Asynchronously mediate, inspect, validate, and execute an agent tool call."""
-        tool_spec = BUILTIN_NODE_SPECS.get(tool_name) or NodeSpec(type=tool_name)
+        if tool_name not in BUILTIN_NODE_SPECS:
+            await self.storage.events.append(
+                run_id=self.run_id,
+                type="tool_call_rejected",
+                data={
+                    "agent_node": agent_node_id,
+                    "tool_name": tool_name,
+                    "reason": f"Unknown tool {tool_name!r}: tool has no declared NodeSpec (fail closed)",
+                },
+            )
+            raise ValueError(f"Tool {tool_name!r} has no declared NodeSpec (fail closed)")
+
+        tool_spec = BUILTIN_NODE_SPECS[tool_name]
 
         # 1. Pinned argument verification: reject any attempt to override pinned arguments
         for p_key, p_val in self.pinned_args.items():
@@ -194,18 +208,40 @@ class AgentOSToolProxy:
 
         # 5. Execute tool or sink pipeline
         if tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
-            idempotency_key = f"{self.run_id}:{agent_node_id}:{tool_name}:{tool_ev.seq}"
-            # Append sink_intent event
-            await self.storage.events.append(
-                run_id=self.run_id,
-                type="sink_intent",
-                data={
-                    "sink_node": agent_node_id,
-                    "tool_name": tool_name,
-                    "idempotency_key": idempotency_key,
-                    "args": final_args,
-                },
+            canonical_json = json.dumps(final_args, sort_keys=True, separators=(",", ":"))
+            key_raw = f"{self.run_id}:{agent_node_id}:{tool_name}:{canonical_json}"
+            idempotency_key = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()
+
+            # (b) Check event log: if sink_committed exists for that key, return recorded result without sending
+            events = await self.storage.events.list(self.run_id, after_seq=0)
+            existing_commit = next(
+                (
+                    e for e in events
+                    if e.type == "sink_committed"
+                    and (e.data or {}).get("idempotency_key") == idempotency_key
+                ),
+                None,
             )
+            if existing_commit:
+                return f"Email successfully dispatched to {final_args.get('to')}"
+
+            # Append sink_intent event (if not already appended for this key)
+            has_intent = any(
+                e.type == "sink_intent"
+                and (e.data or {}).get("idempotency_key") == idempotency_key
+                for e in events
+            )
+            if not has_intent:
+                await self.storage.events.append(
+                    run_id=self.run_id,
+                    type="sink_intent",
+                    data={
+                        "sink_node": agent_node_id,
+                        "tool_name": tool_name,
+                        "idempotency_key": idempotency_key,
+                        "args": final_args,
+                    },
+                )
 
             # Transport call with idempotency key
             transport = self.transport_registry.get(tool_name)

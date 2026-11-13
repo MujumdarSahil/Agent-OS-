@@ -177,6 +177,51 @@ class FlowEngine:
         if state.status == RunStatus.WAITING:
             return state
 
+        # Check for uncommitted agent sink intents (Requirement 1.c)
+        # An agent node with sink_intent but no matching sink_committed must NOT be re-executed;
+        # it moves to waiting with reason "uncommitted_sink_needs_review" (an LLM rerun may produce different args).
+        committed_keys = {
+            (e.data or {}).get("idempotency_key")
+            for e in events
+            if e.type == "sink_committed"
+        }
+        uncommitted_intents = [
+            e for e in events
+            if e.type == "sink_intent"
+            and (
+                (self.flow.nodes.get((e.data or {}).get("sink_node")) and self.flow.nodes[(e.data or {}).get("sink_node")].type == "agent")
+                or bool((e.data or {}).get("tool_name"))
+            )
+            and (e.data or {}).get("idempotency_key") not in committed_keys
+        ]
+
+        if uncommitted_intents:
+            first_uncommitted = uncommitted_intents[0]
+            nid = (first_uncommitted.data or {}).get("sink_node")
+            intent_key = (first_uncommitted.data or {}).get("idempotency_key")
+            intent_args = (first_uncommitted.data or {}).get("args", {})
+
+            wait_data = {
+                "node_id": nid,
+                "reason": "uncommitted_sink_needs_review",
+                "idempotency_key": intent_key,
+                "args": intent_args,
+            }
+            wait_ev = await self.storage.events.append(
+                run_id=state.run_id,
+                type="node_waiting",
+                data=wait_data,
+            )
+            state.apply_event(wait_ev)
+            run_wait_ev = await self.storage.events.append(
+                run_id=state.run_id,
+                type="run_waiting",
+                data={"node_id": nid, "reason": "uncommitted_sink_needs_review"},
+            )
+            state.apply_event(run_wait_ev)
+            await self._update_run_status(state, RunStatus.WAITING)
+            return state
+
         # Reset failed status to running for resume attempt
         state.status = RunStatus.RUNNING
         state.error = None
