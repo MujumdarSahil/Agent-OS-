@@ -14,7 +14,7 @@ name: agentos-mongo
 
 services:
   mongo:
-    image: mongo:8.0
+    image: ${AGENTOS_MONGO_IMAGE:-mongo:8.0.34}
     container_name: agentos-mongo
     restart: unless-stopped
     entrypoint: ["bash", "/agentos/entrypoint.sh"]

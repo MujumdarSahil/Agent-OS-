@@ -68,12 +68,19 @@ def _run_python(code: str) -> subprocess.CompletedProcess:
 
 def _route_table(app):
     table = set()
-    for route in app.routes:
-        if not route.path.startswith("/api"):
-            continue
-        for method in sorted(getattr(route, "methods", None) or ["WS"]):
-            if method != "HEAD":
-                table.add((route.path, method))
+
+    def _collect(routes):
+        for route in routes:
+            if hasattr(route, "routes"):
+                _collect(route.routes)
+            elif hasattr(route, "path"):
+                if not route.path.startswith("/api"):
+                    continue
+                for method in sorted(getattr(route, "methods", None) or ["WS"]):
+                    if method != "HEAD":
+                        table.add((route.path, method))
+
+    _collect(app.routes)
     return sorted(table)
 
 
