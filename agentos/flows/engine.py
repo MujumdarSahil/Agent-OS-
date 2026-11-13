@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from typing import Any
 
@@ -118,12 +119,14 @@ class FlowEngine:
         policy: SecurityPolicy | None = None,
         transport_registry: dict[str, Any] | None = None,
         custom_llm: Any | None = None,
+        track_labels: bool = True,
     ) -> None:
         self.flow = flow
         self.storage = storage
         self.policy = policy or SecurityPolicy()
         self.transport_registry = transport_registry or {"send_email": MockTransport()}
         self.custom_llm = custom_llm
+        self.track_labels = track_labels
 
     async def run(
         self,
@@ -504,6 +507,7 @@ class FlowEngine:
         # Timeout configuration
         timeout = node.config.get("timeout_seconds") or spec.timeout_seconds
 
+        t_node_start = time.perf_counter()
         try:
             if timeout and timeout > 0:
                 await asyncio.wait_for(
@@ -512,7 +516,9 @@ class FlowEngine:
                 )
             else:
                 await self._dispatch_node(state, node, spec, inbound_args, inbound_labels)
+            state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
         except asyncio.TimeoutError as err:
+            state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
             fail_ev = await self.storage.events.append(
                 run_id=state.run_id,
                 type="node_failed",
@@ -697,6 +703,7 @@ class FlowEngine:
                 agent_input_label=effective_inbound,
                 transport_registry=self.transport_registry,
                 loop=loop,
+                track_labels=self.track_labels,
             )
 
             # Wrap tools

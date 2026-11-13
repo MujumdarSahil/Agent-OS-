@@ -53,6 +53,8 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
    the next sub-milestone until the owner approves.
 10. If a requirement is ambiguous or has trade-offs, stop and ask with options and a
     recommendation. Do not choose silently.
+11. Every user-facing feature ships with a use case under `examples/usecases/NN-name/` with
+    benign and attack inputs where security-relevant, run in CI in MOCK mode.
 
 ## Baseline (2.0 after 1.3 + audit-fail-closed)
 - agentos/tests + agentos_server/tests + agentos/packaging/tests + tests/ci: 280 passed, 17 skipped with LIVE Mongo (265 passed, 32 skipped without Mongo).

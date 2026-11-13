@@ -63,6 +63,7 @@ class AgentOSToolProxy:
         agent_input_label: Label | None = None,
         transport_registry: dict[str, Any] | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
+        track_labels: bool = True,
     ) -> None:
         self.run_id = run_id
         self.agent_node_id = agent_node_id
@@ -74,6 +75,7 @@ class AgentOSToolProxy:
         self.agent_context_label = self.agent_input_label
         self.transport_registry = transport_registry or {"send_email": MockTransport()}
         self._loop = loop or asyncio.get_event_loop()
+        self.track_labels = track_labels
 
     def invoke_sync(self, agent_node_id: str, tool_name: str, call_args: dict[str, Any]) -> Any:
         """Synchronous entrypoint called from CrewAI worker threads."""
@@ -134,7 +136,7 @@ class AgentOSToolProxy:
                 final_args[p_key] = p_val
 
         # 2. Confidentiality check: Secret-labeled context cannot be routed to EXTERNAL_SEND tool
-        if tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
+        if self.track_labels and tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
             if self.agent_context_label.confidentiality == Confidentiality.SECRET.value:
                 violation = RuleViolation(
                     node_id=agent_node_id,
@@ -157,7 +159,7 @@ class AgentOSToolProxy:
                 raise SinkRuleViolationError(violation)
 
         # 3. Check sink rules using the shared rule engine
-        if tool_spec.sink_rules:
+        if self.track_labels and tool_spec.sink_rules:
             to_val = final_args.get("to")
             for arg_name, rule in tool_spec.sink_rules.items():
                 canonical_pinned_key = f"{tool_name}.{arg_name}"

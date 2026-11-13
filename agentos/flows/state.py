@@ -50,6 +50,8 @@ class FlowRunState(BaseModel):
     committed_sinks: set[str] = Field(default_factory=set)
     # Pending uncommitted sink intents for idempotency on resume
     pending_sink_intents: dict[str, str] = Field(default_factory=dict)
+    # Execution latency measurements per node (in milliseconds)
+    node_durations_ms: dict[str, float] = Field(default_factory=dict)
     # Stored events for replay and provenance tracing
     event_history: list[dict[str, Any]] = Field(default_factory=list)
 
