@@ -130,6 +130,9 @@ jobs:
           echo "AGENTOS_MONGO_URI=$URI" >> "$GITHUB_ENV"
           docker compose -f docker/compose.mongo.yml up -d --wait
 
+      - name: Print MongoDB startup line
+        run: docker logs agentos-mongo 2>&1 | grep -i "Waiting for connections" | head -n 5
+
       - name: Run LIVE Mongo storage tests (skips are failures here)
         env:
           AGENTOS_MOCK_LLM: "1"

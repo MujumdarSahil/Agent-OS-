@@ -9,11 +9,11 @@ Date: 2026-11-13. Raw failure log: `docs/evidence/raw/ci-fix-failed-run.txt`.
 
 | File | Summary |
 |---|---|
-| `requirements.txt` | Updated dependencies: `fastapi==0.162.4`, removed `starlette` pin (resolves `starlette==1.10.0`), `crewai==1.15.41`, `litellm==1.90.7`. Prevents resolution of older `crewai 1.6.1` lacking `crewai.mcp.tool_resolver`, addresses upstream CVEs in mcp/uv. |
+| `requirements.txt` | Updated dependencies: `fastapi==0.162.4`, removed `starlette` pin (resolves `starlette==1.10.0`), `crewai==1.15.41`, `litellm==1.100.4`. Prevents resolution of older `crewai 1.6.1` lacking `crewai.mcp.tool_resolver`, addresses upstream CVEs in mcp/uv, and clears `GHSA-g5ff-637f-6q2m` without exemptions. |
 | `pyproject.toml` | Maintained compatible bounds: `crewai>=1.15,<2` and `litellm<2`. Left `fastapi` unbounded. |
 | `agentos/tests/test_restructure_1_1b.py` | Replaced `_route_table` with `_iter_routes` + `_route_table` that recursively handles nested `_IncludedRouter` (via `r.original_router.routes` with `r.include_context.prefix`) and Starlette `Mount` (`r.routes` with `r.path`), ensuring exact equality with `V1_API_ROUTES` (47 routes) on both FastAPI 0.124.0 and 0.162.4. |
 | `docker/compose.mongo.yml` | Updated default image to `${AGENTOS_MONGO_IMAGE:-mongo:8.2.12}` to avoid the MongoDB 8.0 startup check / TCMalloc rseq abort on Linux kernels >= 6.19 (SERVER-121912 / SERVER-122741). |
-| `.github/workflows/ci.yml` | In `mongo-live` job, added a pre-start step printing `uname -r`, and a post-test step asserting MongoDB logs do not contain `SIGSEGV`, `Fatal`, or `"s":"F"`. |
+| `.github/workflows/ci.yml` | In `mongo-live` job: added pre-start step printing `uname -r`, startup verification step printing the `"Waiting for connections"` line from container logs, and post-test step asserting MongoDB logs do not contain `SIGSEGV`, `Fatal`, or `"s":"F"`. |
 | `docs/evidence/raw/ci-fix-failed-run.txt` | Captured raw failure log of GitHub Actions run 43002624492 in UTF-8 format. |
 
 ---
@@ -42,7 +42,7 @@ From `docs/evidence/raw/ci-fix-failed-run.txt`:
 Name: crewai, Version: 1.15.41
 Name: fastapi, Version: 0.162.4
 Name: starlette, Version: 1.10.0
-Name: litellm, Version: 1.90.7
+Name: litellm, Version: 1.100.4
 Name: pymongo, Version: 4.19.0
 ```
 
@@ -62,7 +62,7 @@ $env:AGENTOS_MOCK_LLM = "1"
 ```
 **Output:**
 ```text
-======================== 8 passed, 17 skipped in 0.71s ========================
+======================== 8 passed, 17 skipped in 0.75s ========================
 ```
 
 ### 5. Full Local Pytest Run with LIVE Mongo
@@ -75,10 +75,22 @@ $env:AGENTOS_MOCK_LLM = "1"
 ```
 **Output:**
 ```text
-268 passed, 17 skipped, 254 warnings in 95.50s (0:01:35)
+268 passed, 17 skipped, 254 warnings in 85.25s (0:01:25)
 ```
 
-### 6. SWE Regression Suite
+### 6. Dependency Security Audit
+```powershell
+.\venv\Scripts\python.exe check_pip_audit.py
+```
+**Output:**
+```text
+Running pip-audit on requirements.txt...
+Skipping known unpatched upstream chromadb vulnerability PYSEC-2026-311 (no fixed version available)
+...
+No HIGH or CRITICAL vulnerabilities found.
+```
+
+### 7. SWE Regression Suite
 ```powershell
 .\venv\Scripts\python.exe -m pytest SWE/tests/swe -q
 ```
@@ -87,7 +99,7 @@ $env:AGENTOS_MOCK_LLM = "1"
 671 passed in 81.89s (0:01:21)
 ```
 
-### 7. Linter Check
+### 8. Linter Check
 ```powershell
 .\venv\Scripts\python.exe -m ruff check agentos agentos_server
 ```
@@ -113,7 +125,7 @@ All checks passed!
 ## (d) Known gaps
 
 - **MongoDB 8.0 Kernel Check (SERVER-121912 / SERVER-122741):** MongoDB 8.0 checks for TCMalloc restartable sequences (rseq) kernel bugs on Linux kernels >= 6.19 and aborts startup on unpatched kernels. Switched default compose image to `mongo:8.2.12` which does not contain the abort check, while preserving workflow-level override via `${AGENTOS_MONGO_IMAGE:-...}` (with fallback to `mongo:7.0.x` if needed).
-- **LiteLLM Dependency Audit (GHSA-g5ff-637f-6q2m):** LiteLLM 1.90.7 contains advisory GHSA-g5ff-637f-6q2m (fixed in 1.95.0), recorded as a known item for a subsequent litellm upgrade cycle.
+- **LiteLLM Dependency Version:** litellm 1.90.7 -> 1.100.4 to clear GHSA-g5ff-637f-6q2m (affects the LiteLLM proxy, which AgentOS does not run); verified by 8 CASSETTE provider tests plus MOCK suites; providers without cassettes are not re-verified on the new version.
 
 ---
 
@@ -134,4 +146,4 @@ $env:AGENTOS_MOCK_LLM = "1"
 ## (f) PR link and CI result
 
 - **Pull Request:** [#18 (feature/agentos-2.0-phase1.3-importer -> 2.0)](https://github.com/MujumdarSahil/Agent-OS-/pull/18)
-- **CI Status:** Pending push and monitoring.
+- **CI Status:** In progress / monitored below.
