@@ -66,21 +66,32 @@ def _run_python(code: str) -> subprocess.CompletedProcess:
     )
 
 
+def _iter_routes(routes, prefix=""):
+    for r in routes:
+        if hasattr(r, "original_router"):
+            p = prefix + getattr(getattr(r, "include_context", None), "prefix", "")
+            yield from _iter_routes(r.original_router.routes, p)
+        elif hasattr(r, "routes"):
+            p = prefix + getattr(r, "path", "")
+            yield from _iter_routes(r.routes, p)
+        else:
+            yield prefix, r
+
+
 def _route_table(app):
     table = set()
-
-    def _collect(routes):
-        for route in routes:
-            if hasattr(route, "routes"):
-                _collect(route.routes)
-            elif hasattr(route, "path"):
-                if not route.path.startswith("/api"):
-                    continue
-                for method in sorted(getattr(route, "methods", None) or ["WS"]):
-                    if method != "HEAD":
-                        table.add((route.path, method))
-
-    _collect(app.routes)
+    for prefix, route in _iter_routes(app.routes):
+        raw_path = getattr(route, "path", "")
+        path = prefix + raw_path if not raw_path.startswith(prefix) else raw_path
+        if not path.startswith("/api"):
+            continue
+        methods = getattr(route, "methods", None)
+        if not methods:
+            table.add((path, "WS"))
+        else:
+            for method in sorted(methods):
+                if method != "HEAD":
+                    table.add((path, method))
     return sorted(table)
 
 

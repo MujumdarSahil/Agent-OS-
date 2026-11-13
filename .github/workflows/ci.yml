@@ -120,6 +120,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[platform]" pytest pytest-asyncio
 
+      - name: Print Kernel Version
+        run: uname -r
+
       - name: Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)
         run: |
           URI="$(sh docker/mongo-init.sh)"
@@ -132,6 +135,13 @@ jobs:
           AGENTOS_MOCK_LLM: "1"
           AGENTOS_REQUIRE_LIVE_MONGO: "1"
         run: pytest agentos/tests/test_storage_contract_1_2.py agentos/tests/test_vault_1_3.py agentos/tests/test_transfer_1_3.py -rs
+
+      - name: Check MongoDB logs for crash or fatal errors
+        run: |
+          if docker logs agentos-mongo 2>&1 | grep -E 'SIGSEGV|Fatal|"s":"F"'; then
+            echo "::error::MongoDB logged fatal crash or failure status"
+            exit 1
+          fi
 
       - name: MongoDB logs on failure
         if: failure()
