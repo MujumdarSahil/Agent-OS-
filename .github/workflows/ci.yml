@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-cov ruff pip-audit
+          pip install pytest-cov ruff pip-audit cvss==3.6
           pip install -e .
           pip install -e examples/external_plugin_demo
 
@@ -31,7 +31,7 @@ jobs:
         env:
           AGENTOS_MOCK_LLM: "1"
         run: |
-          pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=json
+          pytest agentos/tests agentos_server/tests agentos/packaging/tests tests/ci --cov=agentos --cov=agentos_server --cov-report=json
 
       - name: Enforce Core & LLM Coverage
         run: |
