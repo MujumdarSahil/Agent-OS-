@@ -235,9 +235,11 @@ class StaticFlowAnalyzer:
             )
 
             # Check if this argument is approved by an approval node targeting this sink node
+            # Part 0.a: an argument counts as approved only if that argument's value is mapped
+            # from the approval node's output on the edge into the sink (the human saw that exact value).
             is_approved = False
             for edge in self.flow.edges:
-                if edge.target == node_id:
+                if edge.target == node_id and arg_name in edge.arg_mapping:
                     src_node = self.flow.nodes.get(edge.source)
                     if src_node and src_node.type == "approval":
                         approves_cfg = src_node.config.get("approves", {})
@@ -415,8 +417,8 @@ class StaticFlowAnalyzer:
                 "*": effective_inbound,
             }
 
-        # 4. Validator node: Item 2 - field_type is required, unknown/missing -> untrusted;
-        # allowlist_match requires non-empty allowlist.
+        # 4. Validator node: Item 2 & b - field_type is required, unknown/missing -> untrusted;
+        # allowlist_match requires admin allowlist_name (inline allowlist is forbidden).
         if node.type == "validator":
             field_name = node.config.get("field", "data")
             field_type = node.config.get("field_type")
@@ -426,11 +428,8 @@ class StaticFlowAnalyzer:
             if field_type in ("enum", "bool", "bounded_number"):
                 is_sound = True
             elif field_type == "allowlist_match":
-                allowlist = node.config.get("allowlist")
                 allowlist_name = node.config.get("allowlist_name")
-                if allowlist and len(allowlist) > 0:
-                    is_sound = True
-                elif allowlist_name and len(self.policy.allowlists.get(allowlist_name, [])) > 0:
+                if allowlist_name and len(self.policy.allowlists.get(allowlist_name, [])) > 0:
                     is_sound = True
 
             if is_sound:

@@ -138,15 +138,10 @@ class FlowDefinition(BaseModel):
             )
 
         if field_type == "allowlist_match":
-            allowlist = node.config.get("allowlist")
             allowlist_name = node.config.get("allowlist_name")
-            if not allowlist and not allowlist_name:
+            if not allowlist_name:
                 raise InvalidFlowConfigError(
-                    f"Validator node {node_id!r} with field_type='allowlist_match' requires a non-empty allowlist or allowlist_name."
-                )
-            if allowlist is not None and len(allowlist) == 0:
-                raise InvalidFlowConfigError(
-                    f"Validator node {node_id!r} with field_type='allowlist_match' requires a non-empty allowlist."
+                    f"Validator node {node_id!r} with field_type='allowlist_match' requires 'allowlist_name'."
                 )
 
     def _validate_approval_node(self, node_id: str, node: NodeDefinition) -> None:

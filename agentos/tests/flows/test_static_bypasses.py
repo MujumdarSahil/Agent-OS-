@@ -99,17 +99,36 @@ def test_bypass_2_validator_soundness():
     assert not res_free.is_valid
     assert any(v.target_arg == "to" for v in res_free.violations)
 
-    # 2c: allowlist_match with empty allowlist -> rejected at publish
+    # 2c: allowlist_match with missing allowlist_name -> rejected at publish
     with pytest.raises((ValidationError, InvalidFlowConfigError)):
         FlowDefinition(
-            id="bad_validator_empty_allowlist",
+            id="bad_validator_missing_allowlist_name",
             entrypoint="webhook_in",
             nodes={
                 "webhook_in": NodeDefinition(id="webhook_in", type="webhook_trigger"),
                 "val": NodeDefinition(
                     id="val",
                     type="validator",
-                    config={"field": "to", "field_type": "allowlist_match", "allowlist": []},
+                    config={"field": "to", "field_type": "allowlist_match"},
+                ),
+            },
+        )
+
+    # Part 0.b: Inline allowlist in node config is rejected by schema (must use admin allowlist_name)
+    with pytest.raises((ValidationError, InvalidFlowConfigError), match="config schema validation failed"):
+        FlowDefinition(
+            id="inline_allowlist_rejected",
+            entrypoint="webhook_in",
+            nodes={
+                "webhook_in": NodeDefinition(id="webhook_in", type="webhook_trigger"),
+                "val": NodeDefinition(
+                    id="val",
+                    type="validator",
+                    config={
+                        "field": "to",
+                        "field_type": "allowlist_match",
+                        "allowlist": ["attacker@evil.com"],
+                    },
                 ),
             },
         )
@@ -402,6 +421,39 @@ def test_design_fix_8_approval_node_targeting_rules():
     assert len(sink_b_violations) > 0
     assert any(v.target_arg == "to" for v in sink_b_violations)
     assert not any(v.node_id == "sink_a" for v in res.violations)
+
+
+def test_part0_a_approval_binding_unmapped_arg_rejected():
+    """Part 0.a: Approval binding: an argument counts as approved only if that
+
+    argument's value is mapped from the approval node's output on the edge into the sink.
+    Regression test: approval approves `to`, but `to` comes straight from the webhook -> REJECTED.
+    """
+    policy = SecurityPolicy(internal_domains={"corp.local"})
+    flow = FlowDefinition(
+        id="unmapped_approval_flow",
+        entrypoint="webhook_in",
+        nodes={
+            "webhook_in": NodeDefinition(id="webhook_in", type="webhook_trigger"),
+            "app": NodeDefinition(
+                id="app",
+                type="approval",
+                config={"prompt": "Approve", "approves": {"sink_node": "email_sink", "args": ["to"]}},
+            ),
+            "email_sink": NodeDefinition(id="email_sink", type="send_email", pinned_args={"body": "hello"}),
+        },
+        edges=[
+            EdgeDefinition(source="webhook_in", target="app", arg_mapping={"data": "payload"}),
+            # app -> email_sink has edge, but does NOT map 'to'
+            EdgeDefinition(source="app", target="email_sink", arg_mapping={}),
+            # 'to' comes STRAIGHT from webhook_in!
+            EdgeDefinition(source="webhook_in", target="email_sink", arg_mapping={"to": "payload"}),
+        ],
+    )
+
+    result = StaticFlowAnalyzer(flow, policy=policy).verify()
+    assert not result.is_valid
+    assert any(v.node_id == "email_sink" and v.target_arg == "to" for v in result.violations)
 
 
 # ---------------------------------------------------------------------------

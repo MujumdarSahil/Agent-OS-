@@ -246,7 +246,6 @@ VALIDATOR_NODE_SPEC = NodeSpec(
         "properties": {
             "field": {"type": "string"},
             "field_type": {"type": "string"},
-            "allowlist": {"type": "array", "items": {"type": "string"}},
             "allowlist_name": {"type": "string"},
         },
         "required": ["field", "field_type"],

@@ -39,6 +39,10 @@ def test_test_b_static_reject_unmediated_untrusted_to_sink():
 
 def test_test_b_static_pass_with_allowlist_validator():
     """Test B (Passing Variant 1): Inserting an allowlist validator on `to` passes static verification."""
+    policy = SecurityPolicy(
+        internal_domains={"corp.local"},
+        allowlists={"email_recipients": ["secops@corp.local"]},
+    )
     flow = FlowDefinition(
         id="validated_injection_flow",
         entrypoint="webhook_in",
@@ -48,7 +52,7 @@ def test_test_b_static_pass_with_allowlist_validator():
             "validator_node": NodeDefinition(
                 id="validator_node",
                 type="validator",
-                config={"field": "to", "field_type": "allowlist_match", "allowlist": ["secops@corp.local"]},
+                config={"field": "to", "field_type": "allowlist_match", "allowlist_name": "email_recipients"},
             ),
             "email_sink": NodeDefinition(id="email_sink", type="send_email"),
         },
@@ -59,7 +63,7 @@ def test_test_b_static_pass_with_allowlist_validator():
         ],
     )
 
-    analyzer = StaticFlowAnalyzer(flow)
+    analyzer = StaticFlowAnalyzer(flow, policy=policy)
     result = analyzer.verify()
     assert result.is_valid
     assert len(result.violations) == 0
