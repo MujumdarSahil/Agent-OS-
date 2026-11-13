@@ -14,6 +14,7 @@ from agentos.storage.models import (
     EventRecord,
     MCPServerRecord,
     MissionRecord,
+    ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
     SquadRecord,
@@ -93,6 +94,9 @@ class Storage:
     runs: RunRepository
     checkpoints: CheckpointRepository
     events: EventRepository
+    settings: Optional[NamedRepository[ProjectSettingsRecord]] = None
+    # Project directory for the File backend, None for Mongo.
+    location: Optional[str] = None
 
     async def close(self) -> None:
         closer = getattr(self, "_closer", None)

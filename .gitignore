@@ -86,3 +86,7 @@ agentos_server/static/
 
 # Local MongoDB credentials (docker/mongo-init.*)
 docker/.env.mongo
+
+# Crash dumps
+*.stackdump
+

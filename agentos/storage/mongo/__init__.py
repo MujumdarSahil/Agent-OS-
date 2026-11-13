@@ -4,7 +4,7 @@ Platform storage backend: MongoDB through PyMongo's async API (``AsyncMongoClien
 Requires the optional extra ``agentos[platform]``. This is the only package in
 ``agentos`` allowed to import ``pymongo`` (enforced by the boundary test).
 
-Collections: agents, squads, missions, tools, mcp_servers, provider_configs,
+Collections: settings, agents, squads, missions, tools, mcp_servers, provider_configs,
 credentials, runs, events, event_counters, checkpoints. Named entities use the
 v1 slug of their name as ``_id``, so keys behave exactly like the File backend.
 """
@@ -21,6 +21,7 @@ from agentos.storage.models import (
     EventRecord,
     MCPServerRecord,
     MissionRecord,
+    ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
     SquadRecord,
@@ -163,6 +164,7 @@ async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: in
         runs=MongoRunRepository(db.runs),
         checkpoints=MongoCheckpointRepository(db.checkpoints),
         events=MongoEventRepository(db.events, db.event_counters),
+        settings=MongoNamedRepository(db.settings, ProjectSettingsRecord),
     )
     storage._closer = client.close
     return storage
