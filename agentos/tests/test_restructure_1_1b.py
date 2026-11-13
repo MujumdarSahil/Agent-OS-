@@ -55,6 +55,33 @@ V1_API_ROUTES = sorted([
     ("/api/tool-types", "GET"), ("/api/tools", "GET"), ("/api/tools", "POST"),
 ])
 
+# v2 /api/v2 route table for core resource management (sub-milestone 1.4).
+V2_API_ROUTES = sorted([
+    ("/api/v2/agents", "GET"),
+    ("/api/v2/agents", "POST"),
+    ("/api/v2/agents/{name}", "DELETE"),
+    ("/api/v2/agents/{name}", "GET"),
+    ("/api/v2/mcp-servers", "GET"),
+    ("/api/v2/mcp-servers", "POST"),
+    ("/api/v2/mcp-servers/{name}", "DELETE"),
+    ("/api/v2/mcp-servers/{name}", "GET"),
+    ("/api/v2/providers", "GET"),
+    ("/api/v2/providers/fallback", "GET"),
+    ("/api/v2/providers/fallback", "PUT"),
+    ("/api/v2/providers/test-connection", "POST"),
+    ("/api/v2/squads", "GET"),
+    ("/api/v2/squads", "POST"),
+    ("/api/v2/squads/{name}", "DELETE"),
+    ("/api/v2/squads/{name}", "GET"),
+    ("/api/v2/tools", "GET"),
+    ("/api/v2/tools", "POST"),
+    ("/api/v2/tools/{name}", "DELETE"),
+    ("/api/v2/tools/{name}", "GET"),
+    ("/api/v2/vault/keys", "GET"),
+    ("/api/v2/vault/keys", "POST"),
+    ("/api/v2/vault/keys/{name}", "DELETE"),
+])
+
 FORBIDDEN_IN_CORE = {"agentos_server", "fastapi", "starlette", "uvicorn"}
 
 
@@ -83,7 +110,24 @@ def _route_table(app):
     for prefix, route in _iter_routes(app.routes):
         raw_path = getattr(route, "path", "")
         path = prefix + raw_path if not raw_path.startswith(prefix) else raw_path
-        if not path.startswith("/api"):
+        if not path.startswith("/api") or path.startswith("/api/v2"):
+            continue
+        methods = getattr(route, "methods", None)
+        if not methods:
+            table.add((path, "WS"))
+        else:
+            for method in sorted(methods):
+                if method != "HEAD":
+                    table.add((path, method))
+    return sorted(table)
+
+
+def _v2_route_table(app):
+    table = set()
+    for prefix, route in _iter_routes(app.routes):
+        raw_path = getattr(route, "path", "")
+        path = prefix + raw_path if not raw_path.startswith(prefix) else raw_path
+        if not path.startswith("/api/v2"):
             continue
         methods = getattr(route, "methods", None)
         if not methods:
@@ -162,10 +206,16 @@ def test_v1_api_route_table_unchanged(tmp_path):
     assert _route_table(create_app(str(tmp_path))) == V1_API_ROUTES
 
 
+def test_v2_api_route_table(tmp_path):
+    from agentos_server.app import create_app
+    assert _v2_route_table(create_app(str(tmp_path))) == V2_API_ROUTES
+
+
 def test_api_route_table_same_via_old_path(tmp_path):
     from agentos.server.app import create_app as old_create_app
     from agentos_server.app import create_app
     assert _route_table(old_create_app(str(tmp_path))) == _route_table(create_app(str(tmp_path)))
+    assert _v2_route_table(old_create_app(str(tmp_path))) == _v2_route_table(create_app(str(tmp_path)))
 
 
 # ---------------------------------------------------------------------------
