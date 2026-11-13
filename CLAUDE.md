@@ -74,13 +74,13 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
   allowlist and auth.
 - Flow Engine & Security:
   - Security labels: values carry integrity (`trusted`/`untrusted`), confidentiality, and provenance (source node run IDs and event sequence numbers).
-  - NodeSpecs declare sinks (external send like email/chat/HTTP POST, writes, deletes, shell/code, payments) and required argument integrity.
+  - NodeSpecs declare sinks (external send like email/chat/HTTP POST, writes, deletes, shell/code, payments) and per-argument rules (e.g. `send_email`: `to` must be trusted or allowlisted; `body` may be untrusted only if all recipients internal).
   - Sending `secret`-labeled data to any external sink is a sink violation.
   - Static flow check at publish; runtime monitor enforces label joins and sink contracts.
   - All agent/CrewAI tool calls mediated by an AgentOS tool proxy.
   - Explicit declassification nodes only (`approval`, `validator`, `quarantined_extraction`); validators upgrade integrity only for constrained types.
-  - Insider editor protection: only admins can create declassification policies, allowlists, or trusted-tool flags; all changes audited.
-  - Event-sourced execution with an immutable provenance graph.
+  - Insider editor protection: only admins can create declassification policies, allowlists, or trusted-tool flags; all changes audited (Phase 2 gap: admin config/token only until Phase 3 RBAC).
+  - Event-sourced execution with an append-only provenance graph.
 - Heavy dependencies (torch, chromadb, faiss, psycopg) are optional extras.
 - Every flow node type has a contract test before it appears in the UI palette.
 
