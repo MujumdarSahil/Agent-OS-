@@ -1,0 +1,25 @@
+{
+  "iterations": 100,
+  "results_on": {
+    "webhook_median_ms": 8.649050001622527,
+    "webhook_p95_ms": 10.361300002841745,
+    "agent_median_ms": 40.45894999944721,
+    "agent_p95_ms": 47.76080000010552,
+    "total_median_ms": 122.412249998888,
+    "total_p95_ms": 145.6467000025441
+  },
+  "results_off": {
+    "webhook_median_ms": 8.714249999684398,
+    "webhook_p95_ms": 10.684600001695799,
+    "agent_median_ms": 41.01469999841356,
+    "agent_p95_ms": 48.16889999710838,
+    "total_median_ms": 124.17289999939385,
+    "total_p95_ms": 141.94279999719583
+  },
+  "overhead": {
+    "webhook_median_diff_ms": -0.06519999806187116,
+    "agent_median_diff_ms": -0.5557499989663484,
+    "total_median_diff_ms": -1.7606500005058479,
+    "overhead_pct": -1.4179019741944034
+  }
+}

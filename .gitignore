@@ -51,6 +51,7 @@ Thumbs.db
 .ruff_cache/
 
 # AgentOS specific
+.agentos/
 *.db
 *.sqlite
 *.faiss

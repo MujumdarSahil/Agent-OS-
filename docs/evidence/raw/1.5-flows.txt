@@ -1,0 +1,80 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.1, pluggy-1.6.0 -- C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\mujum\OneDrive\Desktop\Agent OS
+configfile: pyproject.toml
+plugins: anyio-4.16.0, langsmith-0.9.3, asyncio-1.3.0, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 46 items
+
+agentos/tests/flows/test_acceptance.py::test_requirement_3_validator_runtime_outputs_constrained_types PASSED [  2%]
+agentos/tests/flows/test_acceptance.py::test_requirement_4_recipient_runtime_validation PASSED [  4%]
+agentos/tests/flows/test_acceptance.py::test_requirement_5_proxy_rejects_pinned_argument_override PASSED [  6%]
+agentos/tests/flows/test_acceptance.py::test_proxy_rejects_unknown_tool_without_nodespec PASSED [  8%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_a_injection_blocked_at_runtime PASSED [ 10%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_c1_exception_then_resume PASSED [ 13%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_c3_crash_after_send_idempotency_exactly_one_send PASSED [ 15%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_c2_real_process_restart_sqlite_mock PASSED [ 17%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_c2_real_process_restart_mongo_live SKIPPED [ 19%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_d_crewai_react_and_native_paths_no_cache PASSED [ 21%]
+agentos/tests/flows/test_acceptance.py::test_agent_path_same_agent_and_args_exactly_one_send PASSED [ 23%]
+agentos/tests/flows/test_acceptance.py::test_agent_path_crash_before_commit_resume_waits_for_review PASSED [ 26%]
+agentos/tests/flows/test_acceptance.py::test_concurrency_branches_and_timeout PASSED [ 28%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_e_provenance_query PASSED [ 30%]
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_f_benign_flow_passes_with_provenance PASSED [ 32%]
+agentos/tests/flows/test_labels.py::test_label_defaults_and_validation PASSED [ 34%]
+agentos/tests/flows/test_labels.py::test_label_join_integrity PASSED     [ 36%]
+agentos/tests/flows/test_labels.py::test_label_join_confidentiality_lattice PASSED [ 39%]
+agentos/tests/flows/test_labels.py::test_label_join_sources_union PASSED [ 41%]
+agentos/tests/flows/test_labels.py::test_labeled_value_wrapper PASSED    [ 43%]
+agentos/tests/flows/test_specs.py::test_agent_node_hardening_rules PASSED [ 45%]
+agentos/tests/flows/test_specs.py::test_flow_dag_validation_clean_dag_passes PASSED [ 47%]
+agentos/tests/flows/test_specs.py::test_flow_dag_validation_rejects_general_cycle PASSED [ 50%]
+agentos/tests/flows/test_specs.py::test_flow_dag_validation_allows_explicit_bounded_loop PASSED [ 52%]
+agentos/tests/flows/test_static_analyzer.py::test_test_b_static_reject_unmediated_untrusted_to_sink PASSED [ 54%]
+agentos/tests/flows/test_static_analyzer.py::test_test_b_static_pass_with_allowlist_validator PASSED [ 56%]
+agentos/tests/flows/test_static_analyzer.py::test_test_b_static_pass_with_human_approval PASSED [ 58%]
+agentos/tests/flows/test_static_analyzer.py::test_validator_soundness_free_text_stays_untrusted PASSED [ 60%]
+agentos/tests/flows/test_static_analyzer.py::test_instruction_4_agent_attached_sink_tool_unpinned_rejected_pinned_passes PASSED [ 63%]
+agentos/tests/flows/test_static_analyzer.py::test_test_f_static_benign_flow_passes PASSED [ 65%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_1_unmapped_edge_propagates_untrusted_labels PASSED [ 67%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_2_validator_soundness PASSED [ 69%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_3_agent_tool_untrusted_source_taints_context PASSED [ 71%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_4_unknown_tool_rejected_at_publish PASSED [ 73%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_5_agent_config_forbidden_fields_rejected[mcps] PASSED [ 76%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_5_agent_config_forbidden_fields_rejected[apps] PASSED [ 78%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_5_agent_config_forbidden_fields_rejected[knowledge_sources] PASSED [ 80%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_5_agent_config_forbidden_fields_rejected[memory] PASSED [ 82%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_6_agent_config_string_booleans_rejected PASSED [ 84%]
+agentos/tests/flows/test_static_bypasses.py::test_bypass_7_send_email_external_exfiltration_and_secret_leak_rejected PASSED [ 86%]
+agentos/tests/flows/test_static_bypasses.py::test_design_fix_8_approval_node_targeting_rules PASSED [ 89%]
+agentos/tests/flows/test_static_bypasses.py::test_part0_a_approval_binding_unmapped_arg_rejected PASSED [ 91%]
+agentos/tests/flows/test_static_bypasses.py::test_design_fix_9_security_policy_domain_allowlist PASSED [ 93%]
+agentos/tests/flows/test_static_bypasses.py::test_design_fix_10_loop_back_edge_propagates_untrusted_fixpoint PASSED [ 95%]
+agentos/tests/flows/test_static_bypasses.py::test_design_fix_11_canonical_pinned_args_syntax PASSED [ 97%]
+agentos/tests/flows/test_static_bypasses.py::test_design_fix_12_edge_unknown_source_output_field_rejected PASSED [100%]
+
+============================== warnings summary ===============================
+agentos/tests/flows/test_acceptance.py: 18 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:455: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(
+
+agentos/tests/flows/test_acceptance.py: 18 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:463: DeprecationWarning: deprecated
+    if self.allow_code_execution:
+
+agentos/tests/flows/test_acceptance.py: 18 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:474: DeprecationWarning: deprecated
+    if self.reasoning and self.planning_config is None:
+
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_a_injection_blocked_at_runtime
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_d_crewai_react_and_native_paths_no_cache
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_d_crewai_react_and_native_paths_no_cache
+agentos/tests/flows/test_acceptance.py::test_agent_path_same_agent_and_args_exactly_one_send
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_e_provenance_query
+agentos/tests/flows/test_acceptance.py::test_acceptance_test_f_benign_flow_passes_with_provenance
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:1375: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    function_calling_llm=self.function_calling_llm,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 45 passed, 1 skipped, 60 warnings in 39.87s =================
