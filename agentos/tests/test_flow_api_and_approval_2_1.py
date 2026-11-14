@@ -298,11 +298,12 @@ async def test_approval_idempotency_and_rejection(test_app, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_startup_recovery(tmp_path):
+async def test_startup_recovery(tmp_path, monkeypatch):
     """
-    Requirement 2: Startup recovery:
+    Requirement 2: Startup recovery (MOCK):
     On start, find runs whose last state is queued/running (from event log) and re-enqueue them.
     """
+    monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
     project_dir = tmp_path / "recovery_project"
     project_dir.mkdir(parents=True, exist_ok=True)
     (project_dir / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
@@ -339,3 +340,53 @@ async def test_startup_recovery(tmp_path):
         assert job.inputs == {"data": "recover me"}
         assert job.flow_id == "flow_recover"
         assert job.version == 1
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_live_mongo():
+    """
+    Requirement 2: Startup recovery (LIVE Mongo):
+    On start with LIVE Mongo, find runs whose last state is queued/running and re-enqueue them.
+    """
+    mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+    if not mongo_uri:
+        if os.environ.get("AGENTOS_REQUIRE_LIVE_MONGO") == "1":
+            pytest.fail("AGENTOS_REQUIRE_LIVE_MONGO=1 set but AGENTOS_MONGO_URI not configured")
+        pytest.skip("LIVE Mongo not configured")
+
+    from agentos.storage.mongo import open_mongo_storage
+    db_name = f"agentos_test_recov_{uuid.uuid4().hex[:12]}"
+    s = await open_mongo_storage(mongo_uri, db_name=db_name)
+
+    flow_rec = FlowRecord(
+        id="flow_recover_mongo",
+        name="Recover Flow Mongo",
+        entrypoint="trig",
+        nodes={
+            "trig": {"id": "trig", "type": "webhook_trigger", "config": {"path": "/in"}},
+            "sink": {"id": "sink", "type": "send_email", "config": {}, "pinned_args": {"to": "ops@local"}},
+        },
+        edges=[{"source": "trig", "target": "sink", "arg_mapping": {"body": "payload"}}],
+    )
+    await s.flows.put_draft(flow_rec)
+    await s.flows.publish("flow_recover_mongo", "h1", "p1")
+
+    from agentos.storage.models import RunRecord
+    run_id = f"run_interrupted_mongo_{uuid.uuid4().hex[:8]}"
+    await s.runs.put(RunRecord(run_id=run_id, mission_name="flow_recover_mongo", flow_id="flow_recover_mongo", flow_version=1, status="running"))
+    await s.events.append(run_id, "run_started", {"inputs": {"data": "recover me mongo"}})
+
+    # Create app with explicit Mongo storage to simulate server running against Mongo
+    app = create_app(project_path=".", storage=s)
+    async with app.router.lifespan_context(app):
+        job = await app.state.queue.get_job_by_run_id(run_id)
+        assert job is not None
+        assert job.status == "queued"
+        assert job.inputs == {"data": "recover me mongo"}
+        assert job.flow_id == "flow_recover_mongo"
+
+    await s.close()
+    from pymongo import AsyncMongoClient
+    c = AsyncMongoClient(mongo_uri)
+    await c.drop_database(db_name)
+    await c.close()
