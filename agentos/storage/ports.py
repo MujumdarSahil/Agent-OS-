@@ -12,6 +12,7 @@ from agentos.storage.models import (
     AgentRecord,
     EncryptedSecretRecord,
     EventRecord,
+    FlowRecord,
     MCPServerRecord,
     MissionRecord,
     ProjectSettingsRecord,
@@ -26,6 +27,10 @@ T = TypeVar("T")
 
 class ReadOnlyEntityError(Exception):
     """Raised when writing or deleting an entity the backend exposes read-only."""
+
+
+class FencingTokenError(Exception):
+    """Raised when a write or operation is attempted with an expired or superseded lease."""
 
 
 @runtime_checkable
@@ -70,8 +75,40 @@ class CheckpointRepository(Protocol):
 
 
 @runtime_checkable
+class FlowRepository(Protocol):
+    """
+    Repository for versioned workflow graphs (flows).
+    Drafts are mutable; published versions are immutable.
+    """
+
+    async def get_draft(self, flow_id: str) -> Optional[FlowRecord]: ...
+
+    async def put_draft(self, flow: FlowRecord) -> None: ...
+
+    async def get_version(self, flow_id: str, version: int) -> Optional[FlowRecord]: ...
+
+    async def list_versions(self, flow_id: str) -> List[FlowRecord]: ...
+
+    async def list_flows(self) -> List[FlowRecord]: ...
+
+    async def publish(self, flow_id: str, content_sha256: str, policy_hash: str) -> FlowRecord: ...
+
+    async def delete_flow(self, flow_id: str) -> bool:
+        """Delete an unpublished flow. Raises ValueError if published versions exist."""
+        ...
+
+    async def archive_flow(self, flow_id: str) -> FlowRecord: ...
+
+
+@runtime_checkable
 class EventRepository(Protocol):
-    async def append(self, run_id: str, type: str, data: Optional[Dict[str, Any]] = None) -> EventRecord:
+    async def append(
+        self,
+        run_id: str,
+        type: str,
+        data: Optional[Dict[str, Any]] = None,
+        lease_id: Optional[str] = None,
+    ) -> EventRecord:
         """Append an event; the repository assigns the next ``seq`` for the run."""
         ...
 
@@ -94,6 +131,7 @@ class Storage:
     runs: RunRepository
     checkpoints: CheckpointRepository
     events: EventRepository
+    flows: Optional[FlowRepository] = None
     settings: Optional[NamedRepository[ProjectSettingsRecord]] = None
     # Project directory for the File backend, None for Mongo.
     location: Optional[str] = None

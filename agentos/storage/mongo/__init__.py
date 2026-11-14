@@ -19,6 +19,7 @@ from agentos.storage.models import (
     AgentRecord,
     EncryptedSecretRecord,
     EventRecord,
+    FlowRecord,
     MCPServerRecord,
     MissionRecord,
     ProjectSettingsRecord,
@@ -27,8 +28,9 @@ from agentos.storage.models import (
     SquadRecord,
     ToolRecord,
     entity_key,
+    utcnow,
 )
-from agentos.storage.ports import Storage
+from agentos.storage.ports import FencingTokenError, Storage
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -85,18 +87,164 @@ class MongoEventRepository:
     def __init__(self, events, counters):
         self._events = events
         self._counters = counters
+        self._fencing_checker = None
 
-    async def append(self, run_id: str, type: str, data: Optional[Dict[str, Any]] = None) -> EventRecord:
+    async def append(
+        self,
+        run_id: str,
+        type: str,
+        data: Optional[Dict[str, Any]] = None,
+        lease_id: Optional[str] = None,
+    ) -> EventRecord:
+        if self._fencing_checker is not None and not self._fencing_checker(run_id, lease_id):
+            raise FencingTokenError(f"Lease {lease_id!r} expired or superseded for run {run_id!r}")
         counter = await self._counters.find_one_and_update(
             {"_id": run_id}, {"$inc": {"seq": 1}}, upsert=True, return_document=ReturnDocument.AFTER
         )
-        event = EventRecord(run_id=run_id, seq=counter["seq"], type=type, data=data or {})
+        event = EventRecord(run_id=run_id, seq=counter["seq"], type=type, data=data or {}, lease_id=lease_id)
         await self._events.insert_one(event.model_dump())
         return event
 
     async def list(self, run_id: str, after_seq: int = 0) -> List[EventRecord]:
         docs = await self._events.find({"run_id": run_id, "seq": {"$gt": after_seq}}).sort("seq", ASCENDING).to_list(None)
         return [EventRecord.model_validate(_strip_id(d)) for d in docs]
+
+
+class MongoFlowRepository:
+    """
+    MongoDB repository for versioned flows.
+    Documents in db.flows:
+      Draft: {"_id": f"{flow_id}:draft", "flow_id": flow_id, "record_type": "draft", ...}
+      Version: {"_id": f"{flow_id}:v{version}", "flow_id": flow_id, "version": version, "record_type": "version", ...}
+    Atomic version allocation via db.flow_counters find_one_and_update.
+    """
+
+    def __init__(self, collection, counters):
+        self._c = collection
+        self._counters = counters
+
+    async def get_draft(self, flow_id: str) -> Optional[FlowRecord]:
+        doc = await self._c.find_one({"_id": f"{entity_key(flow_id)}:draft"})
+        if not doc:
+            return None
+        clean = _strip_id(doc)
+        clean.pop("record_type", None)
+        return FlowRecord.model_validate(clean)
+
+    async def put_draft(self, flow: FlowRecord) -> None:
+        from agentos.flows.models import FlowDefinition
+
+        # Validate DAG + bounded loops + specs
+        FlowDefinition(
+            id=flow.id,
+            name=flow.name,
+            entrypoint=flow.entrypoint,
+            nodes=flow.nodes,
+            edges=flow.edges,
+            loops=flow.loops,
+        )
+        key = f"{entity_key(flow.id)}:draft"
+        flow_copy = flow.model_copy(update={"updated_at": utcnow()})
+        data = flow_copy.model_dump()
+        data["_id"] = key
+        data["flow_id"] = flow.id
+        data["record_type"] = "draft"
+        await self._c.replace_one({"_id": key}, data, upsert=True)
+
+    async def get_version(self, flow_id: str, version: int) -> Optional[FlowRecord]:
+        doc = await self._c.find_one({"_id": f"{entity_key(flow_id)}:v{version}"})
+        if not doc:
+            return None
+        clean = _strip_id(doc)
+        clean.pop("record_type", None)
+        return FlowRecord.model_validate(clean)
+
+    async def list_versions(self, flow_id: str) -> List[FlowRecord]:
+        docs = await self._c.find({
+            "flow_id": flow_id,
+            "record_type": "version",
+        }).sort("version", ASCENDING).to_list(None)
+        res = []
+        for d in docs:
+            clean = _strip_id(d)
+            clean.pop("record_type", None)
+            res.append(FlowRecord.model_validate(clean))
+        return res
+
+    async def list_flows(self) -> List[FlowRecord]:
+        docs = await self._c.find({"record_type": "draft"}).sort("flow_id", ASCENDING).to_list(None)
+        res = []
+        for d in docs:
+            clean = _strip_id(d)
+            clean.pop("record_type", None)
+            res.append(FlowRecord.model_validate(clean))
+        return res
+
+    async def publish(self, flow_id: str, content_sha256: str, policy_hash: str) -> FlowRecord:
+        draft = await self.get_draft(flow_id)
+        if draft is None:
+            raise ValueError(f"Flow {flow_id!r} draft not found")
+
+        # Atomic version counter allocation
+        counter = await self._counters.find_one_and_update(
+            {"_id": flow_id},
+            {"$inc": {"version": 1}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        v = counter["version"]
+
+        published = FlowRecord(
+            id=draft.id,
+            name=draft.name,
+            status="published",
+            version=v,
+            entrypoint=draft.entrypoint,
+            nodes=draft.nodes,
+            edges=draft.edges,
+            loops=draft.loops,
+            content_sha256=content_sha256,
+            policy_hash=policy_hash,
+            created_at=draft.created_at,
+            updated_at=utcnow(),
+            published_at=utcnow(),
+        )
+        key = f"{entity_key(flow_id)}:v{v}"
+        data = published.model_dump()
+        data["_id"] = key
+        data["flow_id"] = flow_id
+        data["record_type"] = "version"
+        await self._c.insert_one(data)
+
+        # Update draft
+        draft_updated = draft.model_copy(update={"updated_at": utcnow()})
+        draft_data = draft_updated.model_dump()
+        draft_data["_id"] = f"{entity_key(flow_id)}:draft"
+        draft_data["flow_id"] = flow_id
+        draft_data["version"] = None
+        draft_data["record_type"] = "draft"
+        await self._c.replace_one({"_id": draft_data["_id"]}, draft_data, upsert=True)
+        return published
+
+    async def delete_flow(self, flow_id: str) -> bool:
+        # Requirement 7: Deletion guard
+        count_published = await self._c.count_documents({"flow_id": flow_id, "record_type": "version"})
+        if count_published > 0:
+            raise ValueError(f"Cannot delete flow {flow_id!r}: published versions exist")
+        res = await self._c.delete_one({"_id": f"{entity_key(flow_id)}:draft"})
+        return res.deleted_count == 1
+
+    async def archive_flow(self, flow_id: str) -> FlowRecord:
+        draft = await self.get_draft(flow_id)
+        if draft is None:
+            raise ValueError(f"Flow {flow_id!r} not found")
+        archived = draft.model_copy(update={"status": "archived", "updated_at": utcnow()})
+        data = archived.model_dump()
+        data["_id"] = f"{entity_key(flow_id)}:draft"
+        data["flow_id"] = flow_id
+        data["record_type"] = "draft"
+        await self._c.replace_one({"_id": data["_id"]}, data, upsert=True)
+        return archived
 
 
 class MongoCheckpointRepository:
@@ -141,6 +289,12 @@ async def ensure_indexes(db) -> None:
     await db.events.create_index([("run_id", ASCENDING), ("seq", ASCENDING)], unique=True)
     await db.checkpoints.create_index([("mission_id", ASCENDING), ("task_index", DESCENDING)])
     await db.runs.create_index([("created_at", DESCENDING)])
+    await db.flows.create_index(
+        [("flow_id", ASCENDING), ("version", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"record_type": "version"},
+    )
+    await db.flows.create_index([("record_type", ASCENDING)])
 
 
 async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: int = 5000) -> Storage:
@@ -164,6 +318,7 @@ async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: in
         runs=MongoRunRepository(db.runs),
         checkpoints=MongoCheckpointRepository(db.checkpoints),
         events=MongoEventRepository(db.events, db.event_counters),
+        flows=MongoFlowRepository(db.flows, db.flow_counters),
         settings=MongoNamedRepository(db.settings, ProjectSettingsRecord),
     )
     storage._closer = client.close
