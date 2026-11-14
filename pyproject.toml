@@ -41,7 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = ["torch>=2.0.0", "transformers>=4.35.0", "peft>=0.7.0", "bitsandbytes>=0.41.0"]
-vector = ["faiss-cpu>=1.7.4", "chromadb>=0.4.0"]
+vector = ["faiss-cpu>=1.7.4"]
 postgres = ["psycopg2-binary>=2.9.0"]
 # Platform mode storage (MongoDB via PyMongo's async API; Motor is deprecated upstream).
 platform = ["pymongo>=4.13,<5"]
