@@ -42,7 +42,7 @@ from agentos_server.app import create_app
 app = create_app(os.environ["AGENTOS_CHECK_PROJECT"])
 
 async def health():
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as c:
         return await c.get("/api/health")
 
 resp = asyncio.run(health())

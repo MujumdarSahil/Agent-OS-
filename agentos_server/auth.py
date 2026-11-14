@@ -124,7 +124,7 @@ def check_request_auth(request: Request, expected_token: Optional[str] = None) -
     """
     global _EMITTED_V1_NO_AUTH_WARNING
 
-    # 1. Host header validation
+    # 1. Host header validation (DNS-rebinding defense)
     host = request.headers.get("host")
     if not verify_host_header(host):
         return False, "Invalid Host header (DNS-rebinding protection: localhost and 127.0.0.1 only)"

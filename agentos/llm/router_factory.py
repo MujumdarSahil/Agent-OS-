@@ -96,6 +96,26 @@ def build_router(
             d = item.model_dump() if hasattr(item, "model_dump") else dict(item)
             overrides_by_name[d["name"]] = d
 
+        # Incorporate explicitly configured providers from policy configs that provide litellm_model
+        # or are known registry entries (especially under AGENTOS_MOCK_LLM or custom policies).
+        known_names = {p["name"] for p in available_providers}
+        for name, conf in overrides_by_name.items():
+            if name not in known_names and conf.get("enabled", True):
+                litellm_model = conf.get("litellm_model")
+                if not litellm_model:
+                    prov = next((p for p in PROVIDER_REGISTRY if p["name"] == name), None)
+                    if prov:
+                        litellm_model = prov.get("litellm_model")
+                if litellm_model and (os.environ.get("AGENTOS_MOCK_LLM") == "1" or conf.get("litellm_model")):
+                    available_providers.append({
+                        "name": name,
+                        "litellm_model": litellm_model,
+                        "api_key_env": None,
+                        "api_base_env": None,
+                        "priority": conf.get("order", 100),
+                        "tags": ["custom"],
+                    })
+
     # Filter out disabled providers from overrides
     if overrides_by_name:
         available_providers = [
