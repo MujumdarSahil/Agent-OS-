@@ -20,14 +20,18 @@ from agentos.core.governance import GovernanceEngine
 logger = logging.getLogger(__name__)
 
 
-from typing import Optional
+from typing import Any, Optional
 
-def create_app(project_path: Optional[str] = None) -> FastAPI:
+def create_app(
+    project_path: Optional[str] = None,
+    storage: Optional[Any] = None,
+) -> FastAPI:
     """
     Create and configure the AgentOS FastAPI application.
 
     Args:
         project_path: Optional absolute path to the AgentOS project directory.
+        storage: Optional pre-configured Storage instance (File or Mongo).
     """
     from agentos.core.logging_config import setup_logging
     from agentos.__version__ import __version__
@@ -55,7 +59,41 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
         from agentos.core.bootstrap import register_builtin_components
         register_builtin_components()
         logger.info(f"AgentOS API starting for project: {project_path}")
+
+        # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+        mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+        if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+            try:
+                from agentos.storage.mongo import open_mongo_storage
+                app.state.storage = await open_mongo_storage(mongo_uri)
+                from agentos.security.vault import Vault
+                app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+            except Exception as e:
+                logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                raise RuntimeError(
+                    f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                ) from e
+
+        # Pre-load fallback policy cache into in-memory router cache
+        try:
+            configs = await app.state.storage.provider_configs.list()
+            from agentos.llm.router_factory import set_fallback_policy_cache
+            set_fallback_policy_cache([c.model_dump() for c in configs])
+        except Exception as e:
+            logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+
+        # Print one-time token access link with actual served UI port
+        server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+        print_startup_auth_banner(app.state.api_token, server_port=server_port)
+
         yield
+        # Close mongo client if present
+        closer = getattr(app.state.storage, "_closer", None)
+        if closer:
+            try:
+                await closer()
+            except Exception:
+                pass
         logger.info("AgentOS API shutting down.")
 
     app = FastAPI(
@@ -91,6 +129,34 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app.state.run_manager = RunManager(governance=gov)
     app.state.failed_providers = set()
 
+    # Initialize 1.2 Storage port (File or Mongo)
+    if storage is not None:
+        app.state.storage = storage
+        app.state._storage_explicit = True
+    else:
+        from agentos.storage.file import open_file_storage
+        app.state.storage = open_file_storage(project_path)
+        app.state._storage_explicit = False
+
+    # Initialize Credentials Vault
+    from agentos.security.vault import Vault, MasterKey
+    try:
+        master_key = MasterKey.load(create=True)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load vault master key: {e}") from e
+    app.state.master_key = master_key
+    app.state.vault = Vault(app.state.storage.credentials, master_key)
+
+    # Local API token
+    from agentos_server.auth import get_or_create_api_token, print_startup_auth_banner, SecurityMiddleware
+    api_token = get_or_create_api_token()
+    app.state.api_token = api_token
+
+    # -----------------------------------------------------------------------
+    # Security Middleware: Host header validation & Token Authentication (HTTP & WS)
+    # -----------------------------------------------------------------------
+    app.add_middleware(SecurityMiddleware, api_token=api_token)
+
     # -----------------------------------------------------------------------
     # Register API routes
     # -----------------------------------------------------------------------
@@ -123,6 +189,9 @@ def create_app(project_path: Optional[str] = None) -> FastAPI:
     app.include_router(templates_router, prefix="/api")
     app.include_router(federation_router, prefix="/api")
     app.include_router(providers_router, prefix="/api")
+
+    from agentos_server.routes_v2 import router as v2_router
+    app.include_router(v2_router, prefix="/api/v2")
 
     # -----------------------------------------------------------------------
     # Serve built frontend in production mode: packaged copy first (wheel

@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "build:package": "npm run build && node -e \"const fs=require('fs');fs.rmSync('../agentos_server/static',{recursive:true,force:true});fs.cpSync('dist','../agentos_server/static',{recursive:true})\"",
     "lint": "eslint src",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.1",
@@ -16,9 +17,11 @@
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
