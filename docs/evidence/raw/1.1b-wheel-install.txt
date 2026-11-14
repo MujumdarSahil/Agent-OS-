@@ -1,0 +1,1485 @@
+﻿$ C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Scripts\python.exe -m build --wheel --outdir C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\dist C:\Users\mujum\OneDrive\Desktop\Agent OS
+* Creating isolated environment: venv+pip...
+* Installing packages in isolated environment:
+  - setuptools>=65
+  - wheel
+* Getting build dependencies for wheel...
+.\venv\Scripts\python.exe : 
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\config\_apply_pyprojecttoml.py:82: 
+SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+At line:1 char:302
++ ... tch {} } }; .\venv\Scripts\python.exe check_wheel_install.py *>&1 | O ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\mujum\...e is deprecated:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use 
+`project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  corresp(dist, value, root_dir)
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\config\_apply_pyprojecttoml.py:61: 
+SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: MIT License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  dist._finalize_license_expression()
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\dist.py:765: 
+SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: MIT License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  self._finalize_license_expression()
+running egg_info
+writing agentos.egg-info\PKG-INFO
+writing dependency_links to agentos.egg-info\dependency_links.txt
+writing entry points to agentos.egg-info\entry_points.txt
+writing requirements to agentos.egg-info\requires.txt
+writing top-level names to agentos.egg-info\top_level.txt
+reading manifest file 'agentos.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'agentos.egg-info\SOURCES.txt'
+* Building wheel...
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\config\_apply_pyprojecttoml.py:82: 
+SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use 
+`project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  corresp(dist, value, root_dir)
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\config\_apply_pyprojecttoml.py:61: 
+SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: MIT License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  dist._finalize_license_expression()
+C:\Users\mujum\AppData\Local\Temp\build-env-mx_tgd7x\Lib\site-packages\setuptools\dist.py:765: 
+SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: MIT License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  self._finalize_license_expression()
+running bdist_wheel
+running build
+running build_py
+running egg_info
+writing agentos.egg-info\PKG-INFO
+writing dependency_links to agentos.egg-info\dependency_links.txt
+writing entry points to agentos.egg-info\entry_points.txt
+writing requirements to agentos.egg-info\requires.txt
+writing top-level names to agentos.egg-info\top_level.txt
+reading manifest file 'agentos.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'agentos.egg-info\SOURCES.txt'
+warning: build_py: byte-compiling is disabled, skipping.
+
+installing to build\bdist.win-amd64\wheel
+running install
+running install_lib
+creating build\bdist.win-amd64\wheel
+creating build\bdist.win-amd64\wheel\agentos
+creating build\bdist.win-amd64\wheel\agentos\agents
+copying build\lib\agentos\agents\researcher_agent.py -> build\bdist.win-amd64\wheel\.\agentos\agents
+copying build\lib\agentos\agents\script_author_agent.py -> build\bdist.win-amd64\wheel\.\agentos\agents
+copying build\lib\agentos\agents\security_agent.py -> build\bdist.win-amd64\wheel\.\agentos\agents
+copying build\lib\agentos\agents\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\agents
+copying build\lib\agentos\app.py -> build\bdist.win-amd64\wheel\.\agentos
+creating build\bdist.win-amd64\wheel\agentos\builder
+copying build\lib\agentos\builder\agent_builder.py -> build\bdist.win-amd64\wheel\.\agentos\builder
+copying build\lib\agentos\builder\crew_builder.py -> build\bdist.win-amd64\wheel\.\agentos\builder
+copying build\lib\agentos\builder\tool_builder.py -> build\bdist.win-amd64\wheel\.\agentos\builder
+creating build\bdist.win-amd64\wheel\agentos\cli
+copying build\lib\agentos\cli\main.py -> build\bdist.win-amd64\wheel\.\agentos\cli
+creating build\bdist.win-amd64\wheel\agentos\comms
+copying build\lib\agentos\comms\websocket_server.py -> build\bdist.win-amd64\wheel\.\agentos\comms
+copying build\lib\agentos\comms\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\comms
+creating build\bdist.win-amd64\wheel\agentos\config
+copying build\lib\agentos\config\default_config.py -> build\bdist.win-amd64\wheel\.\agentos\config
+creating build\bdist.win-amd64\wheel\agentos\core
+copying build\lib\agentos\core\agent.py -> build\bdist.win-amd64\wheel\.\agentos\core
+creating build\bdist.win-amd64\wheel\agentos\core\agent_strategies
+copying build\lib\agentos\core\agent_strategies\pal_strategy.py -> build\bdist.win-amd64\wheel\.\agentos\core\agent_strategies
+copying build\lib\agentos\core\agent_strategies\plan_act_reflect.py -> build\bdist.win-amd64\wheel\.\agentos\core\agent_strategies
+copying build\lib\agentos\core\agent_strategies\react_strategy.py -> build\bdist.win-amd64\wheel\.\agentos\core\agent_strategies
+copying build\lib\agentos\core\agent_strategies\tree_of_thoughts.py -> build\bdist.win-amd64\wheel\.\agentos\core\agent_strategies
+copying build\lib\agentos\core\agent_strategies\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\core\agent_strategies
+copying build\lib\agentos\core\base.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\bootstrap.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\cag.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\checkpoint.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\chunkers.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\composite_agent.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\config_models.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\cybersecurity_agents.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\federation.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\governance.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\hybrid_search.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\logging_config.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\planner.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\project_ops.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\rag_manager.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\resource_monitor.py -> build\bdist.win-amd64\wheel\.\agentos\core
+creating build\bdist.win-amd64\wheel\agentos\core\retrieval_adapters
+copying build\lib\agentos\core\retrieval_adapters\chroma_adapter.py -> build\bdist.win-amd64\wheel\.\agentos\core\retrieval_adapters
+copying build\lib\agentos\core\retrieval_adapters\faiss_adapter.py -> build\bdist.win-amd64\wheel\.\agentos\core\retrieval_adapters
+copying build\lib\agentos\core\retrieval_adapters\pgvector_adapter.py -> build\bdist.win-amd64\wheel\.\agentos\core\retrieval_adapters
+copying build\lib\agentos\core\retrieval_adapters\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\core\retrieval_adapters
+copying build\lib\agentos\core\retrieval_training.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\router.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\security_agents.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\self_verification.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\squad.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\umb_adapter.py -> build\bdist.win-amd64\wheel\.\agentos\core
+copying build\lib\agentos\core\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\core
+creating build\bdist.win-amd64\wheel\agentos\cybercore
+creating build\bdist.win-amd64\wheel\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\compliance_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\investigator_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\redteam_sim_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\sandbox_analysis_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\threat_hunt_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\triage_agent.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+copying build\lib\agentos\cybercore\agents\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\agents
+creating build\bdist.win-amd64\wheel\agentos\cybercore\mcp
+copying build\lib\agentos\cybercore\mcp\log_analysis_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\mcp
+copying build\lib\agentos\cybercore\mcp\password_audit_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\mcp
+copying build\lib\agentos\cybercore\mcp\sandbox_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\mcp
+copying build\lib\agentos\cybercore\mcp\threat_intel_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\mcp
+copying build\lib\agentos\cybercore\mcp\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\mcp
+creating build\bdist.win-amd64\wheel\agentos\cybercore\missions
+copying build\lib\agentos\cybercore\missions\alert_to_resolution.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\missions
+copying build\lib\agentos\cybercore\missions\password_audit_mission.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\missions
+copying build\lib\agentos\cybercore\missions\redteam_lab_simulation.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\missions
+copying build\lib\agentos\cybercore\missions\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\missions
+creating build\bdist.win-amd64\wheel\agentos\cybercore\squads
+copying build\lib\agentos\cybercore\squads\compliance_squad.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\squads
+copying build\lib\agentos\cybercore\squads\incident_response_squad.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\squads
+copying build\lib\agentos\cybercore\squads\redteam_sim_squad.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\squads
+copying build\lib\agentos\cybercore\squads\soc_squad.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\squads
+copying build\lib\agentos\cybercore\squads\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\squads
+creating build\bdist.win-amd64\wheel\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\breach_check_k_anonymity.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\hash_identifier.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\ioc_normalizer.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\log_pattern_detector.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\password_entropy_estimator.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\yara_scanner.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+copying build\lib\agentos\cybercore\tools\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\tools
+creating build\bdist.win-amd64\wheel\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\utils\crypto_utils.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\utils\log_parsers.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\utils\normalization.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\utils\validation.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\utils\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore\utils
+copying build\lib\agentos\cybercore\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\cybercore
+copying build\lib\agentos\demo.py -> build\bdist.win-amd64\wheel\.\agentos
+copying build\lib\agentos\demo_cybersecurity.py -> build\bdist.win-amd64\wheel\.\agentos
+creating build\bdist.win-amd64\wheel\agentos\dmsg
+copying build\lib\agentos\dmsg\pathfinder.py -> build\bdist.win-amd64\wheel\.\agentos\dmsg
+copying build\lib\agentos\dmsg\registry.py -> build\bdist.win-amd64\wheel\.\agentos\dmsg
+copying build\lib\agentos\dmsg\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\dmsg
+creating build\bdist.win-amd64\wheel\agentos\docs
+creating build\bdist.win-amd64\wheel\agentos\docs\experiments
+copying build\lib\agentos\docs\experiments\evaluate_security_missions.py -> build\bdist.win-amd64\wheel\.\agentos\docs\experiments
+creating build\bdist.win-amd64\wheel\agentos\examples
+copying build\lib\agentos\examples\advanced_agent_flow_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\agentic_chunking_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\agent_with_tools_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\cag_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\rag_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\sample_cybersecurity_squad_run.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\squad_planning_demo.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\examples\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\examples
+copying build\lib\agentos\exceptions.py -> build\bdist.win-amd64\wheel\.\agentos
+creating build\bdist.win-amd64\wheel\agentos\llm
+copying build\lib\agentos\llm\llm_client.py -> build\bdist.win-amd64\wheel\.\agentos\llm
+copying build\lib\agentos\llm\provider_registry.py -> build\bdist.win-amd64\wheel\.\agentos\llm
+copying build\lib\agentos\llm\router_factory.py -> build\bdist.win-amd64\wheel\.\agentos\llm
+copying build\lib\agentos\llm\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\llm
+creating build\bdist.win-amd64\wheel\agentos\mcp
+copying build\lib\agentos\mcp\plugin_loader.py -> build\bdist.win-amd64\wheel\.\agentos\mcp
+creating build\bdist.win-amd64\wheel\agentos\mcp\security
+copying build\lib\agentos\mcp\security\network_monitor_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security
+copying build\lib\agentos\mcp\security\pat_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security
+copying build\lib\agentos\mcp\security\system_audit_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security
+creating build\bdist.win-amd64\wheel\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\firewall_audit.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\log_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\network_metadata_inspector.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\permission_audit.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\siem_script_builder.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\system_hardening.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\tools\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security\tools
+copying build\lib\agentos\mcp\security\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\mcp\security
+copying build\lib\agentos\mcp\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\mcp
+creating build\bdist.win-amd64\wheel\agentos\mcp_connectors
+copying build\lib\agentos\mcp_connectors\base_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\mcp_connectors
+copying build\lib\agentos\mcp_connectors\security_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\mcp_connectors
+copying build\lib\agentos\mcp_connectors\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\mcp_connectors
+creating build\bdist.win-amd64\wheel\agentos\missions
+copying build\lib\agentos\missions\security_missions.py -> build\bdist.win-amd64\wheel\.\agentos\missions
+copying build\lib\agentos\missions\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\missions
+creating build\bdist.win-amd64\wheel\agentos\modelhub
+copying build\lib\agentos\modelhub\llm_connector.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub
+creating build\bdist.win-amd64\wheel\agentos\modelhub\performance
+copying build\lib\agentos\modelhub\performance\caching_layer.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\performance
+copying build\lib\agentos\modelhub\performance\mixed_precision_utils.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\performance
+copying build\lib\agentos\modelhub\performance\speculative_decoding.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\performance
+copying build\lib\agentos\modelhub\performance\workload_scheduler.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\performance
+copying build\lib\agentos\modelhub\performance\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\performance
+creating build\bdist.win-amd64\wheel\agentos\modelhub\safety
+copying build\lib\agentos\modelhub\safety\constitutional_ai.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\safety
+copying build\lib\agentos\modelhub\safety\model_cascade.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\safety
+copying build\lib\agentos\modelhub\safety\verifier.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\safety
+copying build\lib\agentos\modelhub\safety\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\safety
+creating build\bdist.win-amd64\wheel\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\eval.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\instruction_tuning.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\lora_utils.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\moe_manager.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\orchestrator.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\qlora_utils.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\quantize_utils.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\rlhf_or_dpo.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\speculative_decoding_manager.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\training\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub\training
+copying build\lib\agentos\modelhub\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\modelhub
+creating build\bdist.win-amd64\wheel\agentos\packaging
+copying build\lib\agentos\packaging\license_check.py -> build\bdist.win-amd64\wheel\.\agentos\packaging
+copying build\lib\agentos\packaging\pack_format.py -> build\bdist.win-amd64\wheel\.\agentos\packaging
+copying build\lib\agentos\packaging\signer.py -> build\bdist.win-amd64\wheel\.\agentos\packaging
+creating build\bdist.win-amd64\wheel\agentos\packaging\tests
+copying build\lib\agentos\packaging\tests\test_packaging.py -> build\bdist.win-amd64\wheel\.\agentos\packaging\tests
+copying build\lib\agentos\packaging\tests\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\packaging\tests
+copying build\lib\agentos\packaging\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\packaging
+creating build\bdist.win-amd64\wheel\agentos\prompt_templates
+copying build\lib\agentos\prompt_templates\prompt_manager.py -> build\bdist.win-amd64\wheel\.\agentos\prompt_templates
+copying build\lib\agentos\prompt_templates\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\prompt_templates
+creating build\bdist.win-amd64\wheel\agentos\server
+copying build\lib\agentos\server\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\server
+creating build\bdist.win-amd64\wheel\agentos\templates
+copying build\lib\agentos\templates\build_templates.py -> build\bdist.win-amd64\wheel\.\agentos\templates
+copying build\lib\agentos\templates\templates.py -> build\bdist.win-amd64\wheel\.\agentos\templates
+copying build\lib\agentos\templates\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\templates
+creating build\bdist.win-amd64\wheel\agentos\tests
+copying build\lib\agentos\tests\conftest.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_agent.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_characterization_v1.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_cybersecurity.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_federation.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_framework_extensibility.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_governance_judge.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_maturity.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_rag.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_restructure_1_1b.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_security_agents_e2e.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_security_tools.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_squad.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_umb.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\test_vcr_providers.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+copying build\lib\agentos\tests\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\tests
+creating build\bdist.win-amd64\wheel\agentos\tools
+creating build\bdist.win-amd64\wheel\agentos\tools\security
+copying build\lib\agentos\tools\security\demo_security.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\mission_examples.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\network_monitor_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\pat_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\registry_setup.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\system_audit_mcp.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\tools\security\__init__.py -> build\bdist.win-amd64\wheel\.\agentos\tools\security
+copying build\lib\agentos\__init__.py -> build\bdist.win-amd64\wheel\.\agentos
+copying build\lib\agentos\__version__.py -> build\bdist.win-amd64\wheel\.\agentos
+creating build\bdist.win-amd64\wheel\agentos_server
+copying build\lib\agentos_server\app.py -> build\bdist.win-amd64\wheel\.\agentos_server
+copying build\lib\agentos_server\models.py -> build\bdist.win-amd64\wheel\.\agentos_server
+creating build\bdist.win-amd64\wheel\agentos_server\routes
+copying build\lib\agentos_server\routes\agents.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\builder.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\checkpoints.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\crews.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\federation.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\governance.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\health.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\mcp_plugins.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\missions.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\packaging.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\providers.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\runs.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\templates.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\tools.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\routes\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_server\routes
+copying build\lib\agentos_server\run_manager.py -> build\bdist.win-amd64\wheel\.\agentos_server
+creating build\bdist.win-amd64\wheel\agentos_server\static
+creating build\bdist.win-amd64\wheel\agentos_server\static\assets
+copying build\lib\agentos_server\static\assets\index-BQm0Bkzh.js -> build\bdist.win-amd64\wheel\.\agentos_server\static\assets
+copying build\lib\agentos_server\static\assets\index-Btr8eCpX.css -> build\bdist.win-amd64\wheel\.\agentos_server\static\assets
+copying build\lib\agentos_server\static\favicon.svg -> build\bdist.win-amd64\wheel\.\agentos_server\static
+copying build\lib\agentos_server\static\icons.svg -> build\bdist.win-amd64\wheel\.\agentos_server\static
+copying build\lib\agentos_server\static\index.html -> build\bdist.win-amd64\wheel\.\agentos_server\static
+creating build\bdist.win-amd64\wheel\agentos_server\tests
+copying build\lib\agentos_server\tests\test_api.py -> build\bdist.win-amd64\wheel\.\agentos_server\tests
+copying build\lib\agentos_server\tests\test_providers_api.py -> build\bdist.win-amd64\wheel\.\agentos_server\tests
+copying build\lib\agentos_server\tests\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_server\tests
+copying build\lib\agentos_server\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_server
+creating build\bdist.win-amd64\wheel\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\agents
+copying build\lib\agentos_swe\agents\architecture_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\agents\base_investigator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\agents\bug_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\agents\performance_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\agents\security_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\agents\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\agents
+copying build\lib\agentos_swe\aggregator.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\analysis
+creating build\bdist.win-amd64\wheel\agentos_swe\analysis\graph
+copying build\lib\agentos_swe\analysis\graph\base.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\graph
+copying build\lib\agentos_swe\analysis\graph\graphify_adapter.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\graph
+copying build\lib\agentos_swe\analysis\graph\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\graph
+creating build\bdist.win-amd64\wheel\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\api_contract.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\base.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\javascript_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\react_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\registry.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\typescript_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\vue_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+copying build\lib\agentos_swe\analysis\semantic\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\semantic
+creating build\bdist.win-amd64\wheel\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\verification\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\verification\sandbox.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\verification\strategies.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\verification\verification_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\verification\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis\verification
+copying build\lib\agentos_swe\analysis\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\analysis
+creating build\bdist.win-amd64\wheel\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\attack_correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\attack_graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\attack_scorer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\auth_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\entrypoints.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\investigation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\path_builder.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\trust_boundaries.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+copying build\lib\agentos_swe\attackpath\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\attackpath
+creating build\bdist.win-amd64\wheel\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\evaluator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\experiments.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\fixtures.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\runner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\benchmark\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\benchmark
+copying build\lib\agentos_swe\context.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\actions.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\aggregator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\approvals.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\audit.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\controller.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\health.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\lifecycle.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\scheduler.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\state.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+copying build\lib\agentos_swe\controlplane\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\controlplane
+creating build\bdist.win-amd64\wheel\agentos_swe\core
+creating build\bdist.win-amd64\wheel\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\architecture_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\base_investigator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\bug_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\performance_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\security_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\agents\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core\agents
+copying build\lib\agentos_swe\core\aggregator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\context.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\exceptions.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\intake.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\squad.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+copying build\lib\agentos_swe\core\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\core
+creating build\bdist.win-amd64\wheel\agentos_swe\correlation
+copying build\lib\agentos_swe\correlation\correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\correlation
+copying build\lib\agentos_swe\correlation\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\correlation
+copying build\lib\agentos_swe\correlation\root_cause.py -> build\bdist.win-amd64\wheel\.\agentos_swe\correlation
+copying build\lib\agentos_swe\correlation\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\correlation
+creating build\bdist.win-amd64\wheel\agentos_swe\drift
+copying build\lib\agentos_swe\drift\changed_surface.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\comparator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\drift_correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\drift_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\drift_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\drift_investigator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\drift_scorer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\drift\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\drift
+copying build\lib\agentos_swe\exceptions.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\graph
+copying build\lib\agentos_swe\graph\base.py -> build\bdist.win-amd64\wheel\.\agentos_swe\graph
+copying build\lib\agentos_swe\graph\graphify_adapter.py -> build\bdist.win-amd64\wheel\.\agentos_swe\graph
+copying build\lib\agentos_swe\graph\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\graph
+creating build\bdist.win-amd64\wheel\agentos_swe\history
+copying build\lib\agentos_swe\history\comparator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\fingerprint.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\scoring.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\store.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+copying build\lib\agentos_swe\history\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\history
+creating build\bdist.win-amd64\wheel\agentos_swe\incident
+copying build\lib\agentos_swe\incident\correlation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\incident_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\investigation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\lifecycle.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\response.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\timeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\incident\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\incident
+copying build\lib\agentos_swe\intake.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\attack_correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\attack_graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\attack_scorer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\auth_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\entrypoints.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\investigation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\path_builder.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\trust_boundaries.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\attackpath\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\attackpath
+copying build\lib\agentos_swe\intelligence\blast_radius.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+copying build\lib\agentos_swe\intelligence\cross_repository.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\changed_surface.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\comparator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\drift_correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\drift_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\drift_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\drift_investigator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\drift_scorer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\drift\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\drift
+copying build\lib\agentos_swe\intelligence\exploitability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+copying build\lib\agentos_swe\intelligence\exposure.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\comparator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\fingerprint.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\scoring.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\store.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+copying build\lib\agentos_swe\intelligence\history\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\history
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\fingerprint.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\learning.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\patterns.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\recommendations.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\retrieval.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\store.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+copying build\lib\agentos_swe\intelligence\knowledge\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\knowledge
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\learning_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\pattern_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\recurrence_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\remediation_learning.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\risk_adaptation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\security_memory.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\trend_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\learning\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\learning
+copying build\lib\agentos_swe\intelligence\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+copying build\lib\agentos_swe\intelligence\prioritizer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+creating build\bdist.win-amd64\wheel\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\blast_radius.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\cross_repository.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\exploitability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\exposure.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\prioritizer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\recommendation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\recurrence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\priority\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence\priority
+copying build\lib\agentos_swe\intelligence\recommendation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+copying build\lib\agentos_swe\intelligence\recurrence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+copying build\lib\agentos_swe\intelligence\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\intelligence
+creating build\bdist.win-amd64\wheel\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\fingerprint.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\learning.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\patterns.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\recommendations.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\retrieval.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\store.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+copying build\lib\agentos_swe\knowledge\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\knowledge
+creating build\bdist.win-amd64\wheel\agentos_swe\learning
+copying build\lib\agentos_swe\learning\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\learning_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\pattern_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\recurrence_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\remediation_learning.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\risk_adaptation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\security_memory.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\trend_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\learning\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\learning
+copying build\lib\agentos_swe\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\alerts.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\alert_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\changes.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\change_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\drift.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\monitor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\regression_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\result.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\runner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\scheduler.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\snapshot.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\snapshot_manager.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\trend_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+copying build\lib\agentos_swe\monitoring\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\monitoring
+creating build\bdist.win-amd64\wheel\agentos_swe\observability
+copying build\lib\agentos_swe\observability\events.py -> build\bdist.win-amd64\wheel\.\agentos_swe\observability
+copying build\lib\agentos_swe\observability\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\observability
+copying build\lib\agentos_swe\observability\report.py -> build\bdist.win-amd64\wheel\.\agentos_swe\observability
+copying build\lib\agentos_swe\observability\tracer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\observability
+copying build\lib\agentos_swe\observability\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\observability
+creating build\bdist.win-amd64\wheel\agentos_swe\operations
+creating build\bdist.win-amd64\wheel\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\actions.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\aggregator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\approvals.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\audit.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\controller.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\health.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\lifecycle.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\scheduler.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\state.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+copying build\lib\agentos_swe\operations\controlplane\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\controlplane
+creating build\bdist.win-amd64\wheel\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\correlation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\incident_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\investigation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\lifecycle.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\response.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\timeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+copying build\lib\agentos_swe\operations\incident\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\incident
+creating build\bdist.win-amd64\wheel\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\alerts.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\alert_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\changes.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\change_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\drift.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\monitor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\regression_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\result.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\runner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\scheduler.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\snapshot.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\snapshot_manager.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\trend_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+copying build\lib\agentos_swe\operations\monitoring\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\monitoring
+creating build\bdist.win-amd64\wheel\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\action_selector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\approval_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\confidence_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\decisions.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\decision_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\evidence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\executor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\orchestrator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\policy_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\remediation_queue.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\state.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\workflow.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\orchestration\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations\orchestration
+copying build\lib\agentos_swe\operations\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\operations
+creating build\bdist.win-amd64\wheel\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\action_selector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\approval_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\confidence_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\decisions.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\decision_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\evidence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\executor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\explainability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\orchestrator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\policy_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\remediation_queue.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\state.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\workflow.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+copying build\lib\agentos_swe\orchestration\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\orchestration
+creating build\bdist.win-amd64\wheel\agentos_swe\persistence
+copying build\lib\agentos_swe\persistence\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\persistence
+copying build\lib\agentos_swe\persistence\operational_store.py -> build\bdist.win-amd64\wheel\.\agentos_swe\persistence
+copying build\lib\agentos_swe\persistence\repository_registry.py -> build\bdist.win-amd64\wheel\.\agentos_swe\persistence
+copying build\lib\agentos_swe\persistence\serialization.py -> build\bdist.win-amd64\wheel\.\agentos_swe\persistence
+copying build\lib\agentos_swe\persistence\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\persistence
+creating build\bdist.win-amd64\wheel\agentos_swe\pr
+copying build\lib\agentos_swe\pr\governance_gate.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\provider.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\pr_generator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\risk.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+copying build\lib\agentos_swe\pr\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\pr
+creating build\bdist.win-amd64\wheel\agentos_swe\release
+copying build\lib\agentos_swe\release\blockers.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\configuration.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\dependency_audit.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\evidence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\manifest.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\packaging.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\performance.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\policy.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\readiness.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\regression.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\release_engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\validator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+copying build\lib\agentos_swe\release\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\release
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation
+copying build\lib\agentos_swe\remediation\conflict_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation\correlation
+copying build\lib\agentos_swe\remediation\correlation\correlator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\correlation
+copying build\lib\agentos_swe\remediation\correlation\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\correlation
+copying build\lib\agentos_swe\remediation\correlation\root_cause.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\correlation
+copying build\lib\agentos_swe\remediation\correlation\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\correlation
+copying build\lib\agentos_swe\remediation\dependency_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+copying build\lib\agentos_swe\remediation\effort_estimator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+copying build\lib\agentos_swe\remediation\fix_ordering.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+copying build\lib\agentos_swe\remediation\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\conflict_detector.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\dependency_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\effort_estimator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\fix_ordering.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\remediation_graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\risk_reduction.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\planner
+copying build\lib\agentos_swe\remediation\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\governance_gate.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\provider.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\pr_generator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\risk.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\pr\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\pr
+copying build\lib\agentos_swe\remediation\remediation_graph.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\fix_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\patch_validator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\repair_strategy.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\repair_validator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\reviewer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\security_regression.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\repair\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\repair
+copying build\lib\agentos_swe\remediation\risk_reduction.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\differential.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\evidence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\executor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\reachability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\safety.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\scenarios.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\simulation\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation\simulation
+copying build\lib\agentos_swe\remediation\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\remediation
+creating build\bdist.win-amd64\wheel\agentos_swe\repair
+copying build\lib\agentos_swe\repair\fix_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\impact.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\patch_validator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\planner.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\repair_strategy.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\repair_validator.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\reviewer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\security_regression.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+copying build\lib\agentos_swe\repair\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\repair
+creating build\bdist.win-amd64\wheel\agentos_swe\security
+copying build\lib\agentos_swe\security\command_policy.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security
+copying build\lib\agentos_swe\security\limits.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security
+copying build\lib\agentos_swe\security\secret_protection.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security
+creating build\bdist.win-amd64\wheel\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\propagation.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\python_analyzer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\sanitizer.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\sinks.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\sources.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\taint\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security\taint
+copying build\lib\agentos_swe\security\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\security
+creating build\bdist.win-amd64\wheel\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\api_contract.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\base.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\javascript_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\react_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\registry.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\typescript_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\vue_resolver.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+copying build\lib\agentos_swe\semantic\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\semantic
+creating build\bdist.win-amd64\wheel\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\differential.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\engine.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\evidence.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\executor.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\models.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\reachability.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\safety.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\scenarios.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\simulation\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\simulation
+copying build\lib\agentos_swe\squad.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+copying build\lib\agentos_swe\ui.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+creating build\bdist.win-amd64\wheel\agentos_swe\verification
+copying build\lib\agentos_swe\verification\pipeline.py -> build\bdist.win-amd64\wheel\.\agentos_swe\verification
+copying build\lib\agentos_swe\verification\sandbox.py -> build\bdist.win-amd64\wheel\.\agentos_swe\verification
+copying build\lib\agentos_swe\verification\strategies.py -> build\bdist.win-amd64\wheel\.\agentos_swe\verification
+copying build\lib\agentos_swe\verification\verification_agent.py -> build\bdist.win-amd64\wheel\.\agentos_swe\verification
+copying build\lib\agentos_swe\verification\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe\verification
+copying build\lib\agentos_swe\__init__.py -> build\bdist.win-amd64\wheel\.\agentos_swe
+warning: install_lib: byte-compiling is disabled, skipping.
+
+running install_egg_info
+Copying agentos.egg-info to build\bdist.win-amd64\wheel\.\agentos-0.2.0-py3.11.egg-info
+running install_scripts
+creating build\bdist.win-amd64\wheel\agentos-0.2.0.dist-info\WHEEL
+creating 'C:\\Users\\mujum\\AppData\\Local\\Temp\\agentos-wheel-zzl9sx0_\\dist\\.tmp-laahprhy\\agentos-0.2.0-py3-none-any.whl' and adding 'build\\bdist.win-amd64\\wheel' to it
+adding 'agentos/__init__.py'
+adding 'agentos/__version__.py'
+adding 'agentos/app.py'
+adding 'agentos/demo.py'
+adding 'agentos/demo_cybersecurity.py'
+adding 'agentos/exceptions.py'
+adding 'agentos/agents/__init__.py'
+adding 'agentos/agents/researcher_agent.py'
+adding 'agentos/agents/script_author_agent.py'
+adding 'agentos/agents/security_agent.py'
+adding 'agentos/builder/agent_builder.py'
+adding 'agentos/builder/crew_builder.py'
+adding 'agentos/builder/tool_builder.py'
+adding 'agentos/cli/main.py'
+adding 'agentos/comms/__init__.py'
+adding 'agentos/comms/websocket_server.py'
+adding 'agentos/config/default_config.py'
+adding 'agentos/core/__init__.py'
+adding 'agentos/core/agent.py'
+adding 'agentos/core/base.py'
+adding 'agentos/core/bootstrap.py'
+adding 'agentos/core/cag.py'
+adding 'agentos/core/checkpoint.py'
+adding 'agentos/core/chunkers.py'
+adding 'agentos/core/composite_agent.py'
+adding 'agentos/core/config_models.py'
+adding 'agentos/core/cybersecurity_agents.py'
+adding 'agentos/core/federation.py'
+adding 'agentos/core/governance.py'
+adding 'agentos/core/hybrid_search.py'
+adding 'agentos/core/logging_config.py'
+adding 'agentos/core/planner.py'
+adding 'agentos/core/project_ops.py'
+adding 'agentos/core/rag_manager.py'
+adding 'agentos/core/resource_monitor.py'
+adding 'agentos/core/retrieval_training.py'
+adding 'agentos/core/router.py'
+adding 'agentos/core/security_agents.py'
+adding 'agentos/core/self_verification.py'
+adding 'agentos/core/squad.py'
+adding 'agentos/core/umb_adapter.py'
+adding 'agentos/core/agent_strategies/__init__.py'
+adding 'agentos/core/agent_strategies/pal_strategy.py'
+adding 'agentos/core/agent_strategies/plan_act_reflect.py'
+adding 'agentos/core/agent_strategies/react_strategy.py'
+adding 'agentos/core/agent_strategies/tree_of_thoughts.py'
+adding 'agentos/core/retrieval_adapters/__init__.py'
+adding 'agentos/core/retrieval_adapters/chroma_adapter.py'
+adding 'agentos/core/retrieval_adapters/faiss_adapter.py'
+adding 'agentos/core/retrieval_adapters/pgvector_adapter.py'
+adding 'agentos/cybercore/__init__.py'
+adding 'agentos/cybercore/agents/__init__.py'
+adding 'agentos/cybercore/agents/compliance_agent.py'
+adding 'agentos/cybercore/agents/investigator_agent.py'
+adding 'agentos/cybercore/agents/redteam_sim_agent.py'
+adding 'agentos/cybercore/agents/sandbox_analysis_agent.py'
+adding 'agentos/cybercore/agents/threat_hunt_agent.py'
+adding 'agentos/cybercore/agents/triage_agent.py'
+adding 'agentos/cybercore/mcp/__init__.py'
+adding 'agentos/cybercore/mcp/log_analysis_mcp.py'
+adding 'agentos/cybercore/mcp/password_audit_mcp.py'
+adding 'agentos/cybercore/mcp/sandbox_mcp.py'
+adding 'agentos/cybercore/mcp/threat_intel_mcp.py'
+adding 'agentos/cybercore/missions/__init__.py'
+adding 'agentos/cybercore/missions/alert_to_resolution.py'
+adding 'agentos/cybercore/missions/password_audit_mission.py'
+adding 'agentos/cybercore/missions/redteam_lab_simulation.py'
+adding 'agentos/cybercore/squads/__init__.py'
+adding 'agentos/cybercore/squads/compliance_squad.py'
+adding 'agentos/cybercore/squads/incident_response_squad.py'
+adding 'agentos/cybercore/squads/redteam_sim_squad.py'
+adding 'agentos/cybercore/squads/soc_squad.py'
+adding 'agentos/cybercore/tools/__init__.py'
+adding 'agentos/cybercore/tools/breach_check_k_anonymity.py'
+adding 'agentos/cybercore/tools/hash_identifier.py'
+adding 'agentos/cybercore/tools/ioc_normalizer.py'
+adding 'agentos/cybercore/tools/log_pattern_detector.py'
+adding 'agentos/cybercore/tools/password_entropy_estimator.py'
+adding 'agentos/cybercore/tools/yara_scanner.py'
+adding 'agentos/cybercore/utils/__init__.py'
+adding 'agentos/cybercore/utils/crypto_utils.py'
+adding 'agentos/cybercore/utils/log_parsers.py'
+adding 'agentos/cybercore/utils/normalization.py'
+adding 'agentos/cybercore/utils/validation.py'
+adding 'agentos/dmsg/__init__.py'
+adding 'agentos/dmsg/pathfinder.py'
+adding 'agentos/dmsg/registry.py'
+adding 'agentos/docs/experiments/evaluate_security_missions.py'
+adding 'agentos/examples/__init__.py'
+adding 'agentos/examples/advanced_agent_flow_demo.py'
+adding 'agentos/examples/agent_with_tools_demo.py'
+adding 'agentos/examples/agentic_chunking_demo.py'
+adding 'agentos/examples/cag_demo.py'
+adding 'agentos/examples/rag_demo.py'
+adding 'agentos/examples/sample_cybersecurity_squad_run.py'
+adding 'agentos/examples/squad_planning_demo.py'
+adding 'agentos/llm/__init__.py'
+adding 'agentos/llm/llm_client.py'
+adding 'agentos/llm/provider_registry.py'
+adding 'agentos/llm/router_factory.py'
+adding 'agentos/mcp/__init__.py'
+adding 'agentos/mcp/plugin_loader.py'
+adding 'agentos/mcp/security/__init__.py'
+adding 'agentos/mcp/security/network_monitor_mcp.py'
+adding 'agentos/mcp/security/pat_mcp.py'
+adding 'agentos/mcp/security/system_audit_mcp.py'
+adding 'agentos/mcp/security/tools/__init__.py'
+adding 'agentos/mcp/security/tools/firewall_audit.py'
+adding 'agentos/mcp/security/tools/log_analyzer.py'
+adding 'agentos/mcp/security/tools/network_metadata_inspector.py'
+adding 'agentos/mcp/security/tools/permission_audit.py'
+adding 'agentos/mcp/security/tools/siem_script_builder.py'
+adding 'agentos/mcp/security/tools/system_hardening.py'
+adding 'agentos/mcp_connectors/__init__.py'
+adding 'agentos/mcp_connectors/base_mcp.py'
+adding 'agentos/mcp_connectors/security_mcp.py'
+adding 'agentos/missions/__init__.py'
+adding 'agentos/missions/security_missions.py'
+adding 'agentos/modelhub/__init__.py'
+adding 'agentos/modelhub/llm_connector.py'
+adding 'agentos/modelhub/performance/__init__.py'
+adding 'agentos/modelhub/performance/caching_layer.py'
+adding 'agentos/modelhub/performance/mixed_precision_utils.py'
+adding 'agentos/modelhub/performance/speculative_decoding.py'
+adding 'agentos/modelhub/performance/workload_scheduler.py'
+adding 'agentos/modelhub/safety/__init__.py'
+adding 'agentos/modelhub/safety/constitutional_ai.py'
+adding 'agentos/modelhub/safety/model_cascade.py'
+adding 'agentos/modelhub/safety/verifier.py'
+adding 'agentos/modelhub/training/__init__.py'
+adding 'agentos/modelhub/training/eval.py'
+adding 'agentos/modelhub/training/instruction_tuning.py'
+adding 'agentos/modelhub/training/lora_utils.py'
+adding 'agentos/modelhub/training/moe_manager.py'
+adding 'agentos/modelhub/training/orchestrator.py'
+adding 'agentos/modelhub/training/qlora_utils.py'
+adding 'agentos/modelhub/training/quantize_utils.py'
+adding 'agentos/modelhub/training/rlhf_or_dpo.py'
+adding 'agentos/modelhub/training/speculative_decoding_manager.py'
+adding 'agentos/packaging/__init__.py'
+adding 'agentos/packaging/license_check.py'
+adding 'agentos/packaging/pack_format.py'
+adding 'agentos/packaging/signer.py'
+adding 'agentos/packaging/tests/__init__.py'
+adding 'agentos/packaging/tests/test_packaging.py'
+adding 'agentos/prompt_templates/__init__.py'
+adding 'agentos/prompt_templates/prompt_manager.py'
+adding 'agentos/server/__init__.py'
+adding 'agentos/templates/__init__.py'
+adding 'agentos/templates/build_templates.py'
+adding 'agentos/templates/templates.py'
+adding 'agentos/tests/__init__.py'
+adding 'agentos/tests/conftest.py'
+adding 'agentos/tests/test_agent.py'
+adding 'agentos/tests/test_characterization_v1.py'
+adding 'agentos/tests/test_cybersecurity.py'
+adding 'agentos/tests/test_federation.py'
+adding 'agentos/tests/test_framework_extensibility.py'
+adding 'agentos/tests/test_governance_judge.py'
+adding 'agentos/tests/test_maturity.py'
+adding 'agentos/tests/test_rag.py'
+adding 'agentos/tests/test_restructure_1_1b.py'
+adding 'agentos/tests/test_security_agents_e2e.py'
+adding 'agentos/tests/test_security_tools.py'
+adding 'agentos/tests/test_squad.py'
+adding 'agentos/tests/test_umb.py'
+adding 'agentos/tests/test_vcr_providers.py'
+adding 'agentos/tools/security/__init__.py'
+adding 'agentos/tools/security/demo_security.py'
+adding 'agentos/tools/security/mission_examples.py'
+adding 'agentos/tools/security/network_monitor_mcp.py'
+adding 'agentos/tools/security/pat_mcp.py'
+adding 'agentos/tools/security/registry_setup.py'
+adding 'agentos/tools/security/system_audit_mcp.py'
+adding 'agentos-0.2.0.dist-info/licenses/LICENSE'
+adding 'agentos_server/__init__.py'
+adding 'agentos_server/app.py'
+adding 'agentos_server/models.py'
+adding 'agentos_server/run_manager.py'
+adding 'agentos_server/routes/__init__.py'
+adding 'agentos_server/routes/agents.py'
+adding 'agentos_server/routes/builder.py'
+adding 'agentos_server/routes/checkpoints.py'
+adding 'agentos_server/routes/crews.py'
+adding 'agentos_server/routes/federation.py'
+adding 'agentos_server/routes/governance.py'
+adding 'agentos_server/routes/health.py'
+adding 'agentos_server/routes/mcp_plugins.py'
+adding 'agentos_server/routes/missions.py'
+adding 'agentos_server/routes/packaging.py'
+adding 'agentos_server/routes/providers.py'
+adding 'agentos_server/routes/runs.py'
+adding 'agentos_server/routes/templates.py'
+adding 'agentos_server/routes/tools.py'
+adding 'agentos_server/static/favicon.svg'
+adding 'agentos_server/static/icons.svg'
+adding 'agentos_server/static/index.html'
+adding 'agentos_server/static/assets/index-BQm0Bkzh.js'
+adding 'agentos_server/static/assets/index-Btr8eCpX.css'
+adding 'agentos_server/tests/__init__.py'
+adding 'agentos_server/tests/test_api.py'
+adding 'agentos_server/tests/test_providers_api.py'
+adding 'agentos_swe/__init__.py'
+adding 'agentos_swe/aggregator.py'
+adding 'agentos_swe/context.py'
+adding 'agentos_swe/exceptions.py'
+adding 'agentos_swe/intake.py'
+adding 'agentos_swe/models.py'
+adding 'agentos_swe/squad.py'
+adding 'agentos_swe/ui.py'
+adding 'agentos_swe/agents/__init__.py'
+adding 'agentos_swe/agents/architecture_agent.py'
+adding 'agentos_swe/agents/base_investigator.py'
+adding 'agentos_swe/agents/bug_agent.py'
+adding 'agentos_swe/agents/performance_agent.py'
+adding 'agentos_swe/agents/security_agent.py'
+adding 'agentos_swe/analysis/__init__.py'
+adding 'agentos_swe/analysis/graph/__init__.py'
+adding 'agentos_swe/analysis/graph/base.py'
+adding 'agentos_swe/analysis/graph/graphify_adapter.py'
+adding 'agentos_swe/analysis/semantic/__init__.py'
+adding 'agentos_swe/analysis/semantic/api_contract.py'
+adding 'agentos_swe/analysis/semantic/base.py'
+adding 'agentos_swe/analysis/semantic/javascript_resolver.py'
+adding 'agentos_swe/analysis/semantic/react_resolver.py'
+adding 'agentos_swe/analysis/semantic/registry.py'
+adding 'agentos_swe/analysis/semantic/resolver.py'
+adding 'agentos_swe/analysis/semantic/typescript_resolver.py'
+adding 'agentos_swe/analysis/semantic/vue_resolver.py'
+adding 'agentos_swe/analysis/verification/__init__.py'
+adding 'agentos_swe/analysis/verification/pipeline.py'
+adding 'agentos_swe/analysis/verification/sandbox.py'
+adding 'agentos_swe/analysis/verification/strategies.py'
+adding 'agentos_swe/analysis/verification/verification_agent.py'
+adding 'agentos_swe/attackpath/__init__.py'
+adding 'agentos_swe/attackpath/attack_correlator.py'
+adding 'agentos_swe/attackpath/attack_graph.py'
+adding 'agentos_swe/attackpath/attack_scorer.py'
+adding 'agentos_swe/attackpath/auth_analyzer.py'
+adding 'agentos_swe/attackpath/entrypoints.py'
+adding 'agentos_swe/attackpath/investigation.py'
+adding 'agentos_swe/attackpath/models.py'
+adding 'agentos_swe/attackpath/path_builder.py'
+adding 'agentos_swe/attackpath/trust_boundaries.py'
+adding 'agentos_swe/benchmark/__init__.py'
+adding 'agentos_swe/benchmark/evaluator.py'
+adding 'agentos_swe/benchmark/experiments.py'
+adding 'agentos_swe/benchmark/fixtures.py'
+adding 'agentos_swe/benchmark/models.py'
+adding 'agentos_swe/benchmark/runner.py'
+adding 'agentos_swe/controlplane/__init__.py'
+adding 'agentos_swe/controlplane/actions.py'
+adding 'agentos_swe/controlplane/aggregator.py'
+adding 'agentos_swe/controlplane/approvals.py'
+adding 'agentos_swe/controlplane/audit.py'
+adding 'agentos_swe/controlplane/controller.py'
+adding 'agentos_swe/controlplane/health.py'
+adding 'agentos_swe/controlplane/lifecycle.py'
+adding 'agentos_swe/controlplane/models.py'
+adding 'agentos_swe/controlplane/scheduler.py'
+adding 'agentos_swe/controlplane/state.py'
+adding 'agentos_swe/core/__init__.py'
+adding 'agentos_swe/core/aggregator.py'
+adding 'agentos_swe/core/context.py'
+adding 'agentos_swe/core/exceptions.py'
+adding 'agentos_swe/core/intake.py'
+adding 'agentos_swe/core/models.py'
+adding 'agentos_swe/core/squad.py'
+adding 'agentos_swe/core/agents/__init__.py'
+adding 'agentos_swe/core/agents/architecture_agent.py'
+adding 'agentos_swe/core/agents/base_investigator.py'
+adding 'agentos_swe/core/agents/bug_agent.py'
+adding 'agentos_swe/core/agents/performance_agent.py'
+adding 'agentos_swe/core/agents/security_agent.py'
+adding 'agentos_swe/correlation/__init__.py'
+adding 'agentos_swe/correlation/correlator.py'
+adding 'agentos_swe/correlation/models.py'
+adding 'agentos_swe/correlation/root_cause.py'
+adding 'agentos_swe/drift/__init__.py'
+adding 'agentos_swe/drift/changed_surface.py'
+adding 'agentos_swe/drift/comparator.py'
+adding 'agentos_swe/drift/drift_correlator.py'
+adding 'agentos_swe/drift/drift_detector.py'
+adding 'agentos_swe/drift/drift_engine.py'
+adding 'agentos_swe/drift/drift_investigator.py'
+adding 'agentos_swe/drift/drift_scorer.py'
+adding 'agentos_swe/drift/models.py'
+adding 'agentos_swe/graph/__init__.py'
+adding 'agentos_swe/graph/base.py'
+adding 'agentos_swe/graph/graphify_adapter.py'
+adding 'agentos_swe/history/__init__.py'
+adding 'agentos_swe/history/comparator.py'
+adding 'agentos_swe/history/fingerprint.py'
+adding 'agentos_swe/history/impact.py'
+adding 'agentos_swe/history/models.py'
+adding 'agentos_swe/history/scoring.py'
+adding 'agentos_swe/history/store.py'
+adding 'agentos_swe/incident/__init__.py'
+adding 'agentos_swe/incident/correlation.py'
+adding 'agentos_swe/incident/detector.py'
+adding 'agentos_swe/incident/explainability.py'
+adding 'agentos_swe/incident/impact.py'
+adding 'agentos_swe/incident/incident_engine.py'
+adding 'agentos_swe/incident/investigation.py'
+adding 'agentos_swe/incident/lifecycle.py'
+adding 'agentos_swe/incident/models.py'
+adding 'agentos_swe/incident/response.py'
+adding 'agentos_swe/incident/timeline.py'
+adding 'agentos_swe/intelligence/__init__.py'
+adding 'agentos_swe/intelligence/blast_radius.py'
+adding 'agentos_swe/intelligence/cross_repository.py'
+adding 'agentos_swe/intelligence/exploitability.py'
+adding 'agentos_swe/intelligence/exposure.py'
+adding 'agentos_swe/intelligence/models.py'
+adding 'agentos_swe/intelligence/prioritizer.py'
+adding 'agentos_swe/intelligence/recommendation.py'
+adding 'agentos_swe/intelligence/recurrence.py'
+adding 'agentos_swe/intelligence/attackpath/__init__.py'
+adding 'agentos_swe/intelligence/attackpath/attack_correlator.py'
+adding 'agentos_swe/intelligence/attackpath/attack_graph.py'
+adding 'agentos_swe/intelligence/attackpath/attack_scorer.py'
+adding 'agentos_swe/intelligence/attackpath/auth_analyzer.py'
+adding 'agentos_swe/intelligence/attackpath/entrypoints.py'
+adding 'agentos_swe/intelligence/attackpath/investigation.py'
+adding 'agentos_swe/intelligence/attackpath/models.py'
+adding 'agentos_swe/intelligence/attackpath/path_builder.py'
+adding 'agentos_swe/intelligence/attackpath/trust_boundaries.py'
+adding 'agentos_swe/intelligence/drift/__init__.py'
+adding 'agentos_swe/intelligence/drift/changed_surface.py'
+adding 'agentos_swe/intelligence/drift/comparator.py'
+adding 'agentos_swe/intelligence/drift/drift_correlator.py'
+adding 'agentos_swe/intelligence/drift/drift_detector.py'
+adding 'agentos_swe/intelligence/drift/drift_engine.py'
+adding 'agentos_swe/intelligence/drift/drift_investigator.py'
+adding 'agentos_swe/intelligence/drift/drift_scorer.py'
+adding 'agentos_swe/intelligence/drift/models.py'
+adding 'agentos_swe/intelligence/history/__init__.py'
+adding 'agentos_swe/intelligence/history/comparator.py'
+adding 'agentos_swe/intelligence/history/fingerprint.py'
+adding 'agentos_swe/intelligence/history/impact.py'
+adding 'agentos_swe/intelligence/history/models.py'
+adding 'agentos_swe/intelligence/history/scoring.py'
+adding 'agentos_swe/intelligence/history/store.py'
+adding 'agentos_swe/intelligence/knowledge/__init__.py'
+adding 'agentos_swe/intelligence/knowledge/engine.py'
+adding 'agentos_swe/intelligence/knowledge/fingerprint.py'
+adding 'agentos_swe/intelligence/knowledge/graph.py'
+adding 'agentos_swe/intelligence/knowledge/learning.py'
+adding 'agentos_swe/intelligence/knowledge/models.py'
+adding 'agentos_swe/intelligence/knowledge/patterns.py'
+adding 'agentos_swe/intelligence/knowledge/recommendations.py'
+adding 'agentos_swe/intelligence/knowledge/retrieval.py'
+adding 'agentos_swe/intelligence/knowledge/store.py'
+adding 'agentos_swe/intelligence/learning/__init__.py'
+adding 'agentos_swe/intelligence/learning/explainability.py'
+adding 'agentos_swe/intelligence/learning/learning_engine.py'
+adding 'agentos_swe/intelligence/learning/models.py'
+adding 'agentos_swe/intelligence/learning/pattern_detector.py'
+adding 'agentos_swe/intelligence/learning/recurrence_analyzer.py'
+adding 'agentos_swe/intelligence/learning/remediation_learning.py'
+adding 'agentos_swe/intelligence/learning/risk_adaptation.py'
+adding 'agentos_swe/intelligence/learning/security_memory.py'
+adding 'agentos_swe/intelligence/learning/trend_analyzer.py'
+adding 'agentos_swe/intelligence/priority/__init__.py'
+adding 'agentos_swe/intelligence/priority/blast_radius.py'
+adding 'agentos_swe/intelligence/priority/cross_repository.py'
+adding 'agentos_swe/intelligence/priority/exploitability.py'
+adding 'agentos_swe/intelligence/priority/exposure.py'
+adding 'agentos_swe/intelligence/priority/models.py'
+adding 'agentos_swe/intelligence/priority/prioritizer.py'
+adding 'agentos_swe/intelligence/priority/recommendation.py'
+adding 'agentos_swe/intelligence/priority/recurrence.py'
+adding 'agentos_swe/knowledge/__init__.py'
+adding 'agentos_swe/knowledge/engine.py'
+adding 'agentos_swe/knowledge/fingerprint.py'
+adding 'agentos_swe/knowledge/graph.py'
+adding 'agentos_swe/knowledge/learning.py'
+adding 'agentos_swe/knowledge/models.py'
+adding 'agentos_swe/knowledge/patterns.py'
+adding 'agentos_swe/knowledge/recommendations.py'
+adding 'agentos_swe/knowledge/retrieval.py'
+adding 'agentos_swe/knowledge/store.py'
+adding 'agentos_swe/learning/__init__.py'
+adding 'agentos_swe/learning/explainability.py'
+adding 'agentos_swe/learning/learning_engine.py'
+adding 'agentos_swe/learning/models.py'
+adding 'agentos_swe/learning/pattern_detector.py'
+adding 'agentos_swe/learning/recurrence_analyzer.py'
+adding 'agentos_swe/learning/remediation_learning.py'
+adding 'agentos_swe/learning/risk_adaptation.py'
+adding 'agentos_swe/learning/security_memory.py'
+adding 'agentos_swe/learning/trend_analyzer.py'
+adding 'agentos_swe/monitoring/__init__.py'
+adding 'agentos_swe/monitoring/alert_engine.py'
+adding 'agentos_swe/monitoring/alerts.py'
+adding 'agentos_swe/monitoring/change_detector.py'
+adding 'agentos_swe/monitoring/changes.py'
+adding 'agentos_swe/monitoring/drift.py'
+adding 'agentos_swe/monitoring/impact.py'
+adding 'agentos_swe/monitoring/models.py'
+adding 'agentos_swe/monitoring/monitor.py'
+adding 'agentos_swe/monitoring/regression_detector.py'
+adding 'agentos_swe/monitoring/result.py'
+adding 'agentos_swe/monitoring/runner.py'
+adding 'agentos_swe/monitoring/scheduler.py'
+adding 'agentos_swe/monitoring/snapshot.py'
+adding 'agentos_swe/monitoring/snapshot_manager.py'
+adding 'agentos_swe/monitoring/trend_analyzer.py'
+adding 'agentos_swe/observability/__init__.py'
+adding 'agentos_swe/observability/events.py'
+adding 'agentos_swe/observability/models.py'
+adding 'agentos_swe/observability/report.py'
+adding 'agentos_swe/observability/tracer.py'
+adding 'agentos_swe/operations/__init__.py'
+adding 'agentos_swe/operations/controlplane/__init__.py'
+adding 'agentos_swe/operations/controlplane/actions.py'
+adding 'agentos_swe/operations/controlplane/aggregator.py'
+adding 'agentos_swe/operations/controlplane/approvals.py'
+adding 'agentos_swe/operations/controlplane/audit.py'
+adding 'agentos_swe/operations/controlplane/controller.py'
+adding 'agentos_swe/operations/controlplane/health.py'
+adding 'agentos_swe/operations/controlplane/lifecycle.py'
+adding 'agentos_swe/operations/controlplane/models.py'
+adding 'agentos_swe/operations/controlplane/scheduler.py'
+adding 'agentos_swe/operations/controlplane/state.py'
+adding 'agentos_swe/operations/incident/__init__.py'
+adding 'agentos_swe/operations/incident/correlation.py'
+adding 'agentos_swe/operations/incident/detector.py'
+adding 'agentos_swe/operations/incident/explainability.py'
+adding 'agentos_swe/operations/incident/impact.py'
+adding 'agentos_swe/operations/incident/incident_engine.py'
+adding 'agentos_swe/operations/incident/investigation.py'
+adding 'agentos_swe/operations/incident/lifecycle.py'
+adding 'agentos_swe/operations/incident/models.py'
+adding 'agentos_swe/operations/incident/response.py'
+adding 'agentos_swe/operations/incident/timeline.py'
+adding 'agentos_swe/operations/monitoring/__init__.py'
+adding 'agentos_swe/operations/monitoring/alert_engine.py'
+adding 'agentos_swe/operations/monitoring/alerts.py'
+adding 'agentos_swe/operations/monitoring/change_detector.py'
+adding 'agentos_swe/operations/monitoring/changes.py'
+adding 'agentos_swe/operations/monitoring/drift.py'
+adding 'agentos_swe/operations/monitoring/impact.py'
+adding 'agentos_swe/operations/monitoring/models.py'
+adding 'agentos_swe/operations/monitoring/monitor.py'
+adding 'agentos_swe/operations/monitoring/regression_detector.py'
+adding 'agentos_swe/operations/monitoring/result.py'
+adding 'agentos_swe/operations/monitoring/runner.py'
+adding 'agentos_swe/operations/monitoring/scheduler.py'
+adding 'agentos_swe/operations/monitoring/snapshot.py'
+adding 'agentos_swe/operations/monitoring/snapshot_manager.py'
+adding 'agentos_swe/operations/monitoring/trend_analyzer.py'
+adding 'agentos_swe/operations/orchestration/__init__.py'
+adding 'agentos_swe/operations/orchestration/action_selector.py'
+adding 'agentos_swe/operations/orchestration/approval_engine.py'
+adding 'agentos_swe/operations/orchestration/confidence_engine.py'
+adding 'agentos_swe/operations/orchestration/decision_engine.py'
+adding 'agentos_swe/operations/orchestration/decisions.py'
+adding 'agentos_swe/operations/orchestration/evidence.py'
+adding 'agentos_swe/operations/orchestration/executor.py'
+adding 'agentos_swe/operations/orchestration/explainability.py'
+adding 'agentos_swe/operations/orchestration/models.py'
+adding 'agentos_swe/operations/orchestration/orchestrator.py'
+adding 'agentos_swe/operations/orchestration/planner.py'
+adding 'agentos_swe/operations/orchestration/policy_engine.py'
+adding 'agentos_swe/operations/orchestration/remediation_queue.py'
+adding 'agentos_swe/operations/orchestration/state.py'
+adding 'agentos_swe/operations/orchestration/workflow.py'
+adding 'agentos_swe/orchestration/__init__.py'
+adding 'agentos_swe/orchestration/action_selector.py'
+adding 'agentos_swe/orchestration/approval_engine.py'
+adding 'agentos_swe/orchestration/confidence_engine.py'
+adding 'agentos_swe/orchestration/decision_engine.py'
+adding 'agentos_swe/orchestration/decisions.py'
+adding 'agentos_swe/orchestration/evidence.py'
+adding 'agentos_swe/orchestration/executor.py'
+adding 'agentos_swe/orchestration/explainability.py'
+adding 'agentos_swe/orchestration/models.py'
+adding 'agentos_swe/orchestration/orchestrator.py'
+adding 'agentos_swe/orchestration/planner.py'
+adding 'agentos_swe/orchestration/policy_engine.py'
+adding 'agentos_swe/orchestration/remediation_queue.py'
+adding 'agentos_swe/orchestration/state.py'
+adding 'agentos_swe/orchestration/workflow.py'
+adding 'agentos_swe/persistence/__init__.py'
+adding 'agentos_swe/persistence/models.py'
+adding 'agentos_swe/persistence/operational_store.py'
+adding 'agentos_swe/persistence/repository_registry.py'
+adding 'agentos_swe/persistence/serialization.py'
+adding 'agentos_swe/pr/__init__.py'
+adding 'agentos_swe/pr/governance_gate.py'
+adding 'agentos_swe/pr/models.py'
+adding 'agentos_swe/pr/pipeline.py'
+adding 'agentos_swe/pr/pr_generator.py'
+adding 'agentos_swe/pr/provider.py'
+adding 'agentos_swe/pr/risk.py'
+adding 'agentos_swe/release/__init__.py'
+adding 'agentos_swe/release/blockers.py'
+adding 'agentos_swe/release/configuration.py'
+adding 'agentos_swe/release/dependency_audit.py'
+adding 'agentos_swe/release/evidence.py'
+adding 'agentos_swe/release/manifest.py'
+adding 'agentos_swe/release/models.py'
+adding 'agentos_swe/release/packaging.py'
+adding 'agentos_swe/release/performance.py'
+adding 'agentos_swe/release/policy.py'
+adding 'agentos_swe/release/readiness.py'
+adding 'agentos_swe/release/regression.py'
+adding 'agentos_swe/release/release_engine.py'
+adding 'agentos_swe/release/validator.py'
+adding 'agentos_swe/remediation/__init__.py'
+adding 'agentos_swe/remediation/conflict_detector.py'
+adding 'agentos_swe/remediation/dependency_analyzer.py'
+adding 'agentos_swe/remediation/effort_estimator.py'
+adding 'agentos_swe/remediation/fix_ordering.py'
+adding 'agentos_swe/remediation/models.py'
+adding 'agentos_swe/remediation/planner.py'
+adding 'agentos_swe/remediation/remediation_graph.py'
+adding 'agentos_swe/remediation/risk_reduction.py'
+adding 'agentos_swe/remediation/correlation/__init__.py'
+adding 'agentos_swe/remediation/correlation/correlator.py'
+adding 'agentos_swe/remediation/correlation/models.py'
+adding 'agentos_swe/remediation/correlation/root_cause.py'
+adding 'agentos_swe/remediation/planner/__init__.py'
+adding 'agentos_swe/remediation/planner/conflict_detector.py'
+adding 'agentos_swe/remediation/planner/dependency_analyzer.py'
+adding 'agentos_swe/remediation/planner/effort_estimator.py'
+adding 'agentos_swe/remediation/planner/fix_ordering.py'
+adding 'agentos_swe/remediation/planner/models.py'
+adding 'agentos_swe/remediation/planner/planner.py'
+adding 'agentos_swe/remediation/planner/remediation_graph.py'
+adding 'agentos_swe/remediation/planner/risk_reduction.py'
+adding 'agentos_swe/remediation/pr/__init__.py'
+adding 'agentos_swe/remediation/pr/governance_gate.py'
+adding 'agentos_swe/remediation/pr/models.py'
+adding 'agentos_swe/remediation/pr/pipeline.py'
+adding 'agentos_swe/remediation/pr/pr_generator.py'
+adding 'agentos_swe/remediation/pr/provider.py'
+adding 'agentos_swe/remediation/pr/risk.py'
+adding 'agentos_swe/remediation/repair/__init__.py'
+adding 'agentos_swe/remediation/repair/fix_agent.py'
+adding 'agentos_swe/remediation/repair/impact.py'
+adding 'agentos_swe/remediation/repair/models.py'
+adding 'agentos_swe/remediation/repair/patch_validator.py'
+adding 'agentos_swe/remediation/repair/pipeline.py'
+adding 'agentos_swe/remediation/repair/planner.py'
+adding 'agentos_swe/remediation/repair/repair_strategy.py'
+adding 'agentos_swe/remediation/repair/repair_validator.py'
+adding 'agentos_swe/remediation/repair/reviewer.py'
+adding 'agentos_swe/remediation/repair/security_regression.py'
+adding 'agentos_swe/remediation/simulation/__init__.py'
+adding 'agentos_swe/remediation/simulation/differential.py'
+adding 'agentos_swe/remediation/simulation/engine.py'
+adding 'agentos_swe/remediation/simulation/evidence.py'
+adding 'agentos_swe/remediation/simulation/executor.py'
+adding 'agentos_swe/remediation/simulation/models.py'
+adding 'agentos_swe/remediation/simulation/reachability.py'
+adding 'agentos_swe/remediation/simulation/safety.py'
+adding 'agentos_swe/remediation/simulation/scenarios.py'
+adding 'agentos_swe/repair/__init__.py'
+adding 'agentos_swe/repair/fix_agent.py'
+adding 'agentos_swe/repair/impact.py'
+adding 'agentos_swe/repair/models.py'
+adding 'agentos_swe/repair/patch_validator.py'
+adding 'agentos_swe/repair/pipeline.py'
+adding 'agentos_swe/repair/planner.py'
+adding 'agentos_swe/repair/repair_strategy.py'
+adding 'agentos_swe/repair/repair_validator.py'
+adding 'agentos_swe/repair/reviewer.py'
+adding 'agentos_swe/repair/security_regression.py'
+adding 'agentos_swe/security/__init__.py'
+adding 'agentos_swe/security/command_policy.py'
+adding 'agentos_swe/security/limits.py'
+adding 'agentos_swe/security/secret_protection.py'
+adding 'agentos_swe/security/taint/__init__.py'
+adding 'agentos_swe/security/taint/analyzer.py'
+adding 'agentos_swe/security/taint/models.py'
+adding 'agentos_swe/security/taint/propagation.py'
+adding 'agentos_swe/security/taint/python_analyzer.py'
+adding 'agentos_swe/security/taint/sanitizer.py'
+adding 'agentos_swe/security/taint/sinks.py'
+adding 'agentos_swe/security/taint/sources.py'
+adding 'agentos_swe/semantic/__init__.py'
+adding 'agentos_swe/semantic/api_contract.py'
+adding 'agentos_swe/semantic/base.py'
+adding 'agentos_swe/semantic/javascript_resolver.py'
+adding 'agentos_swe/semantic/react_resolver.py'
+adding 'agentos_swe/semantic/registry.py'
+adding 'agentos_swe/semantic/resolver.py'
+adding 'agentos_swe/semantic/typescript_resolver.py'
+adding 'agentos_swe/semantic/vue_resolver.py'
+adding 'agentos_swe/simulation/__init__.py'
+adding 'agentos_swe/simulation/differential.py'
+adding 'agentos_swe/simulation/engine.py'
+adding 'agentos_swe/simulation/evidence.py'
+adding 'agentos_swe/simulation/executor.py'
+adding 'agentos_swe/simulation/models.py'
+adding 'agentos_swe/simulation/reachability.py'
+adding 'agentos_swe/simulation/safety.py'
+adding 'agentos_swe/simulation/scenarios.py'
+adding 'agentos_swe/verification/__init__.py'
+adding 'agentos_swe/verification/pipeline.py'
+adding 'agentos_swe/verification/sandbox.py'
+adding 'agentos_swe/verification/strategies.py'
+adding 'agentos_swe/verification/verification_agent.py'
+adding 'agentos-0.2.0.dist-info/METADATA'
+adding 'agentos-0.2.0.dist-info/WHEEL'
+adding 'agentos-0.2.0.dist-info/entry_points.txt'
+adding 'agentos-0.2.0.dist-info/top_level.txt'
+adding 'agentos-0.2.0.dist-info/RECORD'
+removing build\bdist.win-amd64\wheel
+Successfully built agentos-0.2.0-py3-none-any.whl
+$ C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Scripts\python.exe -m venv C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv
+$ C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Scripts\python.exe -m pip install --quiet --upgrade pip
+$ C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Scripts\python.exe -m pip install --quiet C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\dist\agentos-0.2.0-py3-none-any.whl
+$ C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Scripts\agentos.exe new-project demo
+Success: Project 'demo' created successfully.
+$ C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Scripts\python.exe -I -c 
+import os, sys, asyncio, tempfile
+import agentos, agentos_server
+venv = os.path.realpath(sys.prefix)
+for mod in (agentos, agentos_server):
+    path = os.path.realpath(mod.__file__)
+    assert path.startswith(venv), f"{mod.__name__} imported from {path}, not the venv"
+    print(f"OK  {mod.__name__} -> {path}")
+
+import agentos.server.app as old
+import agentos_server.app as new
+assert old is new, "agentos.server.app alias is not agentos_server.app"
+print("OK  agentos.server.app is agentos_server.app")
+
+import httpx
+from agentos_server.app import create_app
+app = create_app(os.environ["AGENTOS_CHECK_PROJECT"])
+
+async def health():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        return await c.get("/api/health")
+
+resp = asyncio.run(health())
+assert resp.status_code == 200, resp.text
+print(f"OK  GET /api/health -> {resp.status_code}")
+
+static_index = os.path.join(os.path.dirname(agentos_server.__file__), "static", "index.html")
+print(f"{'OK ' if os.path.isfile(static_index) else 'N/A'} packaged UI at {static_index}")
+
+<string>:10: DeprecationWarning: agentos.server is deprecated; import from agentos_server instead.
+OK  agentos -> C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Lib\site-packages\agentos\__init__.py
+OK  agentos_server -> C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Lib\site-packages\agentos_server\__init__.py
+OK  agentos.server.app is agentos_server.app
+OK  GET /api/health -> 200
+OK  packaged UI at C:\Users\mujum\AppData\Local\Temp\agentos-wheel-zzl9sx0_\venv\Lib\site-packages\agentos_server\static\index.html
+
+Wheel install check passed: agentos-0.2.0-py3-none-any.whl

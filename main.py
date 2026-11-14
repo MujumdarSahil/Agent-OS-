@@ -7,7 +7,7 @@ DEV mode (default):
   Ctrl+C terminates both cleanly.
 
 PROD mode (--prod):
-  Expects the frontend already built (npm run build → agentos/frontend/dist/).
+  Expects the frontend already built (npm run build → ui/dist/).
   FastAPI serves the built static files + API on one port via uvicorn.
   Auto-builds if dist/ is missing.
 
@@ -28,7 +28,7 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).parent.resolve()
-FRONTEND_DIR = ROOT / "agentos" / "frontend"
+FRONTEND_DIR = ROOT / "ui"
 DEFAULT_PROJECT = ROOT / "agentos" / "templates" / "source" / "task_planner"
 
 # Force UTF-8 output on Windows so crewai/litellm emoji don't crash the console.
@@ -103,7 +103,7 @@ def build_frontend():
         if result.returncode != 0:
             print(
                 "ERROR: Frontend build failed.\n"
-                "Run `npm run build` in agentos/frontend/ to see the full output.",
+                "Run `npm run build` in ui/ to see the full output.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -132,7 +132,7 @@ def run_dev(project_path: str, backend_port: int, frontend_port: int):
     backend_proc = subprocess.Popen(
         [
             sys.executable, "-m", "uvicorn",
-            f"agentos.server.app:create_app",
+            f"agentos_server.app:create_app",
             "--host", "0.0.0.0",
             "--port", str(backend_port),
             "--factory",
@@ -205,7 +205,7 @@ def run_prod(project_path: str, backend_port: int):
     proc = subprocess.Popen(
         [
             sys.executable, "-m", "uvicorn",
-            "agentos.server.app:create_app",
+            "agentos_server.app:create_app",
             "--host", "0.0.0.0",
             "--port", str(backend_port),
             "--factory",

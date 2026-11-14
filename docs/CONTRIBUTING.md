@@ -25,7 +25,7 @@ cd agentos
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-cd agentos/frontend && npm install && cd ../..
+cd ui && npm install && cd ..
 cp .env.example .env
 ```
 
@@ -39,7 +39,7 @@ Run `python main.py --dev` to start both the backend and frontend. Run the test
 suites before opening a PR:
 
 ```bash
-pytest agentos/server/tests/ -v
+pytest agentos_server/tests/ -v
 pytest agentos/packaging/tests/ -v
 ```
 
@@ -80,7 +80,7 @@ use cases are always welcome and don't require touching core code at all.
 - If you touch `core/`, add or update tests under the matching `tests/`
   directory — we don't merge untested changes to core logic.
 - If your change affects CLI behavior, confirm the equivalent API route (in
-  `agentos/server/app.py`) still matches — per this project's own rule, CLI and
+  `agentos_server/app.py`) still matches — per this project's own rule, CLI and
   API must never diverge in behavior. If you find a place where they already
   have diverged, that's worth its own PR/issue even if it's not what you set
   out to fix.

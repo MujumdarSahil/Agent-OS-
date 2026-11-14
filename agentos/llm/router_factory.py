@@ -11,6 +11,33 @@ from litellm import Router
 
 from agentos.llm.provider_registry import get_available_providers, PROVIDER_REGISTRY, AgentOSLLMError
 
+# In-memory fallback policy cache for the router override hook.
+# Synchronously read by build_router without calling async code.
+_fallback_policy_cache: Optional[List[Dict[str, Any]]] = None
+
+
+def set_fallback_policy_cache(cache: Optional[List[Any]]) -> None:
+    """Set the in-memory fallback policy cache (called on startup and on PUT /api/v2/providers/fallback)."""
+    global _fallback_policy_cache
+    if cache is None:
+        _fallback_policy_cache = None
+        return
+    normalized = []
+    for item in cache:
+        if hasattr(item, "model_dump"):
+            normalized.append(item.model_dump())
+        elif isinstance(item, dict):
+            normalized.append(dict(item))
+        elif hasattr(item, "__dict__"):
+            normalized.append(dict(item.__dict__))
+    _fallback_policy_cache = normalized
+
+
+def get_fallback_policy_cache() -> Optional[List[Dict[str, Any]]]:
+    """Get the current in-memory fallback policy cache."""
+    return _fallback_policy_cache
+
+
 # Drop parameters that are unsupported by a given provider (e.g. cache_breakpoint on Groq).
 # LiteLLM sometimes forwards OpenAI/Anthropic prompt-caching metadata to providers that
 # don't support it. Setting this at module load ensures it applies globally for the process.
@@ -37,11 +64,17 @@ def check_ollama_reachable() -> bool:
         logger.debug(f"Ollama connectivity probe failed: {e}")
     return False
 
-def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
+def build_router(
+    preferred_tags: Optional[List[str]] = None,
+    provider_configs: Optional[List[Any]] = None,
+) -> Router:
     """
     Reads available providers, builds a litellm Router model_list where every
     available provider becomes one model_list entry under a shared model_name group
     ("agentos-default"), with an 'order' parameter for fallback priority.
+
+    Respects synchronous fallback policy overrides from provider_configs or the
+    in-memory cache set via set_fallback_policy_cache().
     """
     available_providers = get_available_providers()
     ollama_reachable = check_ollama_reachable()
@@ -52,6 +85,43 @@ def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
         logger.warning(
             "Ollama is unreachable at OLLAMA_BASE_URL. Ollama providers are omitted from fallback chain."
         )
+
+    # Resolve policy overrides from parameter or in-memory cache
+    if provider_configs is None:
+        provider_configs = _fallback_policy_cache
+
+    overrides_by_name: Dict[str, Dict[str, Any]] = {}
+    if provider_configs:
+        for item in provider_configs:
+            d = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            overrides_by_name[d["name"]] = d
+
+        # Incorporate explicitly configured providers from policy configs that provide litellm_model
+        # or are known registry entries (especially under AGENTOS_MOCK_LLM or custom policies).
+        known_names = {p["name"] for p in available_providers}
+        for name, conf in overrides_by_name.items():
+            if name not in known_names and conf.get("enabled", True):
+                litellm_model = conf.get("litellm_model")
+                if not litellm_model:
+                    prov = next((p for p in PROVIDER_REGISTRY if p["name"] == name), None)
+                    if prov:
+                        litellm_model = prov.get("litellm_model")
+                if litellm_model and (os.environ.get("AGENTOS_MOCK_LLM") == "1" or conf.get("litellm_model")):
+                    available_providers.append({
+                        "name": name,
+                        "litellm_model": litellm_model,
+                        "api_key_env": None,
+                        "api_base_env": None,
+                        "priority": conf.get("order", 100),
+                        "tags": ["custom"],
+                    })
+
+    # Filter out disabled providers from overrides
+    if overrides_by_name:
+        available_providers = [
+            p for p in available_providers
+            if overrides_by_name.get(p["name"], {}).get("enabled", True)
+        ]
 
     # If completely empty, raise clear error
     if not available_providers:
@@ -70,15 +140,16 @@ def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
                 "your environment (.env) or ensure Ollama is running locally."
             )
 
-    # Sort/Reorder based on preferred tags and priority
-    # Providers matching preferred tags should run first
+    # Sort/Reorder based on fallback overrides, preferred tags, and priority
     def get_sort_key(p: Dict[str, Any]):
+        override = overrides_by_name.get(p["name"])
+        if override is not None and "order" in override:
+            return (override["order"], 0, p.get("priority", 100))
         if preferred_tags:
-            # Check if any tag matches preferred_tags
             has_match = any(tag in p.get("tags", []) for tag in preferred_tags)
             match_val = 0 if has_match else 1
-            return (match_val, p["priority"])
-        return (p["priority"],)
+            return (1000, match_val, p.get("priority", 100))
+        return (1000, 1, p.get("priority", 100))
 
     sorted_providers = sorted(available_providers, key=get_sort_key)
 
@@ -108,10 +179,14 @@ def build_router(preferred_tags: Optional[List[str]] = None) -> Router:
                 api_base = "http://localhost:11434"
 
         # Construct litellm_params
+        override = overrides_by_name.get(p["name"])
+        order_val = override["order"] if override and "order" in override else (idx + 1)
         litellm_params = {
             "model": p["litellm_model"],
-            "order": idx + 1,  # Lower order runs first
+            "order": order_val,
         }
+        if override and override.get("timeout_s"):
+            litellm_params["request_timeout"] = override["timeout_s"]
         if api_key:
             litellm_params["api_key"] = api_key
         if api_base:

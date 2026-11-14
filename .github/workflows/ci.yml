@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-cov ruff pip-audit
+          pip install pytest-cov ruff pip-audit cvss==3.6
           pip install -e .
           pip install -e examples/external_plugin_demo
 
@@ -31,7 +31,7 @@ jobs:
         env:
           AGENTOS_MOCK_LLM: "1"
         run: |
-          pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=json
+          pytest agentos/tests agentos_server/tests agentos/packaging/tests tests/ci --cov=agentos --cov=agentos_server --cov-report=json
 
       - name: Enforce Core & LLM Coverage
         run: |
@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Python Linter (ruff)
         run: |
-          ruff check agentos
+          ruff check agentos agentos_server
 
       - name: Run Dependency Audit (pip-audit check for HIGH/CRITICAL)
         run: |
@@ -56,20 +56,96 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: agentos/frontend/package-lock.json
+          cache-dependency-path: ui/package-lock.json
 
       - name: Install Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm install
 
       - name: Audit Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm audit --audit-level=critical
 
       - name: Run ESLint
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run lint
 
       - name: Type Check and Build Frontend
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run build
+
+  wheel-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI into agentos_server/static
+        working-directory: ui
+        run: |
+          npm install
+          npm run build:package
+
+      - name: Build wheel and install into a clean virtualenv
+        run: |
+          python -m pip install --upgrade pip build
+          python check_wheel_install.py
+
+  mongo-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS with Platform extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[platform]" pytest pytest-asyncio
+
+      - name: Print Kernel Version
+        run: uname -r
+
+      - name: Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)
+        run: |
+          URI="$(sh docker/mongo-init.sh)"
+          echo "::add-mask::$URI"
+          echo "AGENTOS_MONGO_URI=$URI" >> "$GITHUB_ENV"
+          docker compose -f docker/compose.mongo.yml up -d --wait
+
+      - name: Print MongoDB startup line
+        run: docker logs agentos-mongo 2>&1 | grep -i "Waiting for connections" | head -n 5
+
+      - name: Run LIVE Mongo storage tests (skips are failures here)
+        env:
+          AGENTOS_MOCK_LLM: "1"
+          AGENTOS_REQUIRE_LIVE_MONGO: "1"
+        run: pytest agentos/tests/test_storage_contract_1_2.py agentos/tests/test_vault_1_3.py agentos/tests/test_transfer_1_3.py -rs
+
+      - name: Check MongoDB logs for crash or fatal errors
+        run: |
+          if docker logs agentos-mongo 2>&1 | grep -E 'SIGSEGV|Fatal|"s":"F"'; then
+            echo "::error::MongoDB logged fatal crash or failure status"
+            exit 1
+          fi
+
+      - name: MongoDB logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.mongo.yml logs mongo

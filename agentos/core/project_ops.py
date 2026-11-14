@@ -3,7 +3,7 @@ project_ops.py — Shared project file I/O and orchestration logic.
 
 This module is the SINGLE source of truth for reading and writing AgentOS
 project files (agents, tools, crews, missions).  Both agentos/cli/main.py
-and agentos/server/ import from here — there is no duplicated business logic.
+and agentos_server/ import from here — there is no duplicated business logic.
 """
 
 import os
@@ -192,6 +192,16 @@ def write_crew(project_path: str, config: CrewYAMLConfig) -> str:
     return path
 
 
+def delete_crew(project_path: str, name: str) -> bool:
+    """Delete a crew config. Returns True if deleted, False if not found."""
+    path = _crew_path(project_path, name)
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    logger.info(f"Deleted crew config: {path}")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Missions
 # ---------------------------------------------------------------------------
@@ -233,6 +243,16 @@ def write_mission(project_path: str, config: MissionYAMLConfig) -> str:
         yaml.safe_dump(config.model_dump(), f)
     logger.info(f"Wrote mission config: {path}")
     return path
+
+
+def delete_mission(project_path: str, name: str) -> bool:
+    """Delete a mission config. Returns True if deleted, False if not found."""
+    path = _mission_path(project_path, name)
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    logger.info(f"Deleted mission config: {path}")
+    return True
 
 
 # ---------------------------------------------------------------------------
