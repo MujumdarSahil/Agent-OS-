@@ -5,6 +5,7 @@ security labels, declarative static analysis, and tool mediation.
 """
 
 from agentos.flows.engine import FlowEngine, execute_validator_runtime
+from agentos.flows.worker import FlowWorker
 from agentos.flows.labels import (
     Confidentiality,
     Integrity,
@@ -51,6 +52,7 @@ __all__ = [
     "FlowDefinition",
     "FlowEngine",
     "FlowRunState",
+    "FlowWorker",
     "Integrity",
     "InvalidFlowConfigError",
     "Label",
