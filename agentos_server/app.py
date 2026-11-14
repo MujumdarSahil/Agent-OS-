@@ -69,7 +69,10 @@ def create_app(
                 from agentos.security.vault import Vault
                 app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
             except Exception as e:
-                logger.warning(f"Could not connect to Mongo at lifespan: {e}")
+                logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                raise RuntimeError(
+                    f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                ) from e
 
         # Pre-load fallback policy cache into in-memory router cache
         try:
@@ -79,8 +82,9 @@ def create_app(
         except Exception as e:
             logger.warning(f"Failed to pre-load fallback policy cache: {e}")
 
-        # Print one-time token access link
-        print_startup_auth_banner(app.state.api_token)
+        # Print one-time token access link with actual served UI port
+        server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+        print_startup_auth_banner(app.state.api_token, server_port=server_port)
 
         yield
         # Close mongo client if present
@@ -138,47 +142,20 @@ def create_app(
     from agentos.security.vault import Vault, MasterKey
     try:
         master_key = MasterKey.load(create=True)
-    except Exception:
-        master_key = MasterKey.generate()
+    except Exception as e:
+        raise RuntimeError(f"Failed to load vault master key: {e}") from e
     app.state.master_key = master_key
     app.state.vault = Vault(app.state.storage.credentials, master_key)
 
     # Local API token
-    from agentos_server.auth import get_or_create_api_token, check_request_auth, print_startup_auth_banner
+    from agentos_server.auth import get_or_create_api_token, print_startup_auth_banner, SecurityMiddleware
     api_token = get_or_create_api_token()
     app.state.api_token = api_token
 
-    # Pre-populate in-memory router fallback cache if possible
-    try:
-        import asyncio
-        loop = None
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            pass
-        if loop and loop.is_running():
-            pass
-        else:
-            configs = asyncio.run(app.state.storage.provider_configs.list())
-            from agentos.llm.router_factory import set_fallback_policy_cache
-            set_fallback_policy_cache([c.model_dump() for c in configs])
-    except Exception:
-        pass
-
     # -----------------------------------------------------------------------
-    # Security Middleware: Host header validation & Token Authentication
+    # Security Middleware: Host header validation & Token Authentication (HTTP & WS)
     # -----------------------------------------------------------------------
-    from fastapi import Request
-    from fastapi.responses import JSONResponse
-
-    @app.middleware("http")
-    async def auth_and_host_middleware(request: Request, call_next):
-        authorized, error_msg = check_request_auth(request, expected_token=app.state.api_token)
-        if not authorized:
-            if "Host header" in (error_msg or ""):
-                return JSONResponse(status_code=400, content={"detail": error_msg})
-            return JSONResponse(status_code=401, content={"detail": error_msg})
-        return await call_next(request)
+    app.add_middleware(SecurityMiddleware, api_token=api_token)
 
     # -----------------------------------------------------------------------
     # Register API routes

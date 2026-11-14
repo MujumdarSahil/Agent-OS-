@@ -36,6 +36,8 @@ from typing import Any, Dict, List, Optional
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
 from agentos.llm.router_factory import build_router, get_fallback_policy_cache, set_fallback_policy_cache
@@ -685,3 +687,110 @@ async def test_mongo_backend_crud_and_durability(api_token, auth_headers):
         mongo_client = AsyncMongoClient(MONGO_URI)
         await mongo_client.drop_database(db_name)
         await mongo_client.close()
+
+
+# ---------------------------------------------------------------------------
+# 6. WebSocket Security Tests (Pure ASGI Middleware)
+# ---------------------------------------------------------------------------
+
+def test_websocket_stream_security_matrix(file_app, api_token):
+    """
+    WebSocket endpoint /api/runs/{run_id}/stream security matrix:
+      - No token -> refused with code 4401
+      - Bad Origin -> refused with code 4401
+      - Bad Host -> refused with code 4401
+      - Valid token + Origin -> connected successfully and echoes agentos.v1
+    """
+    # Create a mock run state in run_manager
+    run_id = file_app.state.run_manager.create_run("test_mission")
+    run_state = file_app.state.run_manager.get(run_id)
+    client = TestClient(file_app, base_url="http://localhost")
+
+    # 1. No token -> refused (close code 4401)
+    with pytest.raises(WebSocketDisconnect) as exc1:
+        with client.websocket_connect(
+            f"/api/runs/{run_id}/stream",
+            headers={"Host": "localhost", "Origin": "http://localhost:5173"},
+        ):
+            pass
+    assert exc1.value.code == 4401
+
+    # 2. Bad Origin -> refused (close code 4401)
+    with pytest.raises(WebSocketDisconnect) as exc2:
+        with client.websocket_connect(
+            f"/api/runs/{run_id}/stream",
+            subprotocols=[f"agentos.token.{api_token}", "agentos.v1"],
+            headers={"Host": "localhost", "Origin": "http://evil.com"},
+        ):
+            pass
+    assert exc2.value.code == 4401
+
+    # 3. Bad Host -> refused (close code 4401)
+    with pytest.raises(WebSocketDisconnect) as exc3:
+        with client.websocket_connect(
+            f"/api/runs/{run_id}/stream",
+            subprotocols=[f"agentos.token.{api_token}", "agentos.v1"],
+            headers={"Host": "evil.com", "Origin": "http://localhost:5173"},
+        ):
+            pass
+    assert exc3.value.code == 4401
+
+    # 4. Valid token + valid origin -> connected successfully
+    with client.websocket_connect(
+        f"/api/runs/{run_id}/stream",
+        subprotocols=[f"agentos.token.{api_token}", "agentos.v1"],
+        headers={"Host": "localhost", "Origin": "http://localhost:5173"},
+    ) as ws:
+        # Push completed event into the run state's event queue
+        run_state.status = "completed"
+        run_state.event_queue.put_nowait({"event": "run_completed"})
+        msg = ws.receive_json()
+        assert msg.get("event") == "run_completed"
+
+
+# ---------------------------------------------------------------------------
+# 7. Fail-Fast Hardening Tests (MasterKey & Mongo URI)
+# ---------------------------------------------------------------------------
+
+def test_master_key_startup_failure_on_corrupt_file(tmp_path, monkeypatch):
+    """If MasterKey.load fails, startup fails immediately with a clear error. No silent generate()."""
+    bad_key_path = tmp_path / "corrupt_master.key"
+    bad_key_path.write_text("not_valid_base64_master_key!@#$", encoding="ascii")
+    monkeypatch.setenv("AGENTOS_MASTER_KEY_FILE", str(bad_key_path))
+    monkeypatch.delenv("AGENTOS_MASTER_KEY", raising=False)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        create_app(project_path=str(tmp_path))
+    assert "Failed to load vault master key" in str(exc_info.value)
+
+
+def test_mongo_startup_failure_on_unreachable_uri(tmp_path, monkeypatch):
+    """If AGENTOS_MONGO_URI is set and Mongo is unreachable, startup fails (no silent fallback)."""
+    # Point to an unreachable port with short timeout
+    monkeypatch.setenv(
+        "AGENTOS_MONGO_URI",
+        "mongodb://localhost:27999/unreachable_db?serverSelectionTimeoutMS=300",
+    )
+    app = create_app(project_path=str(tmp_path))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with TestClient(app, base_url="http://localhost"):
+            pass
+    assert "AGENTOS_MONGO_URI is set but MongoDB is unreachable" in str(exc_info.value)
+
+
+def test_startup_banner_port_selection(monkeypatch, capsys):
+    """Startup banner prints the URL of the UI actually served."""
+    from agentos_server.auth import get_ui_port, print_startup_auth_banner
+    import agentos_server.auth as auth_mod
+
+    # Dev mode: prints 5173
+    monkeypatch.setenv("AGENTOS_DEV", "1")
+    assert get_ui_port(server_port=8080) == 5173
+
+    # Reset banner flag to test print output
+    auth_mod._PRINTED_STARTUP_BANNER = False
+    print_startup_auth_banner("sample_token_123", server_port=8080)
+    captured = capsys.readouterr().out
+    assert "http://localhost:5173/#token=sample_token_123" in captured
+

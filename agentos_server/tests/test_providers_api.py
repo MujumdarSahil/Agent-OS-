@@ -27,7 +27,12 @@ def app(project_path):
 
 @pytest_asyncio.fixture
 async def client(app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    token = app.state.api_token
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://localhost",
+        headers={"Authorization": f"Bearer {token}", "Host": "localhost"},
+    ) as c:
         yield c
 
 

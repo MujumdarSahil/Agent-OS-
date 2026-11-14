@@ -51,7 +51,7 @@ async def stream_run(websocket: WebSocket, run_id: str):
         await websocket.close(code=4004, reason=f"Run {run_id} not found")
         return
 
-    await websocket.accept()
+    await websocket.accept(subprotocol="agentos.v1")
     logger.info(f"WebSocket client connected for run {run_id}")
 
     try:
