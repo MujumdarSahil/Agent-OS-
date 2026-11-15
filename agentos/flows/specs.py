@@ -68,6 +68,25 @@ WEBHOOK_TRIGGER_SPEC = NodeSpec(
     side_effect=SideEffectClass.NONE,
 )
 
+MANUAL_TRIGGER_SPEC = NodeSpec(
+    type="manual_trigger",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "description": {"type": "string"},
+        },
+    },
+    input_schema={},
+    output_schema={
+        "type": "object",
+        "properties": {
+            "payload": {"type": "object"},
+        },
+    },
+    side_effect=SideEffectClass.NONE,
+)
+
 LLM_NODE_SPEC = NodeSpec(
     type="llm",
     config_schema={
@@ -280,6 +299,7 @@ LOOP_NODE_SPEC = NodeSpec(
 
 BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "webhook_trigger": WEBHOOK_TRIGGER_SPEC,
+    "manual_trigger": MANUAL_TRIGGER_SPEC,
     "llm": LLM_NODE_SPEC,
     "agent": AGENT_NODE_SPEC,
     "tool": TOOL_NODE_SPEC,

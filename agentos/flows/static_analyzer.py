@@ -103,7 +103,7 @@ class StaticFlowAnalyzer:
         # Initialize entrypoint
         entry_node = self.flow.nodes[self.flow.entrypoint]
         entry_spec = BUILTIN_NODE_SPECS.get(entry_node.type) or NodeSpec(type=entry_node.type)
-        if entry_node.type == "webhook_trigger":
+        if entry_node.type in ("webhook_trigger", "manual_trigger"):
             init_inbound = Label.untrusted(sources={self.flow.entrypoint})
         else:
             init_inbound = Label.trusted(sources={self.flow.entrypoint})

@@ -29,7 +29,8 @@ from agentos.flows.rules import (
     evaluate_sink_argument_rule,
 )
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
-from agentos.storage.ports import Storage
+from agentos.storage.models import EventRecord
+from agentos.storage.ports import FencingTokenError, Storage
 
 
 class MockTransport:
@@ -64,6 +65,8 @@ class AgentOSToolProxy:
         transport_registry: dict[str, Any] | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
         track_labels: bool = True,
+        lease_id: str | None = None,
+        fencing_checker: Any | None = None,
     ) -> None:
         self.run_id = run_id
         self.agent_node_id = agent_node_id
@@ -76,6 +79,39 @@ class AgentOSToolProxy:
         self.transport_registry = transport_registry or {"send_email": MockTransport()}
         self._loop = loop or asyncio.get_event_loop()
         self.track_labels = track_labels
+        self.lease_id = lease_id
+        self.fencing_checker = fencing_checker
+
+    def _check_fencing(self) -> None:
+        """Enforce fencing token before transport invocation, event appending, or state mutation."""
+        if self.lease_id is not None:
+            if self.fencing_checker is None:
+                raise FencingTokenError(
+                    f"Lease {self.lease_id!r} is active for run {self.run_id!r} but no fencing_checker configured (fail closed)"
+                )
+            if not self.fencing_checker(self.run_id, self.lease_id):
+                raise FencingTokenError(
+                    f"Lease {self.lease_id!r} has expired or been superseded for run {self.run_id!r}"
+                )
+        elif self.fencing_checker is not None:
+            if not self.fencing_checker(self.run_id, None):
+                raise FencingTokenError(
+                    f"Fencing check rejected unleased execution for run {self.run_id!r}"
+                )
+
+    async def _append_event(
+        self,
+        type: str,
+        data: dict[str, Any] | None = None,
+    ) -> EventRecord:
+        """Append an event carrying the worker lease_id with fencing token check."""
+        self._check_fencing()
+        return await self.storage.events.append(
+            run_id=self.run_id,
+            type=type,
+            data=data,
+            lease_id=self.lease_id,
+        )
 
     def invoke_sync(self, agent_node_id: str, tool_name: str, call_args: dict[str, Any]) -> Any:
         """Synchronous entrypoint called from CrewAI worker threads."""
@@ -88,8 +124,7 @@ class AgentOSToolProxy:
     async def invoke(self, agent_node_id: str, tool_name: str, call_args: dict[str, Any]) -> Any:
         """Asynchronously mediate, inspect, validate, and execute an agent tool call."""
         if tool_name not in BUILTIN_NODE_SPECS:
-            await self.storage.events.append(
-                run_id=self.run_id,
+            await self._append_event(
                 type="tool_call_rejected",
                 data={
                     "agent_node": agent_node_id,
@@ -110,8 +145,7 @@ class AgentOSToolProxy:
             if arg_name in call_args:
                 # If LLM supplied a value differing from pinned value -> REJECT
                 if call_args[arg_name] != p_val:
-                    await self.storage.events.append(
-                        run_id=self.run_id,
+                    await self._append_event(
                         type="tool_call_rejected",
                         data={
                             "agent_node": agent_node_id,
@@ -147,8 +181,7 @@ class AgentOSToolProxy:
                         f"to EXTERNAL_SEND tool {tool_name!r}."
                     ),
                 )
-                await self.storage.events.append(
-                    run_id=self.run_id,
+                await self._append_event(
                     type="tool_call_blocked",
                     data={
                         "agent_node": agent_node_id,
@@ -185,8 +218,7 @@ class AgentOSToolProxy:
                 )
                 if violations:
                     v = violations[0]
-                    await self.storage.events.append(
-                        run_id=self.run_id,
+                    await self._append_event(
                         type="tool_call_blocked",
                         data={
                             "agent_node": agent_node_id,
@@ -198,8 +230,7 @@ class AgentOSToolProxy:
                     raise SinkRuleViolationError(v)
 
         # 4. Append tool_called event (every call produces an event)
-        tool_ev = await self.storage.events.append(
-            run_id=self.run_id,
+        tool_ev = await self._append_event(
             type="tool_called",
             data={
                 "agent_node": agent_node_id,
@@ -234,8 +265,7 @@ class AgentOSToolProxy:
                 for e in events
             )
             if not has_intent:
-                await self.storage.events.append(
-                    run_id=self.run_id,
+                await self._append_event(
                     type="sink_intent",
                     data={
                         "sink_node": agent_node_id,
@@ -245,7 +275,8 @@ class AgentOSToolProxy:
                     },
                 )
 
-            # Transport call with idempotency key
+            # Transport call with fencing check and idempotency key
+            self._check_fencing()
             transport = self.transport_registry.get(tool_name)
             if transport and hasattr(transport, "send"):
                 result = transport.send(idempotency_key=idempotency_key, **final_args)
@@ -253,8 +284,7 @@ class AgentOSToolProxy:
                 result = {"status": "sent", "idempotency_key": idempotency_key}
 
             # Append sink_committed event
-            await self.storage.events.append(
-                run_id=self.run_id,
+            await self._append_event(
                 type="sink_committed",
                 data={
                     "sink_node": agent_node_id,

@@ -97,23 +97,29 @@ def build_router(
             overrides_by_name[d["name"]] = d
 
         # Incorporate explicitly configured providers from policy configs that provide litellm_model
-        # or are known registry entries (especially under AGENTOS_MOCK_LLM or custom policies).
+        # or are known registry entries, as long as a key is configured, or it is local, or AGENTOS_MOCK_LLM=1.
         known_names = {p["name"] for p in available_providers}
         for name, conf in overrides_by_name.items():
             if name not in known_names and conf.get("enabled", True):
-                litellm_model = conf.get("litellm_model")
-                if not litellm_model:
-                    prov = next((p for p in PROVIDER_REGISTRY if p["name"] == name), None)
-                    if prov:
-                        litellm_model = prov.get("litellm_model")
-                if litellm_model and (os.environ.get("AGENTOS_MOCK_LLM") == "1" or conf.get("litellm_model")):
+                prov = next((p for p in PROVIDER_REGISTRY if p["name"] == name), None)
+                litellm_model = conf.get("litellm_model") or (prov.get("litellm_model") if prov else None)
+
+                is_mock = os.environ.get("AGENTOS_MOCK_LLM") == "1"
+                is_local = name.startswith("ollama") or (prov and prov.get("api_key_env") is None)
+                has_key = False
+                if prov and prov.get("api_key_env"):
+                    has_key = bool(os.environ.get(prov["api_key_env"], "").strip())
+                elif conf.get("api_key"):
+                    has_key = bool(str(conf["api_key"]).strip())
+
+                if litellm_model and (is_mock or is_local or has_key):
                     available_providers.append({
                         "name": name,
                         "litellm_model": litellm_model,
-                        "api_key_env": None,
-                        "api_base_env": None,
+                        "api_key_env": prov.get("api_key_env") if prov else None,
+                        "api_base_env": prov.get("api_base_env") if prov else None,
                         "priority": conf.get("order", 100),
-                        "tags": ["custom"],
+                        "tags": prov.get("tags", ["custom"]) if prov else ["custom"],
                     })
 
     # Filter out disabled providers from overrides

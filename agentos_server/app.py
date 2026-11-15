@@ -68,6 +68,9 @@ def create_app(
                 app.state.storage = await open_mongo_storage(mongo_uri)
                 from agentos.security.vault import Vault
                 app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                app.state.queue.set_storage(app.state.storage)
+                if hasattr(app.state.storage.events, "_fencing_checker"):
+                    app.state.storage.events._fencing_checker = app.state.queue.validate_lease
             except Exception as e:
                 logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
                 raise RuntimeError(
@@ -81,6 +84,33 @@ def create_app(
             set_fallback_policy_cache([c.model_dump() for c in configs])
         except Exception as e:
             logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+
+        # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+        # and re-enqueue them.
+        try:
+            if app.state.storage.flows:
+                runs = await app.state.storage.runs.list(limit=1000)
+                terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                for r in runs:
+                    if not r.flow_id:
+                        continue
+                    evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                    ev_types = [e.type for e in evs]
+                    is_terminal = any(t in terminal_events for t in ev_types)
+                    is_waiting = any(t == "run_waiting" for t in ev_types)
+                    if not is_terminal and not is_waiting:
+                        start_ev = next((e for e in evs if e.type == "run_started"), None)
+                        inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                        ver = r.flow_version or 1
+                        await app.state.queue.reenqueue(
+                            run_id=r.run_id,
+                            flow_id=r.flow_id,
+                            version=ver,
+                            inputs=inputs,
+                        )
+                        logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+        except Exception as e:
+            logger.warning(f"Startup recovery failed: {e}")
 
         # Print one-time token access link with actual served UI port
         server_port = int(os.environ.get("AGENTOS_PORT", 8000))
@@ -128,6 +158,8 @@ def create_app(
     app.state.governance = gov
     app.state.run_manager = RunManager(governance=gov)
     app.state.failed_providers = set()
+    from agentos.flows.policy import SecurityPolicy
+    app.state.security_policy = SecurityPolicy(internal_domains={"internal.local", "corp.local"})
 
     # Initialize 1.2 Storage port (File or Mongo)
     if storage is not None:
@@ -137,6 +169,12 @@ def create_app(
         from agentos.storage.file import open_file_storage
         app.state.storage = open_file_storage(project_path)
         app.state._storage_explicit = False
+
+    # Initialize in-process QueueBackend
+    from agentos.queue.in_process import InProcessQueueBackend
+    app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+    if hasattr(app.state.storage.events, "_fencing_checker"):
+        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
 
     # Initialize Credentials Vault
     from agentos.security.vault import Vault, MasterKey

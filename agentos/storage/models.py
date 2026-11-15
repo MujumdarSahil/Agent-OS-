@@ -116,14 +116,38 @@ class EncryptedSecretRecord(BaseModel):
     updated_at: Timestamp = Field(default_factory=utcnow)
 
 
+class FlowRecord(BaseModel):
+    """
+    A declarative workflow graph record.
+    Status transitions: draft -> published -> archived.
+    A published flow has an immutable integer version and content_sha256.
+    """
+    id: str = Field(..., min_length=1)
+    name: str = ""
+    status: Literal["draft", "published", "archived"] = "draft"
+    version: Optional[int] = None
+    entrypoint: str
+    nodes: Dict[str, Any] = Field(default_factory=dict)
+    edges: List[Dict[str, Any]] = Field(default_factory=list)
+    loops: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    content_sha256: Optional[str] = None
+    policy_hash: Optional[str] = None
+    created_at: Timestamp = Field(default_factory=utcnow)
+    updated_at: Timestamp = Field(default_factory=utcnow)
+    published_at: Optional[Timestamp] = None
+
+
 class RunRecord(BaseModel):
     run_id: str = Field(..., min_length=1)
     mission_name: str
+    flow_id: Optional[str] = None
+    flow_version: Optional[int] = None
     status: str = "pending"
     task_index: int = 0
     outputs: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
     provider: Optional[str] = None
+    current_lease_id: Optional[str] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 
@@ -135,3 +159,4 @@ class EventRecord(BaseModel):
     type: str
     data: Dict[str, Any] = Field(default_factory=dict)
     ts: Timestamp = Field(default_factory=utcnow)
+    lease_id: Optional[str] = None
