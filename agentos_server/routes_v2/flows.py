@@ -368,13 +368,19 @@ async def approve_flow_run(
 
     queue = request.app.state.queue
     job = await queue.get_job_by_run_id(run_id)
-    if job:
-        if state.status == RunStatus.WAITING:
-            await queue.release_for_waiting(job.job_id, job.lease_id or "", reason=(state.waiting_details or {}).get("reason") or "waiting")
-        elif state.status == RunStatus.SUCCEEDED:
-            await queue.complete(job.job_id, job.lease_id)
-        elif state.status in (RunStatus.FAILED, RunStatus.CANCELLED):
-            await queue.fail(job.job_id, job.lease_id, error=state.error or "rejected_by_operator")
+    if job and hasattr(queue, "_lock") and hasattr(queue, "_jobs"):
+        async with queue._lock:
+            qjob = queue._jobs.get(job.job_id)
+            if qjob:
+                if state.status == RunStatus.SUCCEEDED:
+                    qjob.status = "completed"
+                    qjob.lease_id = None
+                    qjob.leased_until = None
+                elif state.status in (RunStatus.FAILED, RunStatus.CANCELLED):
+                    qjob.status = "failed"
+                    qjob.last_error = state.error or "rejected_by_operator"
+                    qjob.lease_id = None
+                    qjob.leased_until = None
 
     return {
         "run_id": run_id,

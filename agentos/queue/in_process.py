@@ -137,7 +137,7 @@ class InProcessQueueBackend(QueueBackend):
                 raise ValueError(f"Job {job_id!r} not found")
             if job.status == "completed" and job.lease_id == lease_id:
                 return
-            if job.lease_id != lease_id:
+            if job.lease_id is None or job.lease_id != lease_id:
                 raise FencingTokenError(
                     f"Job {job_id} lease {lease_id!r} does not match active lease {job.lease_id!r} (status={job.status})"
                 )
@@ -152,7 +152,7 @@ class InProcessQueueBackend(QueueBackend):
                 raise ValueError(f"Job {job_id!r} not found")
             if job.status in ("failed", "dead_letter") and job.lease_id == lease_id:
                 return
-            if job.lease_id != lease_id:
+            if job.lease_id is None or job.lease_id != lease_id:
                 raise FencingTokenError(
                     f"Job {job_id} lease {lease_id!r} does not match active lease {job.lease_id!r} (status={job.status})"
                 )
