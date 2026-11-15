@@ -9,6 +9,7 @@ def test_unconfigured_fallback_provider_omitted_when_not_mock(monkeypatch):
     # 1. When AGENTOS_MOCK_LLM is disabled and key is missing:
     monkeypatch.setenv("AGENTOS_MOCK_LLM", "0")
     monkeypatch.delenv("CUSTOM_TEST_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-valid-key")
 
     policy = [
         {

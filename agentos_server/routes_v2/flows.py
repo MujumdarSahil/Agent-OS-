@@ -372,9 +372,9 @@ async def approve_flow_run(
         if state.status == RunStatus.WAITING:
             await queue.release_for_waiting(job.job_id, job.lease_id or "", reason=(state.waiting_details or {}).get("reason") or "waiting")
         elif state.status == RunStatus.SUCCEEDED:
-            await queue.complete(job.job_id, job.lease_id or "")
+            await queue.complete(job.job_id, job.lease_id)
         elif state.status in (RunStatus.FAILED, RunStatus.CANCELLED):
-            await queue.fail(job.job_id, job.lease_id or "", error=state.error or "rejected_by_operator")
+            await queue.fail(job.job_id, job.lease_id, error=state.error or "rejected_by_operator")
 
     return {
         "run_id": run_id,

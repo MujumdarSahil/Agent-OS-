@@ -23,6 +23,12 @@ from agentos_server.app import create_app
 MONGO_URI = os.environ.get("AGENTOS_MONGO_URI", "mongodb://127.0.0.1:27017")
 
 
+@pytest.fixture(autouse=True)
+def setup_test_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTOS_MASTER_KEY_FILE", str(tmp_path / "master.key"))
+    monkeypatch.setenv("AGENTOS_API_TOKEN", "test-api-token-2.1")
+
+
 @pytest.fixture
 def test_app(tmp_path):
     project_dir = tmp_path / "api_test_project"
