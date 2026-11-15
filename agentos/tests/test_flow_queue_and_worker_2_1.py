@@ -424,3 +424,137 @@ async def test_agent_path_worker_lease_fencing_safety(file_storage):
 
     # Transport still has exactly 1 send
     assert len(transport.sent_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_complete_and_fail_check_lease_in_every_state():
+    """
+    Fix 1: complete() and fail() must check the lease in EVERY state.
+    A caller whose lease_id is not the job's current lease gets FencingTokenError,
+    including when the job is waiting.
+    """
+    queue = InProcessQueueBackend()
+    job = await queue.enqueue(run_id="run_state_check", flow_id="flow_1", version=1)
+
+    # Worker 1 leases with short timeout
+    j1 = await queue.lease(worker_id="w1", lease_timeout_s=0.1)
+    assert j1 is not None
+    w1_lease = j1.lease_id
+
+    # Wait for w1's lease to expire
+    await asyncio.sleep(0.15)
+
+    # Worker 2 takes over and parks the job for approval
+    j2 = await queue.lease(worker_id="w2", lease_timeout_s=10.0)
+    assert j2 is not None
+    w2_lease = j2.lease_id
+    assert w2_lease != w1_lease
+
+    await queue.release_for_waiting(j2.job_id, w2_lease, reason="needs_operator")
+
+    check_job = await queue.get_job(j2.job_id)
+    assert check_job.status == "waiting"
+
+    # w1 calls fail() and complete() -> both rejected
+    with pytest.raises(FencingTokenError):
+        await queue.fail(j2.job_id, lease_id=w1_lease, error="w1 failed")
+
+    with pytest.raises(FencingTokenError):
+        await queue.complete(j2.job_id, lease_id=w1_lease)
+
+    # Caller with unleased / None lease_id also rejected
+    with pytest.raises(FencingTokenError):
+        await queue.complete(j2.job_id, lease_id=None)
+
+    # Job remains waiting
+    post_job = await queue.get_job(j2.job_id)
+    assert post_job.status == "waiting"
+
+
+def test_validate_lease_no_queue_job_fails_closed():
+    """
+    Fix 2: validate_lease for a run with no queue job -> False when lease_id is given (fail closed).
+    Writes without a queue (direct engine use in tests/CLI) must use lease_id=None explicitly.
+    """
+    queue = InProcessQueueBackend()
+
+    # Run with no queue job + lease_id given -> False (fail closed)
+    assert queue.validate_lease("no_such_run", lease_id="stale_or_fake_lease") is False
+
+    # Run with no queue job + lease_id=None -> True (direct engine test/CLI write)
+    assert queue.validate_lease("no_such_run", lease_id=None) is True
+
+
+@pytest.mark.asyncio
+async def test_max_attempts_dead_letter_and_worker_crash(file_storage):
+    """
+    Fix 3: Max attempts: QueueJob.attempts increments on every lease;
+    after max_attempts (default 3, configurable) the job moves to 'dead_letter' with the last error,
+    and the run is marked failed with reason 'max_attempts_exceeded'.
+    Tested with a worker that crashes every time.
+    """
+    queue = InProcessQueueBackend(storage=file_storage)
+    run_id = "run_crash_loop"
+
+    # Seed run in storage
+    from agentos.storage.models import RunRecord
+    await file_storage.runs.put(RunRecord(
+        run_id=run_id,
+        mission_name="flow_crash",
+        flow_id="flow_crash",
+        flow_version=1,
+        status="running",
+    ))
+
+    # Enqueue job with max_attempts=3
+    job = await queue.enqueue(
+        run_id=run_id,
+        flow_id="flow_crash",
+        version=1,
+        inputs={"data": "poison pill"},
+        max_attempts=3,
+    )
+    assert job.attempts == 0
+    assert job.max_attempts == 3
+
+    # Attempt 1: Worker 1 leases and crashes (timeout without renewal/complete)
+    j1 = await queue.lease(worker_id="worker_1", lease_timeout_s=0.1)
+    assert j1 is not None
+    assert j1.attempts == 1
+    await asyncio.sleep(0.15)  # crash / timeout
+
+    # Attempt 2: Worker 2 leases and crashes
+    j2 = await queue.lease(worker_id="worker_2", lease_timeout_s=0.1)
+    assert j2 is not None
+    assert j2.attempts == 2
+    await asyncio.sleep(0.15)  # crash / timeout
+
+    # Attempt 3: Worker 3 leases and crashes
+    j3 = await queue.lease(worker_id="worker_3", lease_timeout_s=0.1)
+    assert j3 is not None
+    assert j3.attempts == 3
+    await asyncio.sleep(0.15)  # crash / timeout
+
+    # Next lease attempt: job moves to dead_letter, no worker leases it
+    j4 = await queue.lease(worker_id="worker_4", lease_timeout_s=1.0)
+    assert j4 is None  # no available jobs
+
+    # Verify queue job state
+    dead_job = await queue.get_job_by_run_id(run_id)
+    assert dead_job is not None
+    assert dead_job.status == "dead_letter"
+    assert dead_job.attempts == 3
+    assert dead_job.last_error == "max_attempts_exceeded"
+
+    # Verify run record marked failed with reason max_attempts_exceeded
+    run_rec = await file_storage.runs.get(run_id)
+    assert run_rec is not None
+    assert run_rec.status == "failed"
+    assert run_rec.error == "max_attempts_exceeded"
+
+    # Verify event log has run_failed
+    events = await file_storage.events.list(run_id)
+    fail_ev = next((e for e in events if e.type == "run_failed"), None)
+    assert fail_ev is not None
+    assert fail_ev.data.get("reason") == "max_attempts_exceeded"
+

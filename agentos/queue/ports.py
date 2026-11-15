@@ -20,10 +20,13 @@ class QueueJob(BaseModel):
     flow_id: str
     version: int
     inputs: Dict[str, Any] = Field(default_factory=dict)
-    status: str = "queued"  # queued, leased, completed, failed, waiting
+    status: str = "queued"  # queued, leased, completed, failed, waiting, dead_letter
     lease_id: Optional[str] = None
     leased_until: Optional[float] = None
     worker_id: Optional[str] = None
+    attempts: int = 0
+    max_attempts: int = 3
+    last_error: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
 
 
@@ -37,6 +40,7 @@ class QueueBackend(Protocol):
         flow_id: str,
         version: int,
         inputs: Optional[Dict[str, Any]] = None,
+        max_attempts: Optional[int] = None,
     ) -> QueueJob:
         """Enqueue a new flow run."""
         ...

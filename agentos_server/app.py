@@ -68,6 +68,7 @@ def create_app(
                 app.state.storage = await open_mongo_storage(mongo_uri)
                 from agentos.security.vault import Vault
                 app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                app.state.queue.set_storage(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
             except Exception as e:
@@ -171,7 +172,7 @@ def create_app(
 
     # Initialize in-process QueueBackend
     from agentos.queue.in_process import InProcessQueueBackend
-    app.state.queue = InProcessQueueBackend()
+    app.state.queue = InProcessQueueBackend(storage=app.state.storage)
     if hasattr(app.state.storage.events, "_fencing_checker"):
         app.state.storage.events._fencing_checker = app.state.queue.validate_lease
 
