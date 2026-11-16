@@ -1,0 +1,32 @@
+# AgentOS Platform-mode Redis Queue & Nonce Cache.
+#
+#   1. Create credentials once:   pwsh docker/redis-init.ps1   (or: sh docker/redis-init.sh)
+#   2. Start:                     docker compose -f docker/compose.redis.yml up -d --wait
+#   3. Use the AGENTOS_REDIS_URI printed by step 1.
+#
+# Published on 127.0.0.1 only. Password required. AOF persistence enabled.
+# Credentials live in docker/.env.redis (gitignored).
+name: agentos-redis
+
+services:
+  redis:
+    image: redis:7.4.2-alpine
+    container_name: agentos-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${AGENTOS_REDIS_PASSWORD}", "--appendonly", "yes"]
+    env_file: .env.redis
+    environment:
+      AGENTOS_REDIS_PORT: "${AGENTOS_REDIS_PORT:-6379}"
+    ports:
+      - "127.0.0.1:${AGENTOS_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$AGENTOS_REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  redis-data:
