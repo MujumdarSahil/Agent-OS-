@@ -6,9 +6,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // AGENTOS_API_TARGET lets the e2e suite point the dev proxy at its own backend port.
+      // ws: true carries the /api/v2 run-event WebSocket (token subprotocol) through the proxy.
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.AGENTOS_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
+        ws: true,
       },
       '/ws': {
         target: 'ws://127.0.0.1:8000',
