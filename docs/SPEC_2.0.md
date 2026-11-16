@@ -135,6 +135,7 @@ All workflow executions are modeled as append-only event streams. Every node sta
 - Event-sourced execution runner with append-only provenance recording.
 - **Phase 2 Gap Note:** Until full multi-user RBAC lands in Phase 3, declassification policies, allowlists, and trusted-tool flags can only be modified via static server configuration (admin config file) or using the local admin token.
 - **Webhook Rate Limiting & Reverse Proxy Gap Note (Phase 2):** Webhook rate limiting is enforced per client IP directly from the TCP socket. Deployments behind a reverse proxy (e.g., NGINX, Cloudflare) require trusted-proxy configuration so `X-Forwarded-For` is not spoofable by untrusted clients; explicit trusted-proxy CIDR configuration and header trust is a documented Phase 3 known gap.
+- **ChromaDB Dependency Exemptions Gap Note:** Four audit exemptions in `security/audit-exemptions.json` are maintained for `chromadb` because it is required transitively by `crewai==1.15.41` (`chromadb~=1.5.9`). AgentOS does not import `chromadb` directly, runs no Chroma server, and agent nodes strictly forbid `memory` and `knowledge_sources`. Remove these exemptions when crewai drops or updates chromadb; Dependabot will surface the crewai update.
 
 ### Phase 3: Governance, Observability & Access Control
 - Policy Engine: fine-grained RBAC and attribute-based access control.
