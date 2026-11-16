@@ -2,5 +2,6 @@
 
 from agentos.queue.in_process import InProcessQueueBackend
 from agentos.queue.ports import QueueBackend, QueueJob
+from agentos.queue.redis import RedisQueueBackend
 
-__all__ = ["QueueBackend", "QueueJob", "InProcessQueueBackend"]
+__all__ = ["QueueBackend", "QueueJob", "InProcessQueueBackend", "RedisQueueBackend"]
