@@ -112,6 +112,7 @@ async def test_v2_requires_token(file_app):
             ("/api/v2/vault/keys", "GET"),
             ("/api/v2/providers", "GET"),
             ("/api/v2/providers/fallback", "GET"),
+            ("/api/v2/node-specs", "GET"),
         ]
         for url, method in endpoints:
             r = await client.request(method, url)
