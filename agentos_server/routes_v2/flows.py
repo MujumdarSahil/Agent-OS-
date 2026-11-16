@@ -274,10 +274,13 @@ async def stream_flow_run_events(
     websocket: WebSocket,
     flow_id: str,
     run_id: str,
+    after_seq: int = Query(0, ge=0),
 ) -> None:
     """
     WebSocket endpoint streaming events as they appear.
     Requires WebSocket subprotocol 'agentos.token.<token>' (validated by ASGI middleware).
+    ``after_seq`` (default 0) replays only events with seq > after_seq, so a reconnecting
+    client resumes without gaps or duplicates.
     """
     app = websocket.app
     storage = app.state.storage
@@ -289,7 +292,7 @@ async def stream_flow_run_events(
     await websocket.accept(subprotocol="agentos.v1")
     logger.info("WebSocket connected for flow run %s", run_id)
 
-    last_seq = 0
+    last_seq = after_seq
     try:
         while True:
             events = await storage.events.list(run_id, after_seq=last_seq)
