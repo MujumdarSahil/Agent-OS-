@@ -7,10 +7,12 @@ import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
 from agentos.core.umb_adapter import UMBAdapter
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.orchestrator.TrainingOrchestrator")
 class TrainingOrchestrator:
     """
     Training Orchestrator - Manages training and quantization jobs.

@@ -4,10 +4,12 @@ Model Evaluator - Evaluation metrics and testing
 
 import logging
 from typing import Dict, Any, List, Optional
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.eval.ModelEvaluator")
 class ModelEvaluator:
     """
     Model Evaluator - Evaluates model performance.

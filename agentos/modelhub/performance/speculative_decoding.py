@@ -4,10 +4,12 @@ Speculative Decoding - Small-draft + large-refine orchestration
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.performance.speculative_decoding.SpeculativeDecoding")
 class SpeculativeDecoding:
     """
     Speculative Decoding - Orchestrates small draft + large refine passes.

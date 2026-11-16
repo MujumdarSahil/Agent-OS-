@@ -6,10 +6,12 @@ SAFETY: Training utilities only. Uses bitsandbytes for quantization.
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.qlora_utils.QLoRAUtils")
 class QLoRAUtils:
     """
     QLoRA Utils - Utilities for QLoRA training flow.
