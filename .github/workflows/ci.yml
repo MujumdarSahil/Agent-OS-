@@ -103,6 +103,46 @@ jobs:
           python -m pip install --upgrade pip build
           python check_wheel_install.py
 
+  ui-e2e:
+    # 2.4 visual builder + run panel (MOCK): Playwright against a real uvicorn backend
+    # (FileStorage temp project, AGENTOS_MOCK_LLM=1, AGENTOS_INPROCESS_WORKER=1, MockTransport).
+    # Runs use case 05 (examples/usecases/05-visual-builder) specs: ui/e2e/builder*.spec.ts.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies and Chromium
+        working-directory: ui
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Builder e2e (MOCK)
+        working-directory: ui
+        env:
+          AGENTOS_E2E_PYTHON: python
+        run: npm run test:e2e:builder
+
   mongo-live:
     runs-on: ubuntu-latest
     steps:

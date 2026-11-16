@@ -80,6 +80,7 @@ V2_API_ROUTES = sorted([
     ("/api/v2/mcp-servers", "POST"),
     ("/api/v2/mcp-servers/{name}", "DELETE"),
     ("/api/v2/mcp-servers/{name}", "GET"),
+    ("/api/v2/node-specs", "GET"),
     ("/api/v2/providers", "GET"),
     ("/api/v2/providers/fallback", "GET"),
     ("/api/v2/providers/fallback", "PUT"),

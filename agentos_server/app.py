@@ -121,11 +121,22 @@ def create_app(
         if hasattr(app.state, "scheduler") and app.state.scheduler:
             app.state.scheduler.start()
 
+        # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+        from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+        app.state.inprocess_worker = None
+        if inprocess_worker_enabled():
+            app.state.inprocess_worker = InProcessFlowWorker(app)
+            app.state.inprocess_worker.start()
+
         # Print one-time token access link with actual served UI port
         server_port = int(os.environ.get("AGENTOS_PORT", 8000))
         print_startup_auth_banner(app.state.api_token, server_port=server_port)
 
         yield
+        # Stop the in-process worker before storage is closed
+        if getattr(app.state, "inprocess_worker", None) is not None:
+            await app.state.inprocess_worker.stop()
+            app.state.inprocess_worker = None
         # Stop scheduler
         if hasattr(app.state, "scheduler") and app.state.scheduler:
             try:

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target,
   Wand2, Shield, Package, Cpu, LayoutGrid, Settings as SettingsIcon,
-  Server, Key, Lock, LogOut
+  Server, Key, Lock, LogOut, Workflow
 } from 'lucide-react'
 import { getHealth, getAuthToken, clearAuthToken } from './api/client'
 import AuthGate from './components/AuthGate'
@@ -20,6 +20,8 @@ import Governance from './pages/Governance'
 import Packaging from './pages/Packaging'
 import Templates from './pages/Templates'
 import Settings from './pages/Settings'
+import Flows from './pages/Flows'
+import FlowEditor from './pages/FlowEditor'
 
 const NAV = [
   { to: '/', icon: <LayoutDashboard size={16}/>, label: 'Dashboard' },
@@ -28,6 +30,7 @@ const NAV = [
   { to: '/tools', icon: <Wrench size={16}/>, label: 'Tools' },
   { to: '/mcp-servers', icon: <Server size={16}/>, label: 'MCP Servers' },
   { to: '/providers', icon: <Key size={16}/>, label: 'Providers & Vault' },
+  { to: '/flows', icon: <Workflow size={16}/>, label: 'Flows' },
   { to: '/missions', icon: <Target size={16}/>, label: 'Missions' },
   { to: '/templates', icon: <LayoutGrid size={16}/>, label: 'Templates' },
   { to: '/builder', icon: <Wand2 size={16}/>, label: 'Builder' },
@@ -123,6 +126,8 @@ export default function App() {
             <Route path="/templates" element={<Templates />} />
             <Route path="/runs/:runId" element={<RunDetail />} />
             <Route path="/builder" element={<Builder />} />
+            <Route path="/flows" element={<Flows />} />
+            <Route path="/flows/:flowId" element={<FlowEditor />} />
             <Route path="/governance" element={<Governance />} />
             <Route path="/packaging" element={<Packaging />} />
             <Route path="/settings" element={<Settings />} />
