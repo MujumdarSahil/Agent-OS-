@@ -45,6 +45,8 @@ export default defineConfig({
         AGENTOS_PROJECT: process.env.AGENTOS_E2E_PROJECT!,
         AGENTOS_API_TOKEN: E2E_TOKEN,
         AGENTOS_MOCK_LLM: '1',
+        // Opt-in in-process worker so UI-started runs execute (MockTransport: nothing is delivered).
+        AGENTOS_INPROCESS_WORKER: '1',
         AGENTOS_MONGO_URI: '',
         AGENTOS_REDIS_URI: '',
         AGENTOS_REDIS_URL: '',

@@ -3,7 +3,11 @@
 // edge argument mapping), saves, and publishes.
 
 import { test, expect, type Page } from '@playwright/test'
+import fs from 'node:fs'
+import path from 'node:path'
 import { E2E_TOKEN } from '../playwright.builder.config'
+
+const UC05 = path.resolve(process.cwd(), '..', 'examples', 'usecases', '05-visual-builder', 'flows')
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
@@ -70,6 +74,12 @@ test('use case 01 benign flow: build -> save -> publish OK', async ({ page }) =>
   await expect(page.getByTestId('flow-status')).toHaveText('published')
   await expect(page.getByTestId('violation-list')).toHaveCount(0)
 
+  // Export matches the committed use case 05 benign flow (ids aside).
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-flow').click()])
+  const exported = JSON.parse(fs.readFileSync(await download.path(), 'utf8'))
+  const committed = JSON.parse(fs.readFileSync(path.join(UC05, 'benign.flow.json'), 'utf8'))
+  expect({ ...exported, id: '', name: '' }).toEqual({ ...committed, id: '', name: '' })
+
   // Flows page lists it with its published version.
   await page.goto('/flows')
   await page.getByTestId('versions-uc01_benign_ui').click()
@@ -91,4 +101,10 @@ test('use case 01 exfiltration variant: publish refused, agent node highlighted'
   await expect(page.getByTestId('flow-node-webhook_in')).toHaveAttribute('data-violated', 'true')
   await expect(page.locator('.react-flow__edge.violated')).toHaveCount(1)
   await expect(page.getByTestId('flow-status')).toHaveText('draft')
+
+  // Export matches the committed use case 05 attack flow (ids aside).
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-flow').click()])
+  const exported = JSON.parse(fs.readFileSync(await download.path(), 'utf8'))
+  const committed = JSON.parse(fs.readFileSync(path.join(UC05, 'attack.flow.json'), 'utf8'))
+  expect({ ...exported, id: '', name: '' }).toEqual({ ...committed, id: '', name: '' })
 })
