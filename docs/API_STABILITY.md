@@ -31,7 +31,7 @@ Any changes to their abstract method signatures (such as modifying arguments, re
 
 ## 2. Extension Entry-Points (Stable)
 
-The registered group names configured in `setup.py` and `pyproject.toml` are **Stable**:
+The registered group names configured in `pyproject.toml` are **Stable**:
 
 *   `agentos.agents`: Entry-point group for third-party agents.
 *   `agentos.tools`: Entry-point group for third-party tools.

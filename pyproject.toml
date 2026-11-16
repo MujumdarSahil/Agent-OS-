@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentos"
-version = "0.2.0"
+# Single version source: agentos/__version__.py (see [tool.setuptools.dynamic]).
+dynamic = ["version"]
 description = "A production-grade multi-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,9 +50,8 @@ platform = ["pymongo>=4.13,<5", "redis==5.2.1"]
 ui-legacy = ["streamlit>=1.40.0"]
 dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "flake8>=6.1.0", "vcrpy>=6.0.0", "fakeredis>=2.40.0", "lupa>=2.8"]
 
-# NOTE: keep setup.py temporarily in place for editable install compatibility.
-# pyproject.toml is the authoritative metadata source going forward.
-# The console_scripts entry point is duplicated here from setup.py.
+# pyproject.toml is the single packaging metadata source (setup.py removed in the 2.0 cleanup;
+# wheel and editable installs verified without it).
 
 [project.scripts]
 agentos = "agentos.app:main"
@@ -74,6 +74,9 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 [project.entry-points."agentos.mcp_plugins"]
 # (project-local mcp_plugins/ scanning is the primary mechanism;
 #  installed packages can register here for global availability)
+
+[tool.setuptools.dynamic]
+version = { attr = "agentos.__version__.__version__" }
 
 [tool.setuptools.packages.find]
 where = [".", "SWE"]
