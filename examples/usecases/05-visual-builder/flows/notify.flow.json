@@ -1,0 +1,32 @@
+{
+  "id": "uc05_notify",
+  "name": "uc05_notify",
+  "entrypoint": "trig",
+  "nodes": {
+    "trig": {
+      "id": "trig",
+      "type": "manual_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "notify": {
+      "id": "notify",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {
+        "to": "support@corp.local",
+        "subject": "New customer ticket"
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "trig",
+      "target": "notify",
+      "arg_mapping": {
+        "body": "payload"
+      }
+    }
+  ],
+  "loops": {}
+}
