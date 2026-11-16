@@ -25,12 +25,17 @@ ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in scri
 
 CHECK_CODE = r"""
 import os, sys, asyncio, tempfile
-import agentos, agentos_server
+import agentos, agentos_server, agentos_swe
 venv = os.path.realpath(sys.prefix)
-for mod in (agentos, agentos_server):
+for mod in (agentos, agentos_server, agentos_swe):
     path = os.path.realpath(mod.__file__)
     assert path.startswith(venv), f"{mod.__name__} imported from {path}, not the venv"
     print(f"OK  {mod.__name__} -> {path}")
+
+from importlib.metadata import version as _dist_version
+_installed = _dist_version("agentos")
+assert _installed == agentos.__version__, f"installed version {_installed} != agentos.__version__ {agentos.__version__}"
+print(f"OK  installed version {_installed} == agentos.__version__")
 
 import agentos.server.app as old
 import agentos_server.app as new
