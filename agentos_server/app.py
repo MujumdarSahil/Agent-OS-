@@ -119,6 +119,8 @@ def create_app(
 
         # Start cron trigger scheduler
         if hasattr(app.state, "scheduler") and app.state.scheduler:
+            # Fails startup with a clear error if schedules exist but croniter is missing.
+            await app.state.scheduler.ensure_cron_support()
             app.state.scheduler.start()
 
         # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1

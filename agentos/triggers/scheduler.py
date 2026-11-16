@@ -23,6 +23,15 @@ try:
 except ImportError:
     croniter = None  # type: ignore
 
+CRONITER_MISSING_MSG = (
+    "Cron schedules are configured but the 'croniter' package is not installed. "
+    "Install it (pip install croniter==6.0.0; it is a core AgentOS dependency) or delete the schedules."
+)
+
+
+class CroniterMissingError(RuntimeError):
+    """Schedules exist but croniter is unavailable: the scheduler cannot run them."""
+
 from agentos.queue.ports import QueueBackend
 from agentos.storage.models import RunRecord, ScheduleRecord
 from agentos.storage.ports import DuplicateIdempotencyKeyError, Storage
@@ -146,6 +155,17 @@ class FlowScheduler:
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
+    async def ensure_cron_support(self) -> None:
+        """Raise CroniterMissingError if schedules exist but croniter is not installed.
+
+        Called at server startup so a missing dependency stops the server with a clear error
+        instead of every schedule being skipped silently.
+        """
+        if croniter is not None or not self.storage.schedules:
+            return
+        if await self.storage.schedules.list():
+            raise CroniterMissingError(CRONITER_MISSING_MSG)
+
     def start(self) -> None:
         if self._running:
             return
@@ -181,8 +201,8 @@ class FlowScheduler:
         if not self.storage.schedules or not self.storage.flows:
             return []
         if croniter is None:
-            logger.warning("croniter is not installed; skipping scheduler tick")
-            return []
+            # Fail loudly: silently skipping would leave every schedule unexecuted.
+            raise CroniterMissingError(CRONITER_MISSING_MSG)
 
         now_ts = now_override if now_override is not None else time.time()
         schedules = await self.storage.schedules.list()
