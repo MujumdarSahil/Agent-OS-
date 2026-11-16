@@ -47,6 +47,7 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
 5. Never weaken a security check or CI gate to get green (audit levels, ignores, skips)
    without listing each item with ID, reason and expiry and asking the owner first.
 6. No secrets in the repo. Credentials go through the vault. Never commit `.env`.
+   Never write any part of a secret (prefix, suffix, fragment) to files, logs, commits or chat.
 7. Small commits with clear messages. Do not mix deletions, features and docs in one commit.
 8. Work in plan mode first. Show the plan and wait for approval before editing files.
 9. At the end of each sub-milestone STOP and write an evidence report (below). Do not start
