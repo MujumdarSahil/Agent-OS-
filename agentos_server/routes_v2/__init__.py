@@ -10,9 +10,11 @@ from agentos_server.routes_v2.agents import router as agents_router
 from agentos_server.routes_v2.flows import router as flows_router
 from agentos_server.routes_v2.mcp_servers import router as mcp_servers_router
 from agentos_server.routes_v2.providers import router as providers_router
+from agentos_server.routes_v2.schedules import router as schedules_router
 from agentos_server.routes_v2.squads import router as squads_router
 from agentos_server.routes_v2.tools import router as tools_router
 from agentos_server.routes_v2.vault import router as vault_router
+from agentos_server.routes_v2.webhooks import router as webhooks_router
 
 router = APIRouter()
 
@@ -23,3 +25,5 @@ router.include_router(tools_router)
 router.include_router(mcp_servers_router)
 router.include_router(vault_router)
 router.include_router(providers_router)
+router.include_router(webhooks_router)
+router.include_router(schedules_router)

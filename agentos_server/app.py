@@ -71,6 +71,11 @@ def create_app(
                 app.state.queue.set_storage(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                # Use Mongo server-time leader lock in Platform mode
+                from agentos.triggers.scheduler import MongoLeaderLock
+                db = app.state.storage.runs._c.database
+                if hasattr(app.state, "scheduler") and app.state.scheduler:
+                    app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
             except Exception as e:
                 logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
                 raise RuntimeError(
@@ -112,11 +117,21 @@ def create_app(
         except Exception as e:
             logger.warning(f"Startup recovery failed: {e}")
 
+        # Start cron trigger scheduler
+        if hasattr(app.state, "scheduler") and app.state.scheduler:
+            app.state.scheduler.start()
+
         # Print one-time token access link with actual served UI port
         server_port = int(os.environ.get("AGENTOS_PORT", 8000))
         print_startup_auth_banner(app.state.api_token, server_port=server_port)
 
         yield
+        # Stop scheduler
+        if hasattr(app.state, "scheduler") and app.state.scheduler:
+            try:
+                await app.state.scheduler.stop()
+            except Exception:
+                pass
         # Close mongo client if present
         closer = getattr(app.state.storage, "_closer", None)
         if closer:
@@ -170,11 +185,32 @@ def create_app(
         app.state.storage = open_file_storage(project_path)
         app.state._storage_explicit = False
 
-    # Initialize in-process QueueBackend
-    from agentos.queue.in_process import InProcessQueueBackend
-    app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+    # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+    redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+    if redis_uri:
+        import redis.asyncio as aioredis
+        from agentos.queue.redis import RedisQueueBackend
+        from agentos.triggers.nonce_cache import RedisNonceCache
+        redis_client = aioredis.from_url(redis_uri)
+        app.state.redis = redis_client
+        app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+        app.state.nonce_cache = RedisNonceCache(redis_client)
+    else:
+        from agentos.queue.in_process import InProcessQueueBackend
+        from agentos.triggers.nonce_cache import InMemoryNonceCache
+        app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+        app.state.nonce_cache = InMemoryNonceCache()
+
     if hasattr(app.state.storage.events, "_fencing_checker"):
         app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+
+    # Initialize Cron FlowScheduler
+    from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+    app.state.scheduler = FlowScheduler(
+        storage=app.state.storage,
+        queue=app.state.queue,
+        leader_lock=InProcessLeaderLock(),
+    )
 
     # Initialize Credentials Vault
     from agentos.security.vault import Vault, MasterKey
@@ -230,6 +266,9 @@ def create_app(
 
     from agentos_server.routes_v2 import router as v2_router
     app.include_router(v2_router, prefix="/api/v2")
+
+    from agentos_server.routes_hooks import router as hooks_router
+    app.include_router(hooks_router)
 
     # -----------------------------------------------------------------------
     # Serve built frontend in production mode: packaged copy first (wheel

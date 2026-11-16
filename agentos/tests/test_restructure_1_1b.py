@@ -84,6 +84,11 @@ V2_API_ROUTES = sorted([
     ("/api/v2/providers/fallback", "GET"),
     ("/api/v2/providers/fallback", "PUT"),
     ("/api/v2/providers/test-connection", "POST"),
+    ("/api/v2/schedules", "GET"),
+    ("/api/v2/schedules", "POST"),
+    ("/api/v2/schedules/{schedule_id}", "DELETE"),
+    ("/api/v2/schedules/{schedule_id}", "GET"),
+    ("/api/v2/schedules/{schedule_id}", "PUT"),
     ("/api/v2/squads", "GET"),
     ("/api/v2/squads", "POST"),
     ("/api/v2/squads/{name}", "DELETE"),
@@ -95,6 +100,12 @@ V2_API_ROUTES = sorted([
     ("/api/v2/vault/keys", "GET"),
     ("/api/v2/vault/keys", "POST"),
     ("/api/v2/vault/keys/{name}", "DELETE"),
+    ("/api/v2/webhooks", "GET"),
+    ("/api/v2/webhooks", "POST"),
+    ("/api/v2/webhooks/{webhook_id}", "DELETE"),
+    ("/api/v2/webhooks/{webhook_id}", "GET"),
+    ("/api/v2/webhooks/{webhook_id}", "PUT"),
+    ("/api/v2/webhooks/{webhook_id}/rotate", "POST"),
 ])
 
 FORBIDDEN_IN_CORE = {"agentos_server", "fastapi", "starlette", "uvicorn"}
