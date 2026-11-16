@@ -41,8 +41,11 @@ async def get_test_redis_client():
 async def redis_queue(request):
     mode = request.param
     if mode == "mock":
-        import fakeredis.aioredis
-        client = fakeredis.aioredis.FakeRedis()
+        try:
+            import fakeredis.aioredis
+            client = fakeredis.aioredis.FakeRedis()
+        except ImportError:
+            pytest.skip("fakeredis not installed")
     else:
         client = await get_test_redis_client()
 

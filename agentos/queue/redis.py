@@ -17,7 +17,10 @@ import time
 from typing import Any, Dict, List, Optional
 import uuid
 
-import redis.asyncio as redis
+try:
+    import redis.asyncio as redis
+except ImportError:
+    redis = None  # type: ignore
 
 from agentos.queue.ports import QueueBackend, QueueJob
 from agentos.storage.ports import FencingTokenError, Storage
@@ -220,10 +223,14 @@ class RedisQueueBackend(QueueBackend):
 
     def __init__(
         self,
-        redis_client: redis.Redis,
+        redis_client: Any,
         default_max_attempts: int = 3,
         storage: Optional[Storage] = None,
     ) -> None:
+        if redis is None:
+            raise ImportError(
+                "Redis client is not installed. Install the platform extra: pip install 'agentos[platform]'"
+            )
         self._redis = redis_client
         self.default_max_attempts = default_max_attempts
         self._storage = storage

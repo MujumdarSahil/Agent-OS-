@@ -10,7 +10,10 @@ from typing import Any, Dict, List, Optional
 import uuid
 import zoneinfo
 
-from croniter import croniter
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None  # type: ignore
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -61,7 +64,7 @@ def _validate_cron_and_tz(cron_expr: str, tz_name: str) -> None:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid timezone {tz_name!r}: {e}") from e
 
-    if not croniter.is_valid(cron_expr):
+    if croniter is not None and not croniter.is_valid(cron_expr):
         raise HTTPException(status_code=400, detail=f"Invalid 5-field cron expression: {cron_expr!r}")
 
 

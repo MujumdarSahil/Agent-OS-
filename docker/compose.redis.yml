@@ -13,7 +13,12 @@ services:
     image: redis:7.4.2-alpine
     container_name: agentos-redis
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${AGENTOS_REDIS_PASSWORD}", "--appendonly", "yes"]
+    command:
+      - sh
+      - -c
+      - >
+        test -n "$$AGENTOS_REDIS_PASSWORD" || { echo "AGENTOS_REDIS_PASSWORD not set" >&2; exit 1; };
+        exec redis-server --requirepass "$$AGENTOS_REDIS_PASSWORD" --appendonly yes
     env_file: .env.redis
     environment:
       AGENTOS_REDIS_PORT: "${AGENTOS_REDIS_PORT:-6379}"
@@ -22,7 +27,7 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$AGENTOS_REDIS_PASSWORD\" ping | grep -q PONG"]
+      test: ["CMD-SHELL", "test -n \"$$AGENTOS_REDIS_PASSWORD\" && redis-cli -a \"$$AGENTOS_REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 5

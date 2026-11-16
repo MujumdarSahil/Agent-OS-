@@ -75,7 +75,7 @@ class MongoRunRepository:
         try:
             await self._c.replace_one({"_id": run.run_id}, {"_id": run.run_id, **run.model_dump()}, upsert=True)
         except Exception as e:
-            if "duplicate key" in str(e).lower() or type(e).__name__ == "DuplicateKeyError":
+            if run.idempotency_key and ("duplicate key" in str(e).lower() or type(e).__name__ == "DuplicateKeyError"):
                 raise DuplicateIdempotencyKeyError(
                     f"Run with idempotency_key {run.idempotency_key!r} already exists"
                 ) from e
@@ -353,7 +353,7 @@ async def ensure_indexes(db) -> None:
     await db.runs.create_index(
         [("idempotency_key", ASCENDING)],
         unique=True,
-        sparse=True,
+        partialFilterExpression={"idempotency_key": {"$type": "string"}},
     )
     await db.flows.create_index(
         [("flow_id", ASCENDING), ("version", ASCENDING)],

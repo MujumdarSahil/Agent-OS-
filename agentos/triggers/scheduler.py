@@ -18,7 +18,10 @@ from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 import uuid
 import zoneinfo
 
-from croniter import croniter
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None  # type: ignore
 
 from agentos.queue.ports import QueueBackend
 from agentos.storage.models import RunRecord, ScheduleRecord
@@ -176,6 +179,9 @@ class FlowScheduler:
         Returns list of enqueued run_ids.
         """
         if not self.storage.schedules or not self.storage.flows:
+            return []
+        if croniter is None:
+            logger.warning("croniter is not installed; skipping scheduler tick")
             return []
 
         now_ts = now_override if now_override is not None else time.time()

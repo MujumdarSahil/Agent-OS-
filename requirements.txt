@@ -37,6 +37,8 @@ pytest-asyncio>=0.21.0
 flake8>=6.1.0
 vcrpy>=6.0.0
 cvss==3.6
+fakeredis>=2.40.0
+lupa>=2.8
 
 # Frontend/UI (Python-only)
 # Streamlit app lives in agentos/ui/streamlit_app.py

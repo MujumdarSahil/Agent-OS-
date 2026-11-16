@@ -165,14 +165,14 @@ jobs:
       - name: Install AgentOS with Platform extra
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[platform]" pytest pytest-asyncio
+          pip install -e ".[platform,dev]" pytest pytest-asyncio
 
       - name: Start Redis container (password auth, 127.0.0.1 only, AOF)
         run: |
           URI="$(sh docker/redis-init.sh)"
           echo "::add-mask::$URI"
           echo "AGENTOS_REDIS_URI=$URI" >> "$GITHUB_ENV"
-          docker compose -f docker/compose.redis.yml up -d --wait
+          docker compose --env-file docker/.env.redis -f docker/compose.redis.yml up -d --wait
 
       - name: Run LIVE Redis queue & nonce tests
         env:
