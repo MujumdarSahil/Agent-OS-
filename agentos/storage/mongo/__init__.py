@@ -25,12 +25,14 @@ from agentos.storage.models import (
     ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
+    ScheduleRecord,
     SquadRecord,
     ToolRecord,
+    WebhookRecord,
     entity_key,
     utcnow,
 )
-from agentos.storage.ports import FencingTokenError, Storage
+from agentos.storage.ports import DuplicateIdempotencyKeyError, FencingTokenError, Storage
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -70,7 +72,14 @@ class MongoRunRepository:
         self._c = collection
 
     async def put(self, run: RunRecord) -> None:
-        await self._c.replace_one({"_id": run.run_id}, {"_id": run.run_id, **run.model_dump()}, upsert=True)
+        try:
+            await self._c.replace_one({"_id": run.run_id}, {"_id": run.run_id, **run.model_dump()}, upsert=True)
+        except Exception as e:
+            if "duplicate key" in str(e).lower() or type(e).__name__ == "DuplicateKeyError":
+                raise DuplicateIdempotencyKeyError(
+                    f"Run with idempotency_key {run.idempotency_key!r} already exists"
+                ) from e
+            raise
 
     async def get(self, run_id: str) -> Optional[RunRecord]:
         doc = await self._c.find_one({"_id": run_id})
@@ -285,16 +294,75 @@ class MongoCheckpointRepository:
         await self._c.update_many({"mission_id": mission_id}, {"$set": {"status": "completed"}})
 
 
+class MongoWebhookRepository:
+    def __init__(self, collection):
+        self._c = collection
+
+    async def list(self) -> List[WebhookRecord]:
+        docs = await self._c.find({}).sort("created_at", DESCENDING).to_list(None)
+        return [WebhookRecord.model_validate(_strip_id(d)) for d in docs]
+
+    async def get(self, webhook_id: str) -> Optional[WebhookRecord]:
+        doc = await self._c.find_one({"_id": webhook_id})
+        return WebhookRecord.model_validate(_strip_id(doc)) if doc else None
+
+    async def get_by_path_hash(self, secret_path_hash: str) -> Optional[WebhookRecord]:
+        doc = await self._c.find_one({"secret_path_hash": secret_path_hash})
+        return WebhookRecord.model_validate(_strip_id(doc)) if doc else None
+
+    async def put(self, webhook: WebhookRecord) -> None:
+        await self._c.replace_one(
+            {"_id": webhook.webhook_id},
+            {"_id": webhook.webhook_id, **webhook.model_dump()},
+            upsert=True,
+        )
+
+    async def delete(self, webhook_id: str) -> bool:
+        res = await self._c.delete_one({"_id": webhook_id})
+        return res.deleted_count == 1
+
+
+class MongoScheduleRepository:
+    def __init__(self, collection):
+        self._c = collection
+
+    async def list(self) -> List[ScheduleRecord]:
+        docs = await self._c.find({}).sort("created_at", DESCENDING).to_list(None)
+        return [ScheduleRecord.model_validate(_strip_id(d)) for d in docs]
+
+    async def get(self, schedule_id: str) -> Optional[ScheduleRecord]:
+        doc = await self._c.find_one({"_id": schedule_id})
+        return ScheduleRecord.model_validate(_strip_id(doc)) if doc else None
+
+    async def put(self, schedule: ScheduleRecord) -> None:
+        await self._c.replace_one(
+            {"_id": schedule.schedule_id},
+            {"_id": schedule.schedule_id, **schedule.model_dump()},
+            upsert=True,
+        )
+
+    async def delete(self, schedule_id: str) -> bool:
+        res = await self._c.delete_one({"_id": schedule_id})
+        return res.deleted_count == 1
+
+
 async def ensure_indexes(db) -> None:
     await db.events.create_index([("run_id", ASCENDING), ("seq", ASCENDING)], unique=True)
     await db.checkpoints.create_index([("mission_id", ASCENDING), ("task_index", DESCENDING)])
     await db.runs.create_index([("created_at", DESCENDING)])
+    await db.runs.create_index(
+        [("idempotency_key", ASCENDING)],
+        unique=True,
+        sparse=True,
+    )
     await db.flows.create_index(
         [("flow_id", ASCENDING), ("version", ASCENDING)],
         unique=True,
         partialFilterExpression={"record_type": "version"},
     )
     await db.flows.create_index([("record_type", ASCENDING)])
+    await db.webhooks.create_index([("secret_path_hash", ASCENDING)], unique=True)
+    await db.schedules.create_index([("flow_id", ASCENDING)])
 
 
 async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: int = 5000) -> Storage:
@@ -319,6 +387,8 @@ async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: in
         checkpoints=MongoCheckpointRepository(db.checkpoints),
         events=MongoEventRepository(db.events, db.event_counters),
         flows=MongoFlowRepository(db.flows, db.flow_counters),
+        webhooks=MongoWebhookRepository(db.webhooks),
+        schedules=MongoScheduleRepository(db.schedules),
         settings=MongoNamedRepository(db.settings, ProjectSettingsRecord),
     )
     storage._closer = client.close
