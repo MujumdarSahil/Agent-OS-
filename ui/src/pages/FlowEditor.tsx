@@ -22,6 +22,8 @@ import {
   validateFlow, violationHighlights, type CanvasEdge, type CanvasNode, type ValidationIssue,
 } from '../flow/flowGraph'
 import { StringListField, decorateEdge, nodeTypes } from '../flow/canvasParts'
+import RunPanel from '../flow/RunPanel'
+import type { NodeRunStatus } from '../flow/flowGraph'
 
 type Selection = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
 
@@ -62,6 +64,9 @@ export default function FlowEditor() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [mode, setMode] = useState<'edit' | 'run'>('edit')
+  const [runStatuses, setRunStatuses] = useState<Record<string, NodeRunStatus>>({})
+  const onRunStatuses = useCallback((s: Record<string, NodeRunStatus>) => setRunStatuses(s), [])
 
   // Initialise canvas state once specs and the flow have loaded.
   useEffect(() => {
@@ -175,6 +180,27 @@ export default function FlowEditor() {
     }
   }
 
+  /** Export the engine-relevant definition (no layout positions, no status/version). */
+  const onExport = () => {
+    const f = fromCanvas({ id: flowId, name, entrypoint, loops }, nodes, edges)
+    const out = {
+      id: f.id,
+      name: f.name,
+      entrypoint: f.entrypoint,
+      nodes: Object.fromEntries(
+        Object.entries(f.nodes).map(([k, n]) => [k, { id: n.id, type: n.type, config: n.config, pinned_args: n.pinned_args }]),
+      ),
+      edges: f.edges,
+      loops: f.loops,
+    }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${flowId}.flow.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const onPublish = async () => {
     setBusy(true)
     setViolations([])
@@ -206,9 +232,10 @@ export default function FlowEditor() {
           spec: specs[n.data.def.type],
           isEntrypoint: n.id === entrypoint,
           violated: highlights.nodes.has(n.id) || issueNodes.has(n.id),
+          status: mode === 'run' ? runStatuses[n.id] : undefined,
         },
       })),
-    [nodes, specs, entrypoint, highlights, issueNodes],
+    [nodes, specs, entrypoint, highlights, issueNodes, mode, runStatuses],
   )
   const displayEdges = useMemo(
     () =>
@@ -239,6 +266,16 @@ export default function FlowEditor() {
         <span className="badge badge-default" data-testid="flow-status">{status}</span>
         {dirty && <span className="text-muted" data-testid="unsaved">unsaved changes</span>}
         <div className="ml-auto flex gap-2">
+          <button
+            className="btn btn-ghost"
+            data-testid="toggle-run-panel"
+            onClick={() => setMode(m => (m === 'edit' ? 'run' : 'edit'))}
+          >
+            {mode === 'edit' ? 'Run panel' : 'Back to editing'}
+          </button>
+          <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">
+            Export JSON
+          </button>
           <button className="btn btn-secondary" data-testid="save-flow" onClick={onSave} disabled={busy}>Save</button>
           <button
             className="btn btn-primary"
@@ -286,8 +323,10 @@ export default function FlowEditor() {
             <Controls />
           </ReactFlow>
         </div>
-        <div className="card" style={{ width: 340, overflowY: 'auto', padding: 12 }} data-testid="inspector">
-          {selectedNode ? (
+        <div className="card" style={{ width: mode === 'run' ? 420 : 340, overflowY: 'auto', padding: 12 }} data-testid="inspector">
+          {mode === 'run' ? (
+            <RunPanel flowId={flowId} canRun={persisted && !dirty} onStatuses={onRunStatuses} />
+          ) : selectedNode ? (
             <NodeInspector
               key={selectedNode.id}
               node={selectedNode}

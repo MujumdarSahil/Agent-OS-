@@ -101,6 +101,42 @@ export const archiveFlow = (id: string) =>
 export const listVersions = (id: string) =>
   api.get<FlowRecord[]>(`/v2/flows/${encodeURIComponent(id)}/versions`).then(r => r.data)
 
+// ---- runs (2.4 run panel) -------------------------------------------------
+
+export interface RunStartResponse {
+  run_id: string
+  flow_id: string
+  version: number
+  status: string
+}
+
+export interface RunInfo {
+  run_id: string
+  flow_id?: string | null
+  flow_version?: number | null
+  status: string
+  error?: string | null
+}
+
+/** Inputs are labelled untrusted by the server (manual trigger). */
+export const startRun = (flowId: string, inputs: Record<string, unknown>) =>
+  api.post<RunStartResponse>(`/v2/flows/${encodeURIComponent(flowId)}/runs`, { inputs }).then(r => r.data)
+export const getRun = (flowId: string, runId: string) =>
+  api.get<RunInfo>(`/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}`).then(r => r.data)
+export const decideApproval = (flowId: string, runId: string, nodeId: string, approve: boolean) =>
+  api
+    .post(`/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/approve`, {
+      node_id: nodeId,
+      decision: approve ? true : 'reject',
+    })
+    .then(r => r.data)
+
+/** WebSocket URL for run events; token travels in the subprotocol, never in the URL. */
+export function runEventsUrl(flowId: string, runId: string, afterSeq: number): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/api/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/events?after_seq=${afterSeq}`
+}
+
 export async function publishFlow(id: string): Promise<FlowRecord> {
   try {
     const r = await api.post<FlowRecord>(`/v2/flows/${encodeURIComponent(id)}/publish`)
