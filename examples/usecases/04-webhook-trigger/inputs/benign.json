@@ -1,0 +1,5 @@
+{
+  "alert_id": "ALT-2026-001",
+  "source": "monitoring",
+  "message": "Disk utilization at 45% on cluster nodes. Normal operating parameters."
+}
