@@ -18,8 +18,10 @@ from agentos.storage.models import (
     ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
+    ScheduleRecord,
     SquadRecord,
     ToolRecord,
+    WebhookRecord,
 )
 
 T = TypeVar("T")
@@ -31,6 +33,10 @@ class ReadOnlyEntityError(Exception):
 
 class FencingTokenError(Exception):
     """Raised when a write or operation is attempted with an expired or superseded lease."""
+
+
+class DuplicateIdempotencyKeyError(Exception):
+    """Raised when creating a run with an idempotency key that already exists."""
 
 
 @runtime_checkable
@@ -117,6 +123,23 @@ class EventRepository(Protocol):
         ...
 
 
+@runtime_checkable
+class WebhookRepository(Protocol):
+    async def list(self) -> List[WebhookRecord]: ...
+    async def get(self, webhook_id: str) -> Optional[WebhookRecord]: ...
+    async def get_by_path_hash(self, secret_path_hash: str) -> Optional[WebhookRecord]: ...
+    async def put(self, webhook: WebhookRecord) -> None: ...
+    async def delete(self, webhook_id: str) -> bool: ...
+
+
+@runtime_checkable
+class ScheduleRepository(Protocol):
+    async def list(self) -> List[ScheduleRecord]: ...
+    async def get(self, schedule_id: str) -> Optional[ScheduleRecord]: ...
+    async def put(self, schedule: ScheduleRecord) -> None: ...
+    async def delete(self, schedule_id: str) -> bool: ...
+
+
 @dataclass
 class Storage:
     """All repositories of one backend."""
@@ -132,6 +155,8 @@ class Storage:
     checkpoints: CheckpointRepository
     events: EventRepository
     flows: Optional[FlowRepository] = None
+    webhooks: Optional[WebhookRepository] = None
+    schedules: Optional[ScheduleRepository] = None
     settings: Optional[NamedRepository[ProjectSettingsRecord]] = None
     # Project directory for the File backend, None for Mongo.
     location: Optional[str] = None

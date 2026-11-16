@@ -36,12 +36,14 @@ from agentos.storage.models import (
     ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
+    ScheduleRecord,
     SquadRecord,
     ToolRecord,
+    WebhookRecord,
     entity_key,
     utcnow,
 )
-from agentos.storage.ports import FencingTokenError, ReadOnlyEntityError, Storage
+from agentos.storage.ports import DuplicateIdempotencyKeyError, FencingTokenError, ReadOnlyEntityError, Storage
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -274,6 +276,7 @@ class JsonFileMapRepository(Generic[M]):
 class FileRunRepository:
     def __init__(self, project_path: str):
         self._dir = Path(project_path) / ".agentos" / "runs"
+        self._idempotency_dir = Path(project_path) / ".agentos" / "run_idempotency"
 
     def _path(self, run_id: str) -> Path:
         if not _SAFE_KEY.fullmatch(run_id):
@@ -281,6 +284,18 @@ class FileRunRepository:
         return self._dir / f"{run_id}.json"
 
     async def put(self, run: RunRecord) -> None:
+        if run.idempotency_key:
+            self._idempotency_dir.mkdir(parents=True, exist_ok=True)
+            safe_idemp = re.sub(r"[^A-Za-z0-9_.\-]", "_", run.idempotency_key)
+            idem_path = self._idempotency_dir / f"{safe_idemp}.json"
+            if idem_path.exists():
+                existing_id = idem_path.read_text(encoding="utf-8").strip()
+                if existing_id != run.run_id:
+                    raise DuplicateIdempotencyKeyError(
+                        f"Run with idempotency_key {run.idempotency_key!r} already exists (run_id={existing_id})"
+                    )
+            else:
+                _atomic_write(idem_path, run.run_id)
         _atomic_write(self._path(run.run_id), run.model_dump_json(indent=2))
 
     async def get(self, run_id: str) -> Optional[RunRecord]:
@@ -529,6 +544,75 @@ class FileSettingsRepository:
         raise ReadOnlyEntityError("agentos.config.yaml defines the project; delete the project directory instead")
 
 
+class FileWebhookRepository:
+    def __init__(self, project_path: str):
+        self._dir = Path(project_path) / ".agentos" / "webhooks"
+
+    def _path(self, webhook_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.\-]", "_", webhook_id)
+        return self._dir / f"{safe}.json"
+
+    async def list(self) -> List[WebhookRecord]:
+        if not self._dir.exists():
+            return []
+        hooks = [WebhookRecord.model_validate_json(p.read_text(encoding="utf-8")) for p in self._dir.glob("*.json")]
+        hooks.sort(key=lambda h: h.created_at, reverse=True)
+        return hooks
+
+    async def get(self, webhook_id: str) -> Optional[WebhookRecord]:
+        p = self._path(webhook_id)
+        return WebhookRecord.model_validate_json(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    async def get_by_path_hash(self, secret_path_hash: str) -> Optional[WebhookRecord]:
+        hooks = await self.list()
+        for h in hooks:
+            if h.secret_path_hash == secret_path_hash:
+                return h
+        return None
+
+    async def put(self, webhook: WebhookRecord) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        _atomic_write(self._path(webhook.webhook_id), webhook.model_dump_json(indent=2))
+
+    async def delete(self, webhook_id: str) -> bool:
+        p = self._path(webhook_id)
+        if p.exists():
+            p.unlink()
+            return True
+        return False
+
+
+class FileScheduleRepository:
+    def __init__(self, project_path: str):
+        self._dir = Path(project_path) / ".agentos" / "schedules"
+
+    def _path(self, schedule_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.\-]", "_", schedule_id)
+        return self._dir / f"{safe}.json"
+
+    async def list(self) -> List[ScheduleRecord]:
+        if not self._dir.exists():
+            return []
+        scheds = [ScheduleRecord.model_validate_json(p.read_text(encoding="utf-8")) for p in self._dir.glob("*.json")]
+        scheds.sort(key=lambda s: s.created_at, reverse=True)
+        return scheds
+
+    async def get(self, schedule_id: str) -> Optional[ScheduleRecord]:
+        p = self._path(schedule_id)
+        return ScheduleRecord.model_validate_json(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    async def put(self, schedule: ScheduleRecord) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        _atomic_write(self._path(schedule.schedule_id), schedule.model_dump_json(indent=2))
+
+    async def delete(self, schedule_id: str) -> bool:
+        p = self._path(schedule_id)
+        if p.exists():
+            p.unlink()
+            return True
+        return False
+
+
 def default_vault_path() -> Path:
     return Path(os.environ.get("AGENTOS_VAULT_PATH") or Path.home() / ".agentos" / "vault.json")
 
@@ -551,6 +635,8 @@ def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> St
         checkpoints=FileCheckpointRepository(project_path),
         events=FileEventRepository(project_path),
         flows=FileFlowRepository(project_path),
+        webhooks=FileWebhookRepository(project_path),
+        schedules=FileScheduleRepository(project_path),
         settings=FileSettingsRepository(project_path),
         location=project_path,
     )

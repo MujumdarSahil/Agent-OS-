@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from typing import Any, Dict, Optional, Protocol, runtime_checkable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agentos.storage.ports import FencingTokenError
 
@@ -28,6 +28,13 @@ class QueueJob(BaseModel):
     max_attempts: int = 3
     last_error: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
+
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def _coerce_inputs(cls, v: Any) -> Dict[str, Any]:
+        if isinstance(v, (list, tuple)) and not v:
+            return {}
+        return v
 
 
 @runtime_checkable

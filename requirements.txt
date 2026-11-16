@@ -14,7 +14,7 @@ rich>=13.0.0
 cryptography>=41.0.0
 requests>=2.31.0
 pyyaml>=6.0
-
+croniter==6.0.0
 
 # ML & Training (optional)
 torch>=2.0.0
@@ -22,8 +22,9 @@ transformers>=4.35.0
 peft>=0.7.0
 bitsandbytes>=0.41.0
 
-# Platform mode storage (optional; wheel extra: agentos[platform])
+# Platform mode storage and Redis queue (optional; wheel extra: agentos[platform])
 pymongo>=4.13,<5
+redis==5.2.1
 
 # Vector databases (optional)
 faiss-cpu>=1.7.4
@@ -36,6 +37,8 @@ pytest-asyncio>=0.21.0
 flake8>=6.1.0
 vcrpy>=6.0.0
 cvss==3.6
+fakeredis>=2.40.0
+lupa>=2.8
 
 # Frontend/UI (Python-only)
 # Streamlit app lives in agentos/ui/streamlit_app.py
