@@ -35,7 +35,7 @@ builder exports equals `benign.flow.json` / `attack.flow.json` (ids aside).
 Start the backend with the opt-in in-process worker and a mock LLM, then the UI dev server:
 
 ```powershell
-$env:AGENTOS_MOCK_LLM="1"; $env:AGENTOS_INPROCESS_WORKER="1"
+$env:AGENTOS_MOCK_LLM="1"; $env:AGENTOS_INPROCESS_WORKER="1"; $env:AGENTOS_INTERNAL_DOMAINS="corp.local"
 .\venv\Scripts\python.exe -m uvicorn agentos_server.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 ```powershell

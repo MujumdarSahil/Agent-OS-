@@ -1,5 +1,8 @@
 """
 Composite Agent - Role-merging and hybrid agents
+
+EXPERIMENTAL (AgentOS 2.0): not part of the public v1 API and not used by the flow engine;
+only agentos/demo.py uses it. Behaviour may change or the module may be removed.
 """
 
 from typing import List, Dict, Any, Optional

@@ -14,7 +14,6 @@ A multi-agent framework built on top of **CrewAI** and **LiteLLM** (with experim
 - **Real-Time Collaboration**: WebSocket streaming endpoint (`/ws/runs/{run_id}`) for multi-agent event streaming (untested via automated suites; relies on dashboard connection)
 - **Multi-Agent Planning Graph (MAGP)**: Task graph construction and dependency ordering (rule-based template decomposition; dynamic negotiation and parallel execution runners are un-implemented)
 - **Role-Merging**: `Agent.merge_role()` helper for combining skill lists between agents (standalone composite `HybridAgent` classes are un-implemented)
-- **Resource Monitoring**: `ResourceMonitor` process monitoring for memory, CPU, token usage, and API costs (adaptive execution strategy adjustment is un-implemented)
 - **Distributed MCP Skill Graph (DMSG)**: `MCPRegistry` skill registration and NetworkX shortest-path routing (untested via automated pytest suites)
 - **Unified Memory Bus (UMB)**: Semantic, pluggable memory layer across agents and squads with layered permission scopes
 - **Task Router (DMARP)**: Skill-match, workload-balanced, and hybrid task assignment routing (untested via automated pytest suites)
@@ -250,13 +249,6 @@ AgentOS includes comprehensive cybersecurity capabilities:
 - **Hybrid Search**: Vector + keyword search
 - **KG Integration**: Knowledge graph RAG hooks
 
-### Agentic Patterns (`core/agent_strategies/`)
-
-- **ReAct Strategy**: Reasoning and Acting loop
-- **PAL Strategy**: Program-Aided Language model
-- **Plan-Act-Reflect**: Planning and reflection cycles
-- **Tree of Thoughts**: Multiple reasoning path exploration
-
 ## UI
 
 ### FastAPI Backend (`ui/backend/`)
@@ -318,7 +310,6 @@ See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LI
 - **Provider Verification Status**: Multi-provider fallback chain has verified VCR cassette/mock test coverage for OpenAI, Anthropic, Gemini, Groq, OpenRouter (Poolside Laguna S 2.1, GLM-5.2, Gemma 4 31B), and Ollama. Together AI, Fireworks, DeepSeek, Hugging Face Inference API, and new Z.ai entries (`zai_glm_4_7_flash`, `zai_glm_5_3`) are configured in `provider_registry.py` and supported via LiteLLM routing, but are marked as UNVERIFIED pending live API / VCR cassette verification. For **OpenRouter Nemotron 3 Nano Omni**: multimodal vision processing is verified (`test_nemotron_3_nano_omni_vision` passes via offline cassette), while text completion (`openrouter_nemotron_3_nano_omni_free`) is unverified due to upstream 504 Gateway Timeout / 400 degraded errors recorded in its cassette, and is skipped pending fresh recording.
 - **UMB Vector Backends**: `UMBAdapter` requested backends `faiss`, `chroma`, and `pgvector` are un-implemented and emit explicit `UserWarning` / `logger.warning` events while safely falling back to the built-in in-memory `SimpleVectorStore`.
 - **LangGraph Integration**: Agent execution is built on CrewAI and LiteLLM; LangGraph node generation (`Agent.to_langgraph_node()`) is an experimental stub raising `NotImplementedError`, scheduled for evaluation in Phase 1.5 flow engine spike.
-- **Agent Strategies (`agentos/core/agent_strategies/`)**: `ReActStrategy`, `PALStrategy`, `PlanActReflectStrategy`, and `TreeOfThoughtsStrategy` are experimental code stubs (`_think` and `_act` return static mock dictionaries), have zero imports in core Agent classes, and are untested.
 - **Model Cascades & Safety Verifiers**: `ModelCascade` (`modelhub/safety/model_cascade.py`) is an un-tested stub returning formatted string drafts without executing real LLM calls. `VerifierModel` implements regex/keyword checks for toxicity/policy violations; hallucination verification is a hardcoded score stub.
 - **Multi-Squad Federation**: `FederatedMission` implements ordered sequential handoffs (Squad A → Squad B) via context string injection with stage-level checkpointing; parallel squad execution, cross-squad shared memory, and dynamic negotiation protocols are un-implemented.
 - **DMSG MCP Registry**: `MCPRegistry` (`agentos/dmsg/registry.py`) maintains an in-memory dictionary of metadata nodes and auto-registers local mock security MCP tools; it does not connect to external servers over STDIO/SSE directly.
@@ -327,7 +318,6 @@ See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LI
 - **WebSocket Streaming**: WebSocket endpoint (`/ws/runs/{run_id}`) and `WebSocketServer` exist for execution event streaming, but lack automated unit/integration test coverage in pytest; operation relies on manual dashboard connection.
 - **MAGP Planning Scope**: `Planner` builds DAG subtask graphs and dependency ordering, but LLM-based task decomposition and dynamic agent negotiation/parallelization protocols are un-implemented (uses rule-based template decomposition and static task graphs).
 - **Role-Merging Scope**: Role-merging is implemented via `Agent.merge_role()` which combines skill lists between agents; standalone composite `HybridAgent` classes and memory merging are un-implemented.
-- **Resource Monitoring Scope**: `ResourceMonitor` collects process memory, CPU utilization, wall-time, token usage, and API costs, but adaptive agent execution strategies (automatically modifying agent behavior when thresholds are exceeded) are un-implemented and untested.
 - **Task Router (DMARP) Test Coverage**: `TaskRouter` implements skill-matching, workload-balanced, and hybrid task assignment routing algorithms, but lacks a dedicated automated pytest test suite.
 
 ## Test Coverage

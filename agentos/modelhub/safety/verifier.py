@@ -43,9 +43,14 @@ class VerifierModel:
         Returns:
             Classification result
         """
-        # Stub implementation - would use actual classifier
-        score = 0.1  # Low hallucination score (stub)
-        
+        # NOT AVAILABLE in AgentOS 2.0: this used to return a fixed low score (0.1) without
+        # checking anything. It now fails loudly instead of reporting a fake "no hallucination".
+        raise NotImplementedError(
+            "VerifierModel.classify_hallucination is not available in AgentOS 2.0; "
+            "see docs/SPEC_2.0.md (no hallucination classifier is shipped)."
+        )
+        score = 0.1  # unreachable; kept so the original return shape stays documented
+
         return {
             "is_hallucination": score > 0.5,
             "hallucination_score": score,

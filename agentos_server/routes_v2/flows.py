@@ -303,6 +303,11 @@ async def stream_flow_run_events(
             # Check run status
             run_rec = await storage.runs.get(run_id)
             if run_rec and run_rec.status in ("completed", "succeeded", "failed", "cancelled"):
+                # Drain events appended between the read above and the status check, so the
+                # client never misses the final events before run_finished.
+                for ev in await storage.events.list(run_id, after_seq=last_seq):
+                    await websocket.send_text(ev.model_dump_json())
+                    last_seq = ev.seq
                 await websocket.send_text(json.dumps({
                     "event": "run_finished",
                     "status": run_rec.status,

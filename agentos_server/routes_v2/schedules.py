@@ -64,7 +64,13 @@ def _validate_cron_and_tz(cron_expr: str, tz_name: str) -> None:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid timezone {tz_name!r}: {e}") from e
 
-    if croniter is not None and not croniter.is_valid(cron_expr):
+    if croniter is None:
+        # Reject instead of storing an unvalidated (and unrunnable) schedule.
+        raise HTTPException(
+            status_code=503,
+            detail="Cron schedules are unavailable: the 'croniter' package is not installed on the server.",
+        )
+    if not croniter.is_valid(cron_expr):
         raise HTTPException(status_code=400, detail=f"Invalid 5-field cron expression: {cron_expr!r}")
 
 

@@ -22,6 +22,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 os.environ["AGENTOS_MOCK_LLM"] = "1"
 os.environ["AGENTOS_PORT"] = "8000"
+# Trusted internal domains are admin config (secure default: none). This demo's recipient is internal.
+os.environ["AGENTOS_INTERNAL_DOMAINS"] = "internal.local"
 
 from starlette.testclient import TestClient
 

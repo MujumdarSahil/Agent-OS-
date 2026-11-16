@@ -47,6 +47,8 @@ export default defineConfig({
         AGENTOS_MOCK_LLM: '1',
         // Opt-in in-process worker so UI-started runs execute (MockTransport: nothing is delivered).
         AGENTOS_INPROCESS_WORKER: '1',
+        // Trusted internal domains are explicit admin config (secure default since the 2.0 cleanup: none).
+        AGENTOS_INTERNAL_DOMAINS: 'corp.local',
         AGENTOS_MONGO_URI: '',
         AGENTOS_REDIS_URI: '',
         AGENTOS_REDIS_URL: '',

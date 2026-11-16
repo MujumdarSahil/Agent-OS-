@@ -63,6 +63,8 @@ def env(tmp_path, monkeypatch):
     monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
     project = tmp_path / "project"
     project.mkdir()
+    # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+    monkeypatch.setenv("AGENTOS_INTERNAL_DOMAINS", "corp.local")
     (project / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
     return str(project)
 

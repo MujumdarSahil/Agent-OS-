@@ -4,10 +4,12 @@ Workload Scheduler - Schedules model cascades (fast small -> expensive precise)
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.performance.workload_scheduler.WorkloadScheduler")
 class WorkloadScheduler:
     """
     Workload Scheduler - Schedules model cascades for efficiency.
