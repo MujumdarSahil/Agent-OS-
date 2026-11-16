@@ -22,7 +22,7 @@ Added Zhipu AI (Z.ai) and OpenRouter GLM model definitions to the AgentOS provid
 
 ## 3. Credential Handling & Security
 - Handled via standard provider-key path (vault first, environment variable fallback). `agentos/security/vault.py` was unmodified.
-- `ZAI_API_KEY` and `CLOUDFLARE_API_KEY` are safely configured in `.env` (gitignored, never committed).
+- `ZAI_API_KEY` is configured via environment variable / `.env` (gitignored, never committed).
 - New entries are documented as `UNVERIFIED` in `README.md` and registry comments pending live recording.
 
 ## 4. VCR Scrubber & Tool Testing (`agentos/tests/test_vcr_providers.py`)
@@ -31,20 +31,37 @@ Added Zhipu AI (Z.ai) and OpenRouter GLM model definitions to the AgentOS provid
   - Bodies: Redacts `account_id`, `org_id`, `organization_id`, `user_id`, and `sk-*` API keys across both plaintext and gzip-compressed response payloads.
 - Added `test_glm_tool_calling` testing parameterized harmless `get_weather(city)` tool calling via cassette replay.
 
-## 5. Cassette Key Prefix Grep Audit
-Command:
-```powershell
-Select-String -Path 'agentos/tests/cassettes/*.yaml' -Pattern '8b8dc7f1bfe7','cfut_Nb2yZQRE','ERnpKvIHHFCH','sk-or-v1'
-```
-Output:
-*(Empty - zero matches found)*
+## 5. Cassette Key Audit (Runtime Environment Audit)
+Audited via `scripts/audit_cassette_secrets.py`, reading provider keys directly from the execution environment without writing secrets to files or terminal output.
 
-`git grep` command:
-```bash
-git grep -E "8b8dc7f1bfe7|cfut_Nb2yZQRE|ERnpKvIHHFCH|sk-or-v1" agentos/tests/cassettes/
+Audit Output:
 ```
-Output:
-*(Exit code 1 - zero occurrences in tracked cassettes)*
+openai_gpt4o: matches: 0
+anthropic_claude_sonnet: matches: 0
+openai_gpt4o_mini: matches: 0
+openrouter_claude_sonnet: matches: 0
+openrouter_gpt4o: matches: 0
+gemini_flash: matches: 0
+deepseek_v4_flash: matches: 0
+groq_llama3_3: matches: 0
+groq_llama3_1_instant: matches: 0
+groq_qwen3_32b: matches: 0
+together_llama3_3_70b: matches: 0
+together_qwen2_5_72b: matches: 0
+fireworks_llama3_1_70b: matches: 0
+fireworks_qwen2_5_72b: matches: 0
+zai_glm_5_3: matches: 0
+openrouter_mistral_7b_free: matches: 0
+openrouter_laguna_s_2_1_free: matches: 0
+zai_glm_4_7_flash: matches: 0
+openrouter_glm_5_2_free: matches: 0
+openrouter_gemma_4_31b_free: matches: 0
+openrouter_nemotron_3_nano_omni_free: matches: 0
+huggingface_llama3_2_1b: matches: 0
+openai_compatible: matches: 0
+ollama_qwen: matches: 0
+ollama_llama: matches: 0
+```
 
 ## 6. Test Suite & Quality Verification
 - **Ruff Linter**: `All checks passed!` (`agentos`, `agentos_server`).
