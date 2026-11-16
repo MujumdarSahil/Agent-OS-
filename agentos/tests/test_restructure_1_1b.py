@@ -55,12 +55,27 @@ V1_API_ROUTES = sorted([
     ("/api/tool-types", "GET"), ("/api/tools", "GET"), ("/api/tools", "POST"),
 ])
 
-# v2 /api/v2 route table for core resource management (sub-milestone 1.4).
+# v2 /api/v2 route table for core resource management (1.4) and flows (2.1).
 V2_API_ROUTES = sorted([
     ("/api/v2/agents", "GET"),
     ("/api/v2/agents", "POST"),
     ("/api/v2/agents/{name}", "DELETE"),
     ("/api/v2/agents/{name}", "GET"),
+    ("/api/v2/flows", "GET"),
+    ("/api/v2/flows", "POST"),
+    ("/api/v2/flows/{flow_id}", "DELETE"),
+    ("/api/v2/flows/{flow_id}", "GET"),
+    ("/api/v2/flows/{flow_id}", "PUT"),
+    ("/api/v2/flows/{flow_id}/archive", "POST"),
+    ("/api/v2/flows/{flow_id}/publish", "POST"),
+    ("/api/v2/flows/{flow_id}/runs", "GET"),
+    ("/api/v2/flows/{flow_id}/runs", "POST"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}", "GET"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/approve", "POST"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "GET"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "WS"),
+    ("/api/v2/flows/{flow_id}/versions", "GET"),
+    ("/api/v2/flows/{flow_id}/versions/{version}", "GET"),
     ("/api/v2/mcp-servers", "GET"),
     ("/api/v2/mcp-servers", "POST"),
     ("/api/v2/mcp-servers/{name}", "DELETE"),
@@ -69,6 +84,11 @@ V2_API_ROUTES = sorted([
     ("/api/v2/providers/fallback", "GET"),
     ("/api/v2/providers/fallback", "PUT"),
     ("/api/v2/providers/test-connection", "POST"),
+    ("/api/v2/schedules", "GET"),
+    ("/api/v2/schedules", "POST"),
+    ("/api/v2/schedules/{schedule_id}", "DELETE"),
+    ("/api/v2/schedules/{schedule_id}", "GET"),
+    ("/api/v2/schedules/{schedule_id}", "PUT"),
     ("/api/v2/squads", "GET"),
     ("/api/v2/squads", "POST"),
     ("/api/v2/squads/{name}", "DELETE"),
@@ -80,6 +100,12 @@ V2_API_ROUTES = sorted([
     ("/api/v2/vault/keys", "GET"),
     ("/api/v2/vault/keys", "POST"),
     ("/api/v2/vault/keys/{name}", "DELETE"),
+    ("/api/v2/webhooks", "GET"),
+    ("/api/v2/webhooks", "POST"),
+    ("/api/v2/webhooks/{webhook_id}", "DELETE"),
+    ("/api/v2/webhooks/{webhook_id}", "GET"),
+    ("/api/v2/webhooks/{webhook_id}", "PUT"),
+    ("/api/v2/webhooks/{webhook_id}/rotate", "POST"),
 ])
 
 FORBIDDEN_IN_CORE = {"agentos_server", "fastapi", "starlette", "uvicorn"}

@@ -170,6 +170,18 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 52,
         "tags": ["paid", "fast", "fireworks"]
     },
+    # Phase 2: Zhipu AI / Z.ai international API platform (https://docs.z.ai/)
+    # LiteLLM routes zai/ prefix to https://api.z.ai/api/paas/v4
+    # Requires ZAI_API_KEY in environment or credentials vault.
+    {
+        "name": "zai_glm_5_3",
+        "display_name": "GLM-5.3 (Z.ai)",
+        "litellm_model": "zai/glm-5.3",
+        "api_key_env": "ZAI_API_KEY",
+        "api_base_env": None,
+        "priority": 54,
+        "tags": ["paid", "zai", "flagship"]
+    },
     # Phase 4: OpenRouter free tier — great for "no API key" accessibility
     # Free models are rate-limited but require only an OpenRouter key.
     # NOTE: meta-llama/llama-3.1-8b-instruct:free was retired; mistral-7b-instruct:free is active (verified Jun 2026).
@@ -193,6 +205,20 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 72,
         "tags": ["free-tier", "openrouter"]
     },
+    # Zhipu AI / Z.ai free tier flash model via international API (https://docs.z.ai/).
+    # Requires ZAI_API_KEY in environment or credentials vault.
+    {
+        "name": "zai_glm_4_7_flash",
+        "display_name": "GLM-4.7 Flash (Z.ai Free)",
+        "litellm_model": "zai/glm-4.7-flash",
+        "api_key_env": "ZAI_API_KEY",
+        "api_base_env": None,
+        "priority": 71,
+        "tags": ["free-tier", "zai", "fast"]
+    },
+    # OpenRouter free tier for Zhipu AI GLM-5.2.
+    # Free endpoint subject to daily rate limits; prompts may be logged or used for training
+    # by upstream providers. Do NOT send secret-labelled data or sensitive internal information.
     {
         "name": "openrouter_glm_5_2_free",
         "display_name": "GLM-5.2 Free (OpenRouter)",

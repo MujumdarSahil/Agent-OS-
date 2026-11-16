@@ -29,17 +29,21 @@ from agentos.storage.models import (
     AgentRecord,
     EncryptedSecretRecord,
     EventRecord,
+    FlowRecord,
     PROJECT_SETTINGS,
     MCPServerRecord,
     MissionRecord,
     ProjectSettingsRecord,
     ProviderConfigRecord,
     RunRecord,
+    ScheduleRecord,
     SquadRecord,
     ToolRecord,
+    WebhookRecord,
     entity_key,
+    utcnow,
 )
-from agentos.storage.ports import ReadOnlyEntityError, Storage
+from agentos.storage.ports import DuplicateIdempotencyKeyError, FencingTokenError, ReadOnlyEntityError, Storage
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -272,6 +276,7 @@ class JsonFileMapRepository(Generic[M]):
 class FileRunRepository:
     def __init__(self, project_path: str):
         self._dir = Path(project_path) / ".agentos" / "runs"
+        self._idempotency_dir = Path(project_path) / ".agentos" / "run_idempotency"
 
     def _path(self, run_id: str) -> Path:
         if not _SAFE_KEY.fullmatch(run_id):
@@ -279,6 +284,18 @@ class FileRunRepository:
         return self._dir / f"{run_id}.json"
 
     async def put(self, run: RunRecord) -> None:
+        if run.idempotency_key:
+            self._idempotency_dir.mkdir(parents=True, exist_ok=True)
+            safe_idemp = re.sub(r"[^A-Za-z0-9_.\-]", "_", run.idempotency_key)
+            idem_path = self._idempotency_dir / f"{safe_idemp}.json"
+            if idem_path.exists():
+                existing_id = idem_path.read_text(encoding="utf-8").strip()
+                if existing_id != run.run_id:
+                    raise DuplicateIdempotencyKeyError(
+                        f"Run with idempotency_key {run.idempotency_key!r} already exists (run_id={existing_id})"
+                    )
+            else:
+                _atomic_write(idem_path, run.run_id)
         _atomic_write(self._path(run.run_id), run.model_dump_json(indent=2))
 
     async def get(self, run_id: str) -> Optional[RunRecord]:
@@ -297,6 +314,7 @@ class FileEventRepository:
     def __init__(self, project_path: str):
         self._dir = Path(project_path) / ".agentos" / "events"
         self._locks: Dict[str, asyncio.Lock] = {}
+        self._fencing_checker = None
 
     def _path(self, run_id: str) -> Path:
         if not _SAFE_KEY.fullmatch(run_id):
@@ -310,11 +328,19 @@ class FileEventRepository:
         with open(path, "r", encoding="utf-8") as f:
             return [EventRecord.model_validate_json(line) for line in f if line.strip()]
 
-    async def append(self, run_id: str, type: str, data: Optional[Dict[str, Any]] = None) -> EventRecord:
+    async def append(
+        self,
+        run_id: str,
+        type: str,
+        data: Optional[Dict[str, Any]] = None,
+        lease_id: Optional[str] = None,
+    ) -> EventRecord:
+        if self._fencing_checker is not None and not self._fencing_checker(run_id, lease_id):
+            raise FencingTokenError(f"Lease {lease_id!r} expired or superseded for run {run_id!r}")
         lock = self._locks.setdefault(run_id, asyncio.Lock())
         async with lock:
             events = self._read(run_id)
-            event = EventRecord(run_id=run_id, seq=len(events) + 1, type=type, data=data or {})
+            event = EventRecord(run_id=run_id, seq=len(events) + 1, type=type, data=data or {}, lease_id=lease_id)
             self._dir.mkdir(parents=True, exist_ok=True)
             with open(self._path(run_id), "a", encoding="utf-8") as f:
                 f.write(event.model_dump_json() + "\n")
@@ -322,6 +348,147 @@ class FileEventRepository:
 
     async def list(self, run_id: str, after_seq: int = 0) -> List[EventRecord]:
         return [e for e in self._read(run_id) if e.seq > after_seq]
+
+
+class FileFlowRepository:
+    """
+    File-backed repository for versioned flows.
+    Layout: <project>/.agentos/flows/<flow_id>/
+      draft.json
+      v1.json, v2.json, ...
+    """
+
+    def __init__(self, project_path: str):
+        self._dir = Path(project_path) / ".agentos" / "flows"
+
+    def _flow_dir(self, flow_id: str) -> Path:
+        key = safe_key(flow_id)
+        d = self._dir / key
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    async def get_draft(self, flow_id: str) -> Optional[FlowRecord]:
+        key = safe_key(flow_id)
+        path = self._dir / key / "draft.json"
+        if not path.exists():
+            return None
+        return FlowRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+    async def put_draft(self, flow: FlowRecord) -> None:
+        from agentos.flows.models import FlowDefinition
+
+        # Structural validation (DAG + bounded loops + node specs)
+        FlowDefinition(
+            id=flow.id,
+            name=flow.name,
+            entrypoint=flow.entrypoint,
+            nodes=flow.nodes,
+            edges=flow.edges,
+            loops=flow.loops,
+        )
+        flow_dir = self._flow_dir(flow.id)
+        flow_copy = flow.model_copy(update={"updated_at": utcnow()})
+        _atomic_write(flow_dir / "draft.json", flow_copy.model_dump_json(indent=2))
+
+    async def get_version(self, flow_id: str, version: int) -> Optional[FlowRecord]:
+        key = safe_key(flow_id)
+        path = self._dir / key / f"v{version}.json"
+        if not path.exists():
+            return None
+        return FlowRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+    async def list_versions(self, flow_id: str) -> List[FlowRecord]:
+        key = safe_key(flow_id)
+        flow_dir = self._dir / key
+        if not flow_dir.exists():
+            return []
+        versions: List[tuple[int, Path]] = []
+        for p in flow_dir.glob("v*.json"):
+            num_str = p.stem[1:]
+            if num_str.isdigit():
+                versions.append((int(num_str), p))
+        versions.sort(key=lambda x: x[0])
+        return [FlowRecord.model_validate_json(p.read_text(encoding="utf-8")) for _, p in versions]
+
+    async def list_flows(self) -> List[FlowRecord]:
+        if not self._dir.exists():
+            return []
+        results: List[FlowRecord] = []
+        for subdir in sorted(self._dir.iterdir()):
+            if not subdir.is_dir():
+                continue
+            draft = await self.get_draft(subdir.name)
+            if draft is not None:
+                results.append(draft)
+            else:
+                versions = await self.list_versions(subdir.name)
+                if versions:
+                    results.append(versions[-1])
+        return results
+
+    async def publish(self, flow_id: str, content_sha256: str, policy_hash: str) -> FlowRecord:
+        draft = await self.get_draft(flow_id)
+        if draft is None:
+            raise ValueError(f"Flow {flow_id!r} draft not found")
+
+        flow_dir = self._flow_dir(flow_id)
+        # Requirement 4: Atomic version assignment via exclusive file creation
+        existing_versions = [
+            int(p.stem[1:]) for p in flow_dir.glob("v*.json") if p.stem[1:].isdigit()
+        ]
+        v = max(existing_versions, default=0) + 1
+        while True:
+            target_path = flow_dir / f"v{v}.json"
+            try:
+                fd = os.open(str(target_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                v += 1
+
+        published = FlowRecord(
+            id=draft.id,
+            name=draft.name,
+            status="published",
+            version=v,
+            entrypoint=draft.entrypoint,
+            nodes=draft.nodes,
+            edges=draft.edges,
+            loops=draft.loops,
+            content_sha256=content_sha256,
+            policy_hash=policy_hash,
+            created_at=draft.created_at,
+            updated_at=utcnow(),
+            published_at=utcnow(),
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(published.model_dump_json(indent=2))
+
+        # Update draft version field
+        draft_updated = draft.model_copy(update={"version": v, "updated_at": utcnow()})
+        _atomic_write(flow_dir / "draft.json", draft_updated.model_dump_json(indent=2))
+        return published
+
+    async def delete_flow(self, flow_id: str) -> bool:
+        key = safe_key(flow_id)
+        flow_dir = self._dir / key
+        if not flow_dir.exists():
+            return False
+        # Requirement 7: Deletion guard: flow with published versions CANNOT be deleted
+        published = list(flow_dir.glob("v*.json"))
+        if published:
+            raise ValueError(f"Cannot delete flow {flow_id!r}: published versions exist")
+        import shutil
+        shutil.rmtree(flow_dir)
+        return True
+
+    async def archive_flow(self, flow_id: str) -> FlowRecord:
+        draft = await self.get_draft(flow_id)
+        if draft is None:
+            raise ValueError(f"Flow {flow_id!r} not found")
+        archived = draft.model_copy(update={"status": "archived", "updated_at": utcnow()})
+        flow_dir = self._flow_dir(flow_id)
+        _atomic_write(flow_dir / "draft.json", archived.model_dump_json(indent=2))
+        return archived
 
 
 class FileCheckpointRepository:
@@ -377,6 +544,75 @@ class FileSettingsRepository:
         raise ReadOnlyEntityError("agentos.config.yaml defines the project; delete the project directory instead")
 
 
+class FileWebhookRepository:
+    def __init__(self, project_path: str):
+        self._dir = Path(project_path) / ".agentos" / "webhooks"
+
+    def _path(self, webhook_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.\-]", "_", webhook_id)
+        return self._dir / f"{safe}.json"
+
+    async def list(self) -> List[WebhookRecord]:
+        if not self._dir.exists():
+            return []
+        hooks = [WebhookRecord.model_validate_json(p.read_text(encoding="utf-8")) for p in self._dir.glob("*.json")]
+        hooks.sort(key=lambda h: h.created_at, reverse=True)
+        return hooks
+
+    async def get(self, webhook_id: str) -> Optional[WebhookRecord]:
+        p = self._path(webhook_id)
+        return WebhookRecord.model_validate_json(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    async def get_by_path_hash(self, secret_path_hash: str) -> Optional[WebhookRecord]:
+        hooks = await self.list()
+        for h in hooks:
+            if h.secret_path_hash == secret_path_hash:
+                return h
+        return None
+
+    async def put(self, webhook: WebhookRecord) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        _atomic_write(self._path(webhook.webhook_id), webhook.model_dump_json(indent=2))
+
+    async def delete(self, webhook_id: str) -> bool:
+        p = self._path(webhook_id)
+        if p.exists():
+            p.unlink()
+            return True
+        return False
+
+
+class FileScheduleRepository:
+    def __init__(self, project_path: str):
+        self._dir = Path(project_path) / ".agentos" / "schedules"
+
+    def _path(self, schedule_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.\-]", "_", schedule_id)
+        return self._dir / f"{safe}.json"
+
+    async def list(self) -> List[ScheduleRecord]:
+        if not self._dir.exists():
+            return []
+        scheds = [ScheduleRecord.model_validate_json(p.read_text(encoding="utf-8")) for p in self._dir.glob("*.json")]
+        scheds.sort(key=lambda s: s.created_at, reverse=True)
+        return scheds
+
+    async def get(self, schedule_id: str) -> Optional[ScheduleRecord]:
+        p = self._path(schedule_id)
+        return ScheduleRecord.model_validate_json(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    async def put(self, schedule: ScheduleRecord) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        _atomic_write(self._path(schedule.schedule_id), schedule.model_dump_json(indent=2))
+
+    async def delete(self, schedule_id: str) -> bool:
+        p = self._path(schedule_id)
+        if p.exists():
+            p.unlink()
+            return True
+        return False
+
+
 def default_vault_path() -> Path:
     return Path(os.environ.get("AGENTOS_VAULT_PATH") or Path.home() / ".agentos" / "vault.json")
 
@@ -398,6 +634,9 @@ def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> St
         runs=FileRunRepository(project_path),
         checkpoints=FileCheckpointRepository(project_path),
         events=FileEventRepository(project_path),
+        flows=FileFlowRepository(project_path),
+        webhooks=FileWebhookRepository(project_path),
+        schedules=FileScheduleRepository(project_path),
         settings=FileSettingsRepository(project_path),
         location=project_path,
     )

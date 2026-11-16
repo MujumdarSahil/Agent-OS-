@@ -28,6 +28,14 @@ _EMITTED_V1_NO_AUTH_WARNING = False
 ALLOWED_HOSTS = {"localhost", "127.0.0.1"}
 
 
+def get_public_hosts() -> set[str]:
+    """Return configured public hosts from AGENTOS_PUBLIC_HOSTS (comma-separated)."""
+    raw = os.environ.get("AGENTOS_PUBLIC_HOSTS", "").strip()
+    if not raw:
+        return set()
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
+
+
 def default_token_path() -> Path:
     """Return the filesystem location where the local API token is stored."""
     override = os.environ.get("AGENTOS_API_TOKEN_FILE")
@@ -93,16 +101,22 @@ def extract_token_from_request(request: Request) -> Optional[str]:
     return None
 
 
-def verify_host_header(host_header: Optional[str]) -> bool:
+def verify_host_header(host_header: Optional[str], is_hook: bool = False) -> bool:
     """
-    DNS-rebinding defense: only localhost or 127.0.0.1 (with optional port)
-    are accepted.
+    DNS-rebinding defense:
+    - By default, only localhost or 127.0.0.1 (with optional port) are accepted.
+    - If is_hook=True, hosts in AGENTOS_PUBLIC_HOSTS are also accepted for /hooks/* routes.
+    - All other routes (including /api and the UI) keep the localhost-only rule.
     """
     if not host_header:
         return False
     # Strip port if present
     hostname = host_header.split(":")[0].strip().lower()
-    return hostname in ALLOWED_HOSTS
+    if hostname in ALLOWED_HOSTS:
+        return True
+    if is_hook and hostname in get_public_hosts():
+        return True
+    return False
 
 
 def verify_origin(origin: Optional[str]) -> bool:
@@ -124,12 +138,13 @@ def check_request_auth(request: Request, expected_token: Optional[str] = None) -
     """
     global _EMITTED_V1_NO_AUTH_WARNING
 
+    path = request.url.path
+    is_hook = path.startswith("/hooks/") or path == "/hooks"
+
     # 1. Host header validation (DNS-rebinding defense)
     host = request.headers.get("host")
-    if not verify_host_header(host):
+    if not verify_host_header(host, is_hook=is_hook):
         return False, "Invalid Host header (DNS-rebinding protection: localhost and 127.0.0.1 only)"
-
-    path = request.url.path
 
     # 2. /api/health is always unauthenticated
     if path == "/api/health":
@@ -187,9 +202,11 @@ class SecurityMiddleware:
         raw_headers = scope.get("headers", [])
         headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in raw_headers}
         host = headers.get("host", "")
+        path = scope.get("path", "")
+        is_hook = path.startswith("/hooks/") or path == "/hooks"
 
         # 1. Host header validation
-        if not verify_host_header(host):
+        if not verify_host_header(host, is_hook=is_hook):
             body = b'{"detail":"Invalid Host header (DNS-rebinding protection: localhost and 127.0.0.1 only)"}'
             await send({
                 "type": "http.response.start",
@@ -201,8 +218,6 @@ class SecurityMiddleware:
             })
             await send({"type": "http.response.body", "body": body})
             return
-
-        path = scope.get("path", "")
 
         # 2. /api/health is always unauthenticated, and non-/api static/UI routes
         if path == "/api/health" or not path.startswith("/api"):

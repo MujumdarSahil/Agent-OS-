@@ -47,6 +47,7 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
 5. Never weaken a security check or CI gate to get green (audit levels, ignores, skips)
    without listing each item with ID, reason and expiry and asking the owner first.
 6. No secrets in the repo. Credentials go through the vault. Never commit `.env`.
+   Never write any part of a secret (prefix, suffix, fragment) to files, logs, commits or chat.
 7. Small commits with clear messages. Do not mix deletions, features and docs in one commit.
 8. Work in plan mode first. Show the plan and wait for approval before editing files.
 9. At the end of each sub-milestone STOP and write an evidence report (below). Do not start
@@ -55,6 +56,17 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
     recommendation. Do not choose silently.
 11. Every user-facing feature ships with a use case under `examples/usecases/NN-name/` with
     benign and attack inputs where security-relevant, run in CI in MOCK mode.
+12. Token and resource economy:
+    - No background watchers, polling timers or scheduled re-checks. To wait for CI, use one
+      blocking call (gh pr checks <PR> --watch --fail-fast) and report the result once.
+    - Do not leave processes running after a step: stop dev servers, uvicorn, Playwright and
+      test runs you started, and stop Docker containers you started unless the very next step
+      needs them. Say what you stopped.
+    - Do not create scratch, temp or backup files in the repo; delete any you created before
+      committing. Use the system temp folder for throwaway files.
+    - Read only the parts of files you need; do not re-read large files or logs repeatedly.
+    - Save full raw logs to docs/evidence/raw/ and paste only the summary lines and any
+      failures in chat (rule 1 is satisfied by the saved raw file plus the pasted summary).
 
 ## Baseline (2.0 after 1.3 + audit-fail-closed)
 - agentos/tests + agentos_server/tests + agentos/packaging/tests + tests/ci: 280 passed, 17 skipped with LIVE Mongo (265 passed, 32 skipped without Mongo).

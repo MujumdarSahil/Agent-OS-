@@ -1,0 +1,7 @@
+{
+  "alert_type": "service_health",
+  "service": "billing-api",
+  "status": "healthy",
+  "message": "Routine health check succeeded.",
+  "recipient": "ops@internal.local"
+}

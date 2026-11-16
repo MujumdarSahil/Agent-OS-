@@ -36,7 +36,7 @@ from agentos.flows.rules import (
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
 from agentos.flows.state import FlowRunState, NodeState, RunStatus
 from agentos.storage.models import EventRecord, RunRecord
-from agentos.storage.ports import Storage
+from agentos.storage.ports import FencingTokenError, Storage
 
 
 def execute_validator_runtime(
@@ -120,6 +120,8 @@ class FlowEngine:
         transport_registry: dict[str, Any] | None = None,
         custom_llm: Any | None = None,
         track_labels: bool = True,
+        lease_id: str | None = None,
+        fencing_checker: Any | None = None,
     ) -> None:
         self.flow = flow
         self.storage = storage
@@ -127,32 +129,71 @@ class FlowEngine:
         self.transport_registry = transport_registry or {"send_email": MockTransport()}
         self.custom_llm = custom_llm
         self.track_labels = track_labels
+        self.lease_id = lease_id
+        self.fencing_checker = fencing_checker
+
+    def _check_fencing(self, run_id: str) -> None:
+        """Requirement 1: Fencing check before state change, transport send, or event append."""
+        if self.lease_id is not None:
+            if self.fencing_checker is None:
+                raise FencingTokenError(
+                    f"Lease {self.lease_id!r} is active for run {run_id!r} but no fencing_checker configured (fail closed)"
+                )
+            if not self.fencing_checker(run_id, self.lease_id):
+                raise FencingTokenError(
+                    f"Lease {self.lease_id!r} has expired or been superseded for run {run_id!r}"
+                )
+        elif self.fencing_checker is not None:
+            if not self.fencing_checker(run_id, None):
+                raise FencingTokenError(
+                    f"Fencing check rejected unleased execution for run {run_id!r}"
+                )
+
+    async def _append_event(
+        self,
+        run_id: str,
+        type: str,
+        data: dict[str, Any] | None = None,
+    ) -> EventRecord:
+        """Append an event carrying the worker lease_id with fencing token check."""
+        self._check_fencing(run_id)
+        return await self.storage.events.append(
+            run_id=run_id,
+            type=type,
+            data=data,
+            lease_id=self.lease_id,
+        )
 
     async def run(
         self,
         run_id: str | None = None,
         inputs: dict[str, Any] | None = None,
         raise_on_error: bool = False,
+        trigger: str = "manual",
     ) -> FlowRunState:
         """Execute flow graph from entrypoint."""
         run_id = run_id or f"run_{uuid.uuid4().hex[:12]}"
         inputs = inputs or {}
 
         # 1. Initialize run record and append run_started event
+        self._check_fencing(run_id)
         run_record = RunRecord(
             run_id=run_id,
             mission_name=self.flow.id,
+            flow_id=self.flow.id,
+            current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )
         await self.storage.runs.put(run_record)
 
-        ev = await self.storage.events.append(
+        ev = await self._append_event(
             run_id=run_id,
             type="run_started",
             data={
                 "flow_id": self.flow.id,
                 "entrypoint": self.flow.entrypoint,
                 "inputs": inputs,
+                "trigger": trigger,
             },
         )
 
@@ -210,13 +251,13 @@ class FlowEngine:
                 "idempotency_key": intent_key,
                 "args": intent_args,
             }
-            wait_ev = await self.storage.events.append(
+            wait_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_waiting",
                 data=wait_data,
             )
             state.apply_event(wait_ev)
-            run_wait_ev = await self.storage.events.append(
+            run_wait_ev = await self._append_event(
                 run_id=state.run_id,
                 type="run_waiting",
                 data={"node_id": nid, "reason": "uncommitted_sink_needs_review"},
@@ -236,10 +277,30 @@ class FlowEngine:
 
         return await self._execution_loop(state, raise_on_error=raise_on_error)
 
-    async def approve(self, run_id: str, node_id: str, decision: bool) -> FlowRunState:
-        """Deliver operator approval decision and resume flow execution."""
+    async def approve(self, run_id: str, node_id: str, decision: Any) -> FlowRunState:
+        """Deliver operator approval decision and resume flow execution.
+
+        Requirement 6:
+        - Only for runs in waiting at the named approval node.
+        - Idempotent: a second call is a no-op returning the same result.
+        - Decision can be "reject" (fails/cancels run cleanly without executing sink).
+        """
         events = await self.storage.events.list(run_id, after_seq=0)
         state = FlowRunState.rebuild_from_events(run_id, events)
+
+        # Normalize requested decision
+        is_approved = decision is True or str(decision).lower() in ("true", "approve", "approved")
+
+        # Idempotency check: if an approval_decision already exists for this node
+        for e in events:
+            if e.type == "approval_decision" and (e.data or {}).get("node_id") == node_id:
+                past_dec = (e.data or {}).get("decision")
+                past_approved = past_dec is True or str(past_dec).lower() in ("true", "approve", "approved")
+                if is_approved == past_approved:
+                    return state
+                raise ValueError(
+                    f"Run {run_id!r} node {node_id!r} was already decided as {past_dec!r}"
+                )
 
         if state.status != RunStatus.WAITING or state.waiting_node != node_id:
             raise ValueError(
@@ -250,21 +311,22 @@ class FlowEngine:
         shown_args = (state.waiting_details or {}).get("arguments", {})
 
         # Append approval decision event with exact argument values shown to operator
-        ev = await self.storage.events.append(
+        ev = await self._append_event(
             run_id=run_id,
             type="approval_decision",
             data={
                 "node_id": node_id,
-                "decision": decision,
+                "decision": is_approved,
+                "raw_decision": decision,
                 "arguments": shown_args,
             },
         )
         state.apply_event(ev)
 
-        if decision is True:
+        if is_approved:
             # Approval declassifies approved arguments to trusted for downstream sink
             out_label = Label.trusted(sources={node_id})
-            succ_ev = await self.storage.events.append(
+            succ_ev = await self._append_event(
                 run_id=run_id,
                 type="node_succeeded",
                 data={
@@ -285,17 +347,17 @@ class FlowEngine:
             # Continue flow execution
             return await self._execution_loop(state)
         else:
-            # Rejection stops the flow
-            fail_ev = await self.storage.events.append(
+            # Rejection stops the flow cleanly without executing sinks
+            fail_ev = await self._append_event(
                 run_id=run_id,
                 type="node_failed",
                 data={
                     "node_id": node_id,
-                    "error": f"Approval rejected by operator on node {node_id!r}",
+                    "error": "rejected_by_operator",
                 },
             )
             state.apply_event(fail_ev)
-            await self._update_run_status(state, RunStatus.FAILED, error=state.error)
+            await self._update_run_status(state, RunStatus.FAILED, error="rejected_by_operator")
             return state
 
     async def get_provenance_chain(self, run_id: str, target_seq: int) -> list[EventRecord]:
@@ -358,7 +420,7 @@ class FlowEngine:
                     for nid in self.flow.nodes
                 ):
                     # Flow finished successfully
-                    ev = await self.storage.events.append(
+                    ev = await self._append_event(
                         run_id=state.run_id,
                         type="run_succeeded",
                         data={"outputs": state.node_outputs},
@@ -370,7 +432,7 @@ class FlowEngine:
 
                 # If any node failed and no more nodes can proceed -> run failed
                 if any(st == NodeState.FAILED for st in state.node_states.values()):
-                    ev = await self.storage.events.append(
+                    ev = await self._append_event(
                         run_id=state.run_id,
                         type="run_failed",
                         data={"error": state.error or "Node failure halted execution"},
@@ -387,7 +449,7 @@ class FlowEngine:
 
             # Mark ready nodes queued
             for nid in ready_nodes:
-                q_ev = await self.storage.events.append(
+                q_ev = await self._append_event(
                     run_id=state.run_id,
                     type="node_queued",
                     data={"node_id": nid},
@@ -403,7 +465,7 @@ class FlowEngine:
                     if first_exception is None:
                         first_exception = res
                     state.error = str(res)
-                    fail_ev = await self.storage.events.append(
+                    fail_ev = await self._append_event(
                         run_id=state.run_id,
                         type="node_failed",
                         data={"node_id": nid, "error": str(res)},
@@ -418,7 +480,7 @@ class FlowEngine:
                 return state
 
             if state.error:
-                ev = await self.storage.events.append(
+                ev = await self._append_event(
                     run_id=state.run_id,
                     type="run_failed",
                     data={"error": state.error},
@@ -475,17 +537,28 @@ class FlowEngine:
                     inbound_labels[target_arg] = src_labels[src_field]
 
         # For entrypoint, use run inputs if not mapped
-        if node_id == self.flow.entrypoint and not inbound_args:
+        if node_id == self.flow.entrypoint:
             run_init_event = next(
                 (e for e in state.event_history if e.get("type") == "run_started"), None
             )
-            inbound_args = (run_init_event or {}).get("data", {}).get("inputs", {})
-            init_lbl = (
-                Label.untrusted(sources={node_id})
-                if node.type == "webhook_trigger"
-                else Label.trusted(sources={node_id})
-            )
-            inbound_labels = {"*": init_lbl, "payload": init_lbl}
+            trigger_type = (run_init_event or {}).get("data", {}).get("trigger")
+            # Runtime: entry-node inputs are UNTRUSTED for every trigger by default.
+            # Allowlist: only trigger == "cron" may be trusted (inputs come from stored schedule config).
+            # Unknown or missing trigger -> untrusted. Pinned args stay trusted.
+            if trigger_type == "cron":
+                init_lbl = Label.trusted(sources={node_id})
+            else:
+                init_lbl = Label.untrusted(sources={node_id})
+
+            if not inbound_args:
+                raw_inputs = (run_init_event or {}).get("data", {}).get("inputs", {})
+                inbound_args = dict(raw_inputs) if isinstance(raw_inputs, dict) else {"payload": raw_inputs}
+                inbound_labels = {"*": init_lbl, "payload": init_lbl}
+                for k in inbound_args.keys():
+                    inbound_labels[k] = init_lbl
+            else:
+                inbound_labels.setdefault("*", init_lbl)
+                inbound_labels.setdefault("payload", init_lbl)
 
         # Apply author pinned arguments
         for k, v in node.pinned_args.items():
@@ -493,7 +566,7 @@ class FlowEngine:
                 inbound_args[k] = v
                 inbound_labels[k] = Label.trusted(sources={node_id})
 
-        start_ev = await self.storage.events.append(
+        start_ev = await self._append_event(
             run_id=state.run_id,
             type="node_started",
             data={
@@ -519,7 +592,7 @@ class FlowEngine:
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
         except asyncio.TimeoutError as err:
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
-            fail_ev = await self.storage.events.append(
+            fail_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_failed",
                 data={
@@ -542,12 +615,12 @@ class FlowEngine:
         node_id = node.id
         effective_inbound = Label.join_all(list(input_labels.values()), default=Label.trusted())
 
-        # 1. Webhook trigger
-        if node.type == "webhook_trigger":
+        # 1. Trigger nodes (webhook_trigger, manual_trigger)
+        if node.type in ("webhook_trigger", "manual_trigger"):
             out_label = Label.untrusted(sources={node_id})
             outputs = {"payload": inputs, "headers": {}}
             labels = {"payload": out_label, "headers": out_label, "*": out_label}
-            ev = await self.storage.events.append(
+            ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
                 data={
@@ -563,7 +636,7 @@ class FlowEngine:
         if node.type == "validator":
             outputs, out_label = execute_validator_runtime(node, inputs, self.policy)
             labels = {"*": out_label, "data": out_label, **{k: out_label for k in outputs}}
-            ev = await self.storage.events.append(
+            ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
                 data={
@@ -577,7 +650,7 @@ class FlowEngine:
 
         # 3. Approval node (Requirement 7: pauses run, persists state, frees task)
         if node.type == "approval":
-            wait_ev = await self.storage.events.append(
+            wait_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_waiting",
                 data={
@@ -588,7 +661,7 @@ class FlowEngine:
                 },
             )
             state.apply_event(wait_ev)
-            run_wait_ev = await self.storage.events.append(
+            run_wait_ev = await self._append_event(
                 run_id=state.run_id,
                 type="run_waiting",
                 data={"node_id": node_id},
@@ -654,7 +727,7 @@ class FlowEngine:
                 transport_result = {"status": "deduplicated", "idempotency_key": idempotency_key}
             else:
                 if node_id not in state.pending_sink_intents:
-                    intent_ev = await self.storage.events.append(
+                    intent_ev = await self._append_event(
                         run_id=state.run_id,
                         type="sink_intent",
                         data={
@@ -665,10 +738,12 @@ class FlowEngine:
                     )
                     state.apply_event(intent_ev)
 
+                # Requirement 1: Fencing check before transport invocation
+                self._check_fencing(state.run_id)
                 transport = self.transport_registry.get(node.type) or MockTransport()
                 transport_result = transport.send(idempotency_key=idempotency_key, **inputs)
 
-                commit_ev = await self.storage.events.append(
+                commit_ev = await self._append_event(
                     run_id=state.run_id,
                     type="sink_committed",
                     data={
@@ -679,7 +754,7 @@ class FlowEngine:
                 )
                 state.apply_event(commit_ev)
 
-            succ_ev = await self.storage.events.append(
+            succ_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
                 data={
@@ -704,6 +779,8 @@ class FlowEngine:
                 transport_registry=self.transport_registry,
                 loop=loop,
                 track_labels=self.track_labels,
+                lease_id=self.lease_id,
+                fencing_checker=self.fencing_checker,
             )
 
             # Wrap tools
@@ -739,7 +816,7 @@ class FlowEngine:
             agent_result = await asyncio.to_thread(_run_crewai)
 
             out_lbl = proxy.agent_context_label
-            succ_ev = await self.storage.events.append(
+            succ_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
                 data={
@@ -762,7 +839,7 @@ class FlowEngine:
                 completion = str(self.custom_llm.call([{"role": "user", "content": prompt}]))
 
             out_lbl = effective_inbound
-            succ_ev = await self.storage.events.append(
+            succ_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
                 data={
@@ -778,7 +855,7 @@ class FlowEngine:
             return
 
         # Default fallback
-        succ_ev = await self.storage.events.append(
+        succ_ev = await self._append_event(
             run_id=state.run_id,
             type="node_succeeded",
             data={
@@ -796,11 +873,15 @@ class FlowEngine:
         error: str | None = None,
     ) -> None:
         """Update run record in storage."""
+        self._check_fencing(state.run_id)
         state.status = status
         record = await self.storage.runs.get(state.run_id)
         if record:
             record.status = status.value
             record.error = error
+            record.outputs = state.node_outputs
+            record.current_lease_id = self.lease_id
+            await self.storage.runs.put(record)
             record.outputs = state.node_outputs
             await self.storage.runs.put(record)
 
