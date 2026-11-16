@@ -537,18 +537,28 @@ class FlowEngine:
                     inbound_labels[target_arg] = src_labels[src_field]
 
         # For entrypoint, use run inputs if not mapped
-        if node_id == self.flow.entrypoint and not inbound_args:
+        if node_id == self.flow.entrypoint:
             run_init_event = next(
                 (e for e in state.event_history if e.get("type") == "run_started"), None
             )
-            inbound_args = (run_init_event or {}).get("data", {}).get("inputs", {})
             trigger_type = (run_init_event or {}).get("data", {}).get("trigger")
-            init_lbl = (
-                Label.untrusted(sources={node_id})
-                if (node.type in ("webhook_trigger", "manual_trigger") or trigger_type == "manual")
-                else Label.trusted(sources={node_id})
-            )
-            inbound_labels = {"*": init_lbl, "payload": init_lbl}
+            # Runtime: entry-node inputs are UNTRUSTED for every trigger by default.
+            # Allowlist: only trigger == "cron" may be trusted (inputs come from stored schedule config).
+            # Unknown or missing trigger -> untrusted. Pinned args stay trusted.
+            if trigger_type == "cron":
+                init_lbl = Label.trusted(sources={node_id})
+            else:
+                init_lbl = Label.untrusted(sources={node_id})
+
+            if not inbound_args:
+                raw_inputs = (run_init_event or {}).get("data", {}).get("inputs", {})
+                inbound_args = dict(raw_inputs) if isinstance(raw_inputs, dict) else {"payload": raw_inputs}
+                inbound_labels = {"*": init_lbl, "payload": init_lbl}
+                for k in inbound_args.keys():
+                    inbound_labels[k] = init_lbl
+            else:
+                inbound_labels.setdefault("*", init_lbl)
+                inbound_labels.setdefault("payload", init_lbl)
 
         # Apply author pinned arguments
         for k, v in node.pinned_args.items():

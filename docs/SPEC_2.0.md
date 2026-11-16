@@ -134,6 +134,7 @@ All workflow executions are modeled as append-only event streams. Every node sta
 - Sound declassification nodes (`approval`, `validator`, `quarantined_extraction`).
 - Event-sourced execution runner with append-only provenance recording.
 - **Phase 2 Gap Note:** Until full multi-user RBAC lands in Phase 3, declassification policies, allowlists, and trusted-tool flags can only be modified via static server configuration (admin config file) or using the local admin token.
+- **Webhook Rate Limiting & Reverse Proxy Gap Note (Phase 2):** Webhook rate limiting is enforced per client IP directly from the TCP socket. Deployments behind a reverse proxy (e.g., NGINX, Cloudflare) require trusted-proxy configuration so `X-Forwarded-For` is not spoofable by untrusted clients; explicit trusted-proxy CIDR configuration and header trust is a documented Phase 3 known gap.
 
 ### Phase 3: Governance, Observability & Access Control
 - Policy Engine: fine-grained RBAC and attribute-based access control.

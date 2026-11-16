@@ -146,7 +146,46 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
         return _generic_not_found()
 
     # -------------------------------------------------------------------------
-    # 6. Replay Check via Nonce Cache
+    # 6. HMAC-SHA256 Signature Verification over Raw Bytes
+    # (Verify HMAC first; only valid signatures ever enter the nonce cache)
+    # -------------------------------------------------------------------------
+    vault = request.app.state.vault
+    try:
+        secret_key = await vault.reveal(webhook.secret_key_ref)
+    except Exception:
+        logger.error("Webhook secret key ref %r not found in vault", webhook.secret_key_ref)
+        return _generic_not_found()
+
+    signed_payload = ts_header.encode("utf-8") + b"." + raw_body
+    expected_hex = hmac.new(secret_key.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    expected_sig = f"sha256={expected_hex}"
+
+    if not hmac.compare_digest(sig_header, expected_sig):
+        logger.warning("Webhook signature mismatch on hook %s", webhook.webhook_id)
+        return _generic_not_found()
+
+    # -------------------------------------------------------------------------
+    # 7. Decode UTF-8 & JSON Parse (Only after HMAC Verification)
+    # -------------------------------------------------------------------------
+    try:
+        payload_str = raw_body.decode("utf-8")
+        inputs_data = json.loads(payload_str)
+        if not isinstance(inputs_data, dict):
+            inputs_data = {"payload": inputs_data}
+    except (UnicodeDecodeError, json.JSONDecodeError, Exception) as e:
+        logger.warning("Webhook UTF-8 / JSON decode error: %s", e)
+        return _generic_not_found()
+
+    # Find latest published version of target flow
+    versions = await storage.flows.list_versions(webhook.flow_id)
+    if not versions:
+        logger.warning("Webhook %s target flow %s has no published versions", webhook.webhook_id, webhook.flow_id)
+        return _generic_not_found()
+
+    latest_version = max(v.version for v in versions)
+
+    # -------------------------------------------------------------------------
+    # 8. Check-and-Set Nonce Cache (Only Valid & Deliverable Signatures Consume Nonce)
     # -------------------------------------------------------------------------
     nonce_cache = getattr(request.app.state, "nonce_cache", None)
     if nonce_cache:
@@ -157,42 +196,8 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
             return _generic_not_found()
 
     # -------------------------------------------------------------------------
-    # 7. HMAC-SHA256 Signature Verification
+    # 9. Execution Ingress: Untrusted Labeling & Queue Enqueue
     # -------------------------------------------------------------------------
-    vault = request.app.state.vault
-    try:
-        secret_key = await vault.reveal(webhook.secret_key_ref)
-    except Exception:
-        logger.error("Webhook secret key ref %r not found in vault", webhook.secret_key_ref)
-        return _generic_not_found()
-
-    payload_str = raw_body.decode("utf-8", errors="replace")
-    signed_payload = f"{ts_header}.{payload_str}".encode("utf-8")
-    expected_hex = hmac.new(secret_key.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
-    expected_sig = f"sha256={expected_hex}"
-
-    if not hmac.compare_digest(sig_header, expected_sig):
-        logger.warning("Webhook signature mismatch on hook %s", webhook.webhook_id)
-        return _generic_not_found()
-
-    # -------------------------------------------------------------------------
-    # 8. Execution Ingress: JSON Parse, Untrusted Labeling, Queue Enqueue
-    # -------------------------------------------------------------------------
-    try:
-        inputs_data = json.loads(payload_str)
-        if not isinstance(inputs_data, dict):
-            inputs_data = {"payload": inputs_data}
-    except Exception as e:
-        logger.warning("Webhook JSON parse error: %s", e)
-        return _generic_not_found()
-
-    # Find latest published version of target flow
-    versions = await storage.flows.list_versions(webhook.flow_id)
-    if not versions:
-        logger.warning("Webhook %s target flow %s has no published versions", webhook.webhook_id, webhook.flow_id)
-        return _generic_not_found()
-
-    latest_version = max(v.version for v in versions)
 
     # Full uuid4 run_id
     run_id = f"run_{uuid.uuid4().hex}"

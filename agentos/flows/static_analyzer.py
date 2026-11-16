@@ -100,13 +100,11 @@ class StaticFlowAnalyzer:
         node_effective_inbound: dict[str, Label] = {}
         node_paths: dict[str, list[str]] = {self.flow.entrypoint: [self.flow.entrypoint]}
 
-        # Initialize entrypoint
+        # Initialize entrypoint: entrypoint inputs are treated as untrusted when checking publish
+        # (any flow can be bound to a webhook later)
         entry_node = self.flow.nodes[self.flow.entrypoint]
         entry_spec = BUILTIN_NODE_SPECS.get(entry_node.type) or NodeSpec(type=entry_node.type)
-        if entry_node.type in ("webhook_trigger", "manual_trigger"):
-            init_inbound = Label.untrusted(sources={self.flow.entrypoint})
-        else:
-            init_inbound = Label.trusted(sources={self.flow.entrypoint})
+        init_inbound = Label.untrusted(sources={self.flow.entrypoint})
 
         node_effective_inbound[self.flow.entrypoint] = init_inbound
         node_output_labels[self.flow.entrypoint] = self._compute_output_labels(
@@ -149,9 +147,7 @@ class StaticFlowAnalyzer:
                 if not inbound_labels and node_id == self.flow.entrypoint:
                     effective_inbound = node_effective_inbound.get(
                         node_id,
-                        Label.untrusted(sources={node_id})
-                        if node.type == "webhook_trigger"
-                        else Label.trusted(sources={node_id}),
+                        Label.untrusted(sources={node_id}),
                     )
                 elif inbound_labels:
                     effective_inbound = Label.join_all(inbound_labels, default=Label.trusted())
