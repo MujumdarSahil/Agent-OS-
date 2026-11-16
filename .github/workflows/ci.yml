@@ -35,7 +35,7 @@ jobs:
 
       - name: Enforce Core & LLM Coverage
         run: |
-          python check_coverage.py
+          python scripts/check_coverage.py
 
       - name: Run Python Linter (ruff)
         run: |
@@ -43,7 +43,7 @@ jobs:
 
       - name: Run Dependency Audit (pip-audit check for HIGH/CRITICAL)
         run: |
-          python check_pip_audit.py
+          python scripts/check_pip_audit.py
 
   frontend-ci:
     runs-on: ubuntu-latest
@@ -101,7 +101,7 @@ jobs:
       - name: Build wheel and install into a clean virtualenv
         run: |
           python -m pip install --upgrade pip build
-          python check_wheel_install.py
+          python scripts/check_wheel_install.py
 
   ui-e2e:
     # 2.4 visual builder + run panel (MOCK): Playwright against a real uvicorn backend

@@ -21,7 +21,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).parent.resolve()
+ROOT = Path(__file__).resolve().parent.parent  # repo root (script lives in scripts/)
 
 CHECK_CODE = r"""
 import os, sys, asyncio, tempfile

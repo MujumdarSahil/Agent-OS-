@@ -131,7 +131,7 @@ This threat model defines the assets, trust boundaries, attacker profiles, secur
 - **Profile:** Compromised upstream Python package on PyPI introducing backdoors or vulnerabilities into the AgentOS runtime.
 - **Attack Vector:** Typosquatting or compromised release of dependencies (e.g., `litellm`, `chromadb`, `crewai`).
 - **Mitigation:**
-  - Fail-closed dependency gate (`check_pip_audit.py`).
+  - Fail-closed dependency gate (`scripts/check_pip_audit.py`).
   - CVSS v2/v3/v4 scoring verification; unknown severities or unreachable registries fail closed.
   - Pinned dependencies and structured `security/audit-exemptions.json` requiring strict expiration <= 180 days.
 
@@ -204,7 +204,7 @@ This threat model defines the assets, trust boundaries, attacker profiles, secur
 | **T-06** | Insider editor creating rogue declassification | Admin-only declassification policies and allowlists (Phase 2 gap: admin config/token only until Phase 3 RBAC) | Phase 2 (Config/Token) & Phase 3 (RBAC) |
 | **T-07** | Malicious webhook payload / replay | Ingest node HMAC validation + immediate `untrusted` labeling | Phase 2 & Phase 3 |
 | **T-08** | Malicious `.agentpack` import | Imported policies/flags inactive until admin approval; re-run static analysis on import; signature proves origin not safety | Phase 5 (Packaging) |
-| **T-09** | Vulnerable upstream dependencies | Fail-closed `check_pip_audit.py` + CVSS scoring + 180-day exemption cap | Phase 1 (Done) |
+| **T-09** | Vulnerable upstream dependencies | Fail-closed `scripts/check_pip_audit.py` + CVSS scoring + 180-day exemption cap | Phase 1 (Done) |
 | **T-10** | Unaudited execution tampering | Append-only at application level; hash-chained tamper evidence is a later option | Phase 2 (Flow Engine) |
 | **T-11** | MCP tool poisoning | Tool descriptions and schemas from non-admin-trusted servers are untrusted; tool outputs tagged untrusted | Phase 2 (Flow Engine & Tool Proxy) |
 | **T-12** | UI exfiltration via auto-loaded markdown images/links | UI sanitization of untrusted/secret markdown; external image auto-load blocked; link warnings | Phase 1.4 (React UI) & Phase 3 (Observability) |

@@ -9,7 +9,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from check_pip_audit import (
+import sys
+from pathlib import Path
+
+# The gate script lives in scripts/ (moved from the repo root in the 2.0 cleanup).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+
+from check_pip_audit import (  # noqa: E402
     audit,
     check_exemption,
     get_osv_severity,
