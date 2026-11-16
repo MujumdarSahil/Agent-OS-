@@ -278,9 +278,17 @@ class Planner:
         return graph
     
     def _create_graph_llm(self, goal_text: str, constraints: Dict[str, Any]) -> TaskGraph:
-        """Create graph using LLM (placeholder for future implementation)"""
-        # TODO: Implement LLM-based decomposition
-        # For now, fall back to simple
+        """LLM-based decomposition is NOT implemented in AgentOS 2.0.
+
+        ``llm_func`` is accepted for v1 API compatibility, but the plan is built by the rule-based
+        decomposer. A warning is logged so callers are not misled into thinking an LLM planned it.
+        """
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Planner: LLM-based decomposition is not implemented in AgentOS 2.0; "
+            "llm_func is ignored and the rule-based planner is used (see docs/SPEC_2.0.md)."
+        )
         return self._create_graph_simple(goal_text, constraints)
     
     def optimize(
