@@ -49,7 +49,10 @@ def token():
 async def client(tmp_path, token):
     project = tmp_path / "project"
     project.mkdir()
-    (project / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+    # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+    (project / "agentos.config.yaml").write_text(
+        "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local]\n", encoding="utf-8"
+    )
     app = create_app(project_path=str(project))
     async with AsyncClient(
         transport=ASGITransport(app=app),

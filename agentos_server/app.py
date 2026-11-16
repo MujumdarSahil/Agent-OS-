@@ -22,6 +22,31 @@ logger = logging.getLogger(__name__)
 
 from typing import Any, Optional
 
+INTERNAL_DOMAINS_ENV = "AGENTOS_INTERNAL_DOMAINS"
+
+
+def load_internal_domains(project_path: str) -> set[str]:
+    """Trusted internal email domains for the IFC SecurityPolicy (admin configuration).
+
+    Precedence: the ``AGENTOS_INTERNAL_DOMAINS`` env var (comma-separated) if it is set, else
+    ``security.internal_domains`` (a list) in ``<project>/agentos.config.yaml``, else empty.
+    The default is empty: no recipient domain is trusted unless an admin configures it.
+    """
+    env_val = os.environ.get(INTERNAL_DOMAINS_ENV)
+    if env_val is not None:
+        return {d.strip().lower().lstrip("@") for d in env_val.split(",") if d.strip()}
+    cfg_path = os.path.join(project_path, "agentos.config.yaml")
+    if not os.path.isfile(cfg_path):
+        return set()
+    import yaml
+
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    domains = ((cfg.get("security") or {}) if isinstance(cfg, dict) else {}).get("internal_domains") or []
+    if not isinstance(domains, list) or not all(isinstance(d, str) for d in domains):
+        raise ValueError("agentos.config.yaml: security.internal_domains must be a list of domain strings")
+    return {d.strip().lower().lstrip("@") for d in domains if d.strip()}
+
 def create_app(
     project_path: Optional[str] = None,
     storage: Optional[Any] = None,
@@ -187,7 +212,8 @@ def create_app(
     app.state.run_manager = RunManager(governance=gov)
     app.state.failed_providers = set()
     from agentos.flows.policy import SecurityPolicy
-    app.state.security_policy = SecurityPolicy(internal_domains={"internal.local", "corp.local"})
+    # Trusted internal email domains are admin configuration (secure default: none trusted).
+    app.state.security_policy = SecurityPolicy(internal_domains=load_internal_domains(project_path))
 
     # Initialize 1.2 Storage port (File or Mongo)
     if storage is not None:

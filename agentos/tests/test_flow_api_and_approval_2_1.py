@@ -33,7 +33,10 @@ def setup_test_vault(tmp_path, monkeypatch):
 def test_app(tmp_path):
     project_dir = tmp_path / "api_test_project"
     project_dir.mkdir(parents=True, exist_ok=True)
-    (project_dir / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+    # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+    (project_dir / "agentos.config.yaml").write_text(
+        "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+    )
     app = create_app(str(project_dir))
     return app
 
@@ -312,7 +315,10 @@ async def test_startup_recovery(tmp_path, monkeypatch):
     monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
     project_dir = tmp_path / "recovery_project"
     project_dir.mkdir(parents=True, exist_ok=True)
-    (project_dir / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+    # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+    (project_dir / "agentos.config.yaml").write_text(
+        "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+    )
 
     # 1. First server session: setup storage and simulate an interrupted running run
     s = await open_storage(str(project_dir), backend="file", vault_path=str(tmp_path / "vault.json"))
