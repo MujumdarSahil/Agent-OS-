@@ -1,252 +1,195 @@
 """
-main.py — AgentOS single-command launcher.
+main.py — AgentOS one-command launcher (2.4c).
 
-DEV mode (default):
-  Spawns uvicorn (FastAPI backend) + npm run dev (Vite frontend) as subprocesses.
-  Opens the frontend URL in the default browser.
-  Ctrl+C terminates both cleanly.
+    python main.py                 # default workspace ~/.agentos/workspace, UI + API on one port
+    python main.py --project PATH  # open a specific project
+    python main.py --dev           # Vite dev server (hot reload) + backend
 
-PROD mode (--prod):
-  Expects the frontend already built (npm run build → ui/dist/).
-  FastAPI serves the built static files + API on one port via uvicorn.
-  Auto-builds if dist/ is missing.
-
-Usage:
-  python main.py [--project PATH] [--backend-port 8000] [--frontend-port 5173] [--prod]
-
-If no --project is given and the current directory has no agentos.config.yaml,
-the bundled task_planner demo project is used automatically.
+Default (single port): the backend serves the built UI from ui/dist. If ui/dist is missing and npm is
+available it is built once; otherwise the exact commands to run are printed. The in-process flow
+worker is on by default (--no-worker to disable). The browser opens on the login link
+(http://localhost:<port>/#token=...), which is also printed once. Ctrl+C stops every child process.
 """
+
+from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import time
+import urllib.request
 import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).parent.resolve()
 FRONTEND_DIR = ROOT / "ui"
-DEFAULT_PROJECT = ROOT / "agentos" / "templates" / "source" / "task_planner"
-
-# Force UTF-8 output on Windows so crewai/litellm emoji don't crash the console.
-if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf-8-sig"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except AttributeError:
-        pass  # Python < 3.7 — no reconfigure; best-effort
+DEFAULT_WORKSPACE = Path.home() / ".agentos" / "workspace"
+IS_WINDOWS = os.name == "nt"
 
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="AgentOS - Start the full-stack platform")
-    parser.add_argument(
-        "--project",
-        default=None,
-        help="Path to AgentOS project (default: current directory, or bundled demo project)",
-    )
-    parser.add_argument("--backend-port", type=int, default=8000)
-    parser.add_argument("--frontend-port", type=int, default=5173)
-    parser.add_argument("--prod", action="store_true", help="Production mode (single process)")
-    parser.add_argument("--dev", action="store_true", help="Development mode (default)")
-    return parser.parse_args()
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(description="Start AgentOS (backend + web UI).")
+    p.add_argument("--project", help=f"Project folder (default: current folder if it has agentos.config.yaml, else {DEFAULT_WORKSPACE})")
+    p.add_argument("--backend-port", type=int, default=8000)
+    p.add_argument("--frontend-port", type=int, default=5173, help="Vite port (only with --dev)")
+    p.add_argument("--dev", action="store_true", help="Vite dev server with hot reload + backend")
+    p.add_argument("--prod", action="store_true", help="Single port (the default; kept for compatibility)")
+    p.add_argument("--no-worker", action="store_true", help="Do not start the in-process flow worker")
+    p.add_argument("--no-browser", action="store_true", help="Do not open a browser")
+    p.add_argument("--skip-ui-build", action="store_true", help="Never build the UI (API only if ui/dist is missing)")
+    return p.parse_args(argv)
 
 
 def resolve_project(project_arg: str | None) -> str:
     if project_arg:
-        p = os.path.abspath(project_arg)
-        if not os.path.exists(p):
-            print(f"ERROR: Project path does not exist: {p}", file=sys.stderr)
+        path = os.path.abspath(project_arg)
+        if not os.path.isdir(path):
+            print(f"ERROR: Project path does not exist: {path}", file=sys.stderr)
             sys.exit(1)
-        return p
+        return path
     cwd = os.getcwd()
     if os.path.exists(os.path.join(cwd, "agentos.config.yaml")):
-        print(f"Opening project: {cwd} (found agentos.config.yaml)")
         return cwd
-
-    print(
-        "No AgentOS project found in current directory.\n"
-        "Create one with: agentos new-project myproject\n"
-        "Then run: python main.py --project myproject",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    DEFAULT_WORKSPACE.mkdir(parents=True, exist_ok=True)
+    cfg = DEFAULT_WORKSPACE / "agentos.config.yaml"
+    if not cfg.exists():
+        cfg.write_text("preferred_tags: []\n", encoding="utf-8")
+        print(f"Created default workspace: {DEFAULT_WORKSPACE}")
+    return str(DEFAULT_WORKSPACE)
 
 
-def ensure_npm_deps():
-    node_modules = FRONTEND_DIR / "node_modules"
-    if not node_modules.exists():
-        print("First run detected — installing frontend dependencies (this may take a minute)...")
-        result = subprocess.run(
-            ["npm", "install"],
-            cwd=str(FRONTEND_DIR),
-            shell=True,
-        )
-        if result.returncode != 0:
-            print("ERROR: npm install failed. Check that Node.js is installed.", file=sys.stderr)
-            sys.exit(1)
-        print("Frontend dependencies installed.")
+def npm_cmd() -> str | None:
+    return shutil.which("npm.cmd" if IS_WINDOWS else "npm") or shutil.which("npm")
 
 
-def build_frontend():
-    dist = FRONTEND_DIR / "dist"
-    if not dist.exists():
-        print("Building frontend (npm run build)...")
-        result = subprocess.run(
-            ["npm", "run", "build"],
-            cwd=str(FRONTEND_DIR),
-            shell=True,
-        )
-        if result.returncode != 0:
-            print(
-                "ERROR: Frontend build failed.\n"
-                "Run `npm run build` in ui/ to see the full output.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        print("Frontend built successfully.")
+def ensure_ui_built(skip: bool) -> bool:
+    """True if ui/dist/index.html exists (building it once when possible)."""
+    if (FRONTEND_DIR / "dist" / "index.html").exists():
+        return True
+    npm = npm_cmd()
+    if skip or npm is None:
+        print("The web UI is not built, so only the API will be served. To build it, run:\n"
+              f"  cd {FRONTEND_DIR}\n  npm install\n  npm run build\nthen start AgentOS again.")
+        return False
+    print("Building the web UI once (npm install + npm run build); this can take a few minutes...")
+    if not (FRONTEND_DIR / "node_modules").exists():
+        subprocess.run([npm, "install"], cwd=FRONTEND_DIR, check=True)
+    subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR, check=True)
+    return (FRONTEND_DIR / "dist" / "index.html").exists()
 
 
-def run_dev(project_path: str, backend_port: int, frontend_port: int):
-    """Start uvicorn + Vite dev server as subprocesses."""
-    ensure_npm_deps()
+def spawn(cmd: list[str], cwd: Path, env: dict) -> subprocess.Popen:
+    """Start a child in its own process group so it can be stopped as a tree."""
+    if IS_WINDOWS:
+        return subprocess.Popen(cmd, cwd=cwd, env=env, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    return subprocess.Popen(cmd, cwd=cwd, env=env, start_new_session=True)
 
-    backend_url = f"http://localhost:{backend_port}"
-    frontend_url = f"http://localhost:{frontend_port}"
 
-    print(f"\nAgentOS starting in DEV mode")
-    print(f"  Project:  {project_path}")
-    print(f"  Backend:  {backend_url}")
-    print(f"  Frontend: {frontend_url}")
-    print(f"\nPress Ctrl+C to stop both servers.\n")
-
-    # Set AGENTOS_PROJECT env for the backend process
-    env = os.environ.copy()
-    env["AGENTOS_PROJECT"] = project_path
-    env["PYTHONIOENCODING"] = "utf-8"  # Prevents emoji/Unicode crash on Windows cp1252 consoles
-
-    # Spawn backend
-    backend_proc = subprocess.Popen(
-        [
-            sys.executable, "-m", "uvicorn",
-            f"agentos_server.app:create_app",
-            "--host", "0.0.0.0",
-            "--port", str(backend_port),
-            "--factory",
-            "--reload",
-        ],
-        env={**env, "AGENTOS_PROJECT": project_path},
-        cwd=str(ROOT),
-    )
-
-    # Spawn frontend
-    frontend_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--port", str(frontend_port), "--host"],
-        cwd=str(FRONTEND_DIR),
-        shell=True,
-    )
-
-    # Open browser after a short delay
-    def _open_browser():
-        time.sleep(3)
-        webbrowser.open(frontend_url)
-
-    import threading
-    threading.Thread(target=_open_browser, daemon=True).start()
-
-    procs = [backend_proc, frontend_proc]
-
-    def _shutdown(signum=None, frame=None):
-        print("\nShutting down AgentOS servers...")
-        for p in procs:
-            if p.poll() is None:
-                p.terminate()
-        for p in procs:
-            try:
-                p.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                p.kill()
-        print("AgentOS stopped.")
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
-
-    # Wait for either process to exit
+def stop(proc: subprocess.Popen, timeout: float = 8.0) -> None:
+    if proc.poll() is not None:
+        return
     try:
-        while True:
-            for p in procs:
-                if p.poll() is not None:
-                    print(f"A server process exited unexpectedly (code {p.returncode}). Shutting down.")
-                    _shutdown()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        _shutdown()
-
-
-def run_prod(project_path: str, backend_port: int):
-    """Start a single uvicorn process serving both API and built frontend."""
-    ensure_npm_deps()
-    build_frontend()
-
-    prod_url = f"http://localhost:{backend_port}"
-    print(f"\nAgentOS starting in PROD mode")
-    print(f"  Project: {project_path}")
-    print(f"  URL:     {prod_url}")
-    print(f"\nPress Ctrl+C to stop.\n")
-
-    env = os.environ.copy()
-    env["AGENTOS_PROJECT"] = project_path
-    env["PYTHONIOENCODING"] = "utf-8"  # Prevents emoji/Unicode crash on Windows cp1252 consoles
-
-    proc = subprocess.Popen(
-        [
-            sys.executable, "-m", "uvicorn",
-            "agentos_server.app:create_app",
-            "--host", "0.0.0.0",
-            "--port", str(backend_port),
-            "--factory",
-        ],
-        env=env,
-        cwd=str(ROOT),
-    )
-
-    def _shutdown(signum=None, frame=None):
-        print("\nShutting down AgentOS...")
-        if proc.poll() is None:
-            proc.terminate()
+        if IS_WINDOWS:
+            proc.send_signal(signal.CTRL_BREAK_EVENT)
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        proc.wait(timeout=timeout)
+    except Exception:
+        pass
+    if proc.poll() is None:
+        if IS_WINDOWS:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        else:
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        print("AgentOS stopped.")
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
-
-    time.sleep(2)
-    webbrowser.open(prod_url)
-
-    try:
-        proc.wait()
-    except KeyboardInterrupt:
-        _shutdown()
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        proc.wait(timeout=5)
 
 
-def main():
-    args = parse_args()
-    project_path = resolve_project(args.project)
-    prod = args.prod
+def wait_for_health(port: int, procs: list[subprocess.Popen], timeout: float = 120.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if any(p.poll() is not None for p in procs):
+            return False
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            time.sleep(0.5)
+    return False
 
-    if prod:
-        run_prod(project_path, args.backend_port)
+
+def _interrupt(*_args) -> None:
+    raise KeyboardInterrupt()
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
+    project = resolve_project(args.project)
+    env = dict(os.environ)
+    env["AGENTOS_PROJECT"] = project
+    env["AGENTOS_PORT"] = str(args.backend_port)
+    if not args.no_worker:
+        env.setdefault("AGENTOS_INPROCESS_WORKER", "1")
     else:
-        run_dev(project_path, args.backend_port, args.frontend_port)
+        env.pop("AGENTOS_INPROCESS_WORKER", None)
+
+    procs: list[subprocess.Popen] = []
+    ui_port = args.backend_port
+    if args.dev:
+        env["AGENTOS_DEV"] = "1"
+        ui_port = args.frontend_port
+    elif ensure_ui_built(args.skip_ui_build):
+        env["AGENTOS_UI_DIST"] = str(FRONTEND_DIR / "dist")
+
+    # Ctrl+Break (Windows) and SIGTERM behave like Ctrl+C, so the children are always stopped.
+    if IS_WINDOWS and hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, _interrupt)
+    signal.signal(signal.SIGTERM, _interrupt)
+
+    from agentos_server.auth import get_or_create_api_token
+
+    token = get_or_create_api_token()  # same token file the server uses; read before starting children
+
+    try:
+        backend = [sys.executable, "-m", "uvicorn", "agentos_server.app:create_app", "--factory",
+                   "--host", "127.0.0.1", "--port", str(args.backend_port)]
+        procs.append(spawn(backend, ROOT, env))
+        if args.dev:
+            npm = npm_cmd()
+            if npm is None:
+                print("ERROR: --dev needs npm (Node.js 20.19+ or 22.12+).", file=sys.stderr)
+                return 1
+            procs.append(spawn([npm, "run", "dev", "--", "--port", str(args.frontend_port), "--strictPort"], FRONTEND_DIR, env))
+        if not wait_for_health(args.backend_port, procs):
+            print("ERROR: the backend did not start; see the output above.", file=sys.stderr)
+            return 1
+
+        url = f"http://localhost:{ui_port}/#token={token}"
+        print("\nAgentOS is running.")
+        print(f"  Project: {project}")
+        print(f"  Worker:  {'off (--no-worker)' if args.no_worker else 'on (in-process)'}")
+        print(f"  Open:    {url}")
+        print("Press Ctrl+C to stop.\n", flush=True)
+        if not args.no_browser:
+            webbrowser.open(url)
+        while all(p.poll() is None for p in procs):
+            time.sleep(0.5)
+        print("A server process exited; shutting down.", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nStopping AgentOS...", flush=True)
+        return 0
+    finally:
+        for p in reversed(procs):
+            stop(p)
+        print("AgentOS stopped.", flush=True)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

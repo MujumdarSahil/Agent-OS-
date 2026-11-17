@@ -1,0 +1,56 @@
+﻿...                                                                      [100%]
+============================== warnings summary ===============================
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:455: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(
+
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:463: DeprecationWarning: deprecated
+    if self.allow_code_execution:
+
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:474: DeprecationWarning: deprecated
+    if self.reasoning and self.planning_config is None:
+
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+tests/ci/test_usecase_07.py::test_usecase_07_support_desk_copilot
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:1375: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    function_calling_llm=self.function_calling_llm,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 30 warnings in 35.73s
+
+[PASS] publish check: violations=0
+[PASS] normal: status=succeeded outbox=['support-queue@corp.local'] http_requests=1
+[PASS] urgent: waited_for_approval=True after_approve=succeeded outbox=['oncall@corp.local']
+[PASS] injection: waited_for_approval=True body_label=untrusted after_reject=failed outbox=0 to_attacker=False
+[PASS] unpinned recipient: publish refused=True reasons=["Sink node 'page_oncall' requires trusted argument 'to', but 
+received u"]
+Use case 07: ALL PASS
+
+

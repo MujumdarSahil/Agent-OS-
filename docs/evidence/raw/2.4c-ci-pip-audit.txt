@@ -1,0 +1,14 @@
+﻿Running pip-audit on requirements.txt...
+
+Dependency Vulnerability Audit Summary Table:
++-----------------+----------+---------+----------+----------+
+| ID              | Package  | Version | Severity | Decision |
++-----------------+----------+---------+----------+----------+
+| PYSEC-2026-311  | chromadb | 1.5.9   | CRITICAL | EXEMPT   |
+| PYSEC-2026-311  | chromadb | 1.5.9   | CRITICAL | EXEMPT   |
+| PYSEC-2026-3814 | chromadb | 1.5.9   | CRITICAL | EXEMPT   |
+| PYSEC-2026-3815 | chromadb | 1.5.9   | HIGH     | EXEMPT   |
+| PYSEC-2026-3813 | chromadb | 1.5.9   | HIGH     | EXEMPT   |
++-----------------+----------+---------+----------+----------+
+
+[OK] Audit gate PASSED.

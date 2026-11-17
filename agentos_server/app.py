@@ -173,6 +173,17 @@ def create_app(
             await app.state.scheduler.ensure_cron_support()
             app.state.scheduler.start()
 
+        # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+        if getattr(app.state, "vault", None) is not None:
+            try:
+                from agentos.llm.provider_registry import export_vault_provider_keys
+
+                loaded = await export_vault_provider_keys(app.state.vault)
+                if loaded:
+                    logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+            except Exception as e:
+                logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+
         # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
         from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
         app.state.inprocess_worker = None
@@ -344,6 +355,10 @@ def create_app(
     package_static = os.path.join(os.path.dirname(__file__), "static")
     checkout_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "dist")
     frontend_dist = package_static if os.path.isfile(os.path.join(package_static, "index.html")) else checkout_dist
+    # 2.4c: the launcher points at a freshly built ui/dist explicitly (wins over an older packaged build).
+    ui_override = os.environ.get("AGENTOS_UI_DIST")
+    if ui_override and os.path.isfile(os.path.join(ui_override, "index.html")):
+        frontend_dist = ui_override
     if os.path.exists(frontend_dist):
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
         logger.info(f"Serving frontend from {frontend_dist}")

@@ -75,9 +75,10 @@ async def test_providers_keys_lifecycle(client, project_path):
     assert r_chain.status_code == 200
     chain = r_chain.json()
     assert len(chain) > 0
-    # openai_gpt4o should be in the chain now
+    # 2.4c owner decision: paid providers are disabled by default, so a key alone does not add
+    # openai_gpt4o to the chain; it must be enabled on the Fallback page (saved fallback policy).
     names = [c["name"] for c in chain]
-    assert provider_name in names
+    assert provider_name not in names
 
     # Run direct provider test
     r_test = await client.post(f"/api/providers/test/{provider_name}")

@@ -176,9 +176,22 @@ export function blockedCalls(events: RunEvent[]): BlockedCall[] {
 }
 
 /** One-line, plain-text event summary (values are never rendered as markup). */
+/** "groq: RateLimitError -> openrouter_glm_5_2_free: ok" for an llm_call event (metadata only). */
+export function llmHops(d: Record<string, unknown>): string {
+  const attempts = Array.isArray(d.attempts) ? (d.attempts as { provider?: string; error_class?: string }[]) : []
+  const hops = attempts.map(a => `${str(a.provider)}: ${str(a.error_class)}`)
+  const status = str(d.status)
+  if (status === 'ok') hops.push(`${str(d.provider)}: ok`)
+  else if (status === 'refused') hops.push(`refused: ${str(d.reason)}`)
+  else hops.push('all providers failed')
+  const model = d.model ? ` (${str(d.model)})` : ''
+  return `${hops.join(' -> ')}${model}${d.latency_ms !== undefined ? ` · ${str(d.latency_ms)} ms` : ''}`
+}
+
 export function eventSummary(e: RunEvent): string {
   const d = e.data
   const node = str(d.node_id ?? d.agent_node ?? d.sink_node)
+  if (e.type === 'llm_call') return [node, llmHops(d)].filter(Boolean).join(' · ')
   const extra = str(d.error ?? d.reason ?? (e.type === 'approval_decision' ? `decision=${str(d.raw_decision ?? d.decision)}` : ''))
   return [node, extra].filter(Boolean).join(' · ')
 }

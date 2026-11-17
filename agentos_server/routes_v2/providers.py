@@ -151,14 +151,14 @@ async def get_fallback_policy(request: Request) -> List[FallbackPolicyItem]:
             )
         return result
 
-    # Default policy from PROVIDER_REGISTRY order
+    # Default policy: registry priority order; paid/unavailable entries start disabled (2.4c).
     default_items: List[FallbackPolicyItem] = []
-    for idx, prov in enumerate(PROVIDER_REGISTRY):
+    for idx, prov in enumerate(sorted(PROVIDER_REGISTRY, key=lambda p: p["priority"])):
         default_items.append(
             FallbackPolicyItem(
                 name=prov["name"],
                 order=idx + 1,
-                enabled=True,
+                enabled=prov.get("default_enabled", True),
                 timeout_s=None,
                 display_name=prov.get("display_name", prov["name"]),
                 litellm_model=prov["litellm_model"],

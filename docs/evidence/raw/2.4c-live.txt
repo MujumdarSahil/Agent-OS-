@@ -1,0 +1,6 @@
+2.4c LIVE check (provider names, status and timings only)
+chain order: groq_gpt_oss_20b, zai_glm_4_7_flash, openrouter_gemma_4_31b_free, openrouter_nemotron_3_nano_omni_free, groq_qwen3_8_27b
+1. end-to-end: run=succeeded wall=1.0s llm_calls=1
+  groq_gpt_oss_20b: ok (768.8 ms)
+2. first provider (groq_gpt_oss_20b) key invalid: run=succeeded wall=27.85s llm_calls=1
+  groq_gpt_oss_20b: BadRequestError -> zai_glm_4_7_flash: RateLimitError -> openrouter_gemma_4_31b_free: RateLimitError -> openrouter_nemotron_3_nano_omni_free: ok (27647.2 ms)
