@@ -80,6 +80,59 @@ async def test_node_specs_lists_all_builtin_specs(client):
 
 
 @pytest.mark.asyncio
+async def test_model_choice_limited_to_enabled_providers(client, monkeypatch):
+    """2.3 (MOCK): llm/agent 'model' must be served by an enabled provider; listed in /node-specs."""
+    from agentos.llm.router_factory import set_fallback_policy_cache
+
+    monkeypatch.setenv("AGENTOS_MOCK_LLM", "1")
+    specs = {s["type"]: s for s in (await client.get("/api/v2/node-specs")).json()}
+    assert "openai_gpt4o" in specs["agent"]["config_schema"]["properties"]["model"]["enum"]
+
+    def flow(fid, model):
+        return {"id": fid, "entrypoint": "t", "nodes": {
+            "t": {"id": "t", "type": "manual_trigger", "config": {}},
+            "l": {"id": "l", "type": "llm", "config": {"model": model}}},
+            "edges": [{"source": "t", "target": "l"}]}
+
+    assert (await client.post("/api/v2/flows", json=flow("m_ok", "openai_gpt4o"))).status_code == 201
+    bad = await client.post("/api/v2/flows", json=flow("m_bad", "made-up-model"))
+    assert bad.status_code == 400 and "enabled provider" in bad.text
+    set_fallback_policy_cache([{"name": "openai_gpt4o", "enabled": False}])
+    try:
+        assert (await client.post("/api/v2/flows/m_ok/publish")).status_code == 400
+    finally:
+        set_fallback_policy_cache(None)
+    assert (await client.post("/api/v2/flows/m_ok/publish")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_subflow_cycle_and_unpublished_version_refused(client):
+    """2.3 (MOCK): publish refuses subflow cycles across exact versions and unpublished versions."""
+    def node(i, t, cfg=None):
+        return {"id": i, "type": t, "config": cfg or {}}
+
+    a1 = {"id": "fa", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger")}, "edges": []}
+    assert (await client.post("/api/v2/flows", json=a1)).status_code == 201
+    assert (await client.post("/api/v2/flows/fa/publish")).status_code == 200
+    b1 = {"id": "fb", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger"),
+                                                  "s": node("s", "subflow", {"flow_id": "fa", "version": 1})},
+          "edges": [{"source": "t", "target": "s"}]}
+    assert (await client.post("/api/v2/flows", json=b1)).status_code == 201
+    published_b = await client.post("/api/v2/flows/fb/publish")
+    assert published_b.status_code == 200 and published_b.json()["analysis"]["subflows"] == [["fa", 1]]
+    a2 = {**a1, "nodes": {**a1["nodes"], "s": node("s", "subflow", {"flow_id": "fb", "version": 1})},
+          "edges": [{"source": "t", "target": "s"}]}
+    assert (await client.put("/api/v2/flows/fa", json=a2)).status_code == 200
+    cyc = await client.post("/api/v2/flows/fa/publish")
+    assert cyc.status_code == 400 and "cycle" in cyc.text
+    missing = {"id": "fc", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger"),
+                                                       "s": node("s", "subflow", {"flow_id": "fa", "version": 9})},
+               "edges": [{"source": "t", "target": "s"}]}
+    assert (await client.post("/api/v2/flows", json=missing)).status_code == 201
+    assert "not published" in (await client.post("/api/v2/flows/fc/publish")).text
+
+
+@pytest.mark.asyncio
 async def test_node_specs_is_read_only(client):
     for method in ("POST", "PUT", "DELETE"):
         r = await client.request(method, "/api/v2/node-specs")
