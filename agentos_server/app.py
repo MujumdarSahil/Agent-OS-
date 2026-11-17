@@ -355,6 +355,10 @@ def create_app(
     package_static = os.path.join(os.path.dirname(__file__), "static")
     checkout_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "dist")
     frontend_dist = package_static if os.path.isfile(os.path.join(package_static, "index.html")) else checkout_dist
+    # 2.4c: the launcher points at a freshly built ui/dist explicitly (wins over an older packaged build).
+    ui_override = os.environ.get("AGENTOS_UI_DIST")
+    if ui_override and os.path.isfile(os.path.join(ui_override, "index.html")):
+        frontend_dist = ui_override
     if os.path.exists(frontend_dist):
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
         logger.info(f"Serving frontend from {frontend_dist}")
