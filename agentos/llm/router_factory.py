@@ -200,7 +200,14 @@ def build_router(
 
         model_list.append({
             "model_name": "agentos-default",
-            "litellm_params": litellm_params
+            "litellm_params": litellm_params,
+            # 2.4c: provider identity for AgentOSRouterLLM (attempt records, T-13 local-only filter).
+            # OmniRoute relays to hosted models, so it is never "local" even on 127.0.0.1.
+            "model_info": {
+                "provider": p["name"],
+                "api_key_env": p.get("api_key_env"),
+                "local": p.get("api_key_env") is None and not p.get("hosted_relay", False),
+            },
         })
 
     # Initialize and return Router
