@@ -1,0 +1,10 @@
+﻿=== Core & LLM Coverage Check ===
+[OK] agentos/core/squad.py: 89.05%
+[OK] agentos/core/governance.py: 91.97%
+[OK] agentos/core/checkpoint.py: 94.29%
+[OK] agentos/core/federation.py: 87.50%
+[OK] agentos/core/umb_adapter.py: 98.10%
+[OK] agentos/llm/router_factory.py: 91.82%
+[OK] agentos/llm/llm_client.py: 95.65%
+[OK] agentos/llm/provider_registry.py: 94.29%
+=== Check Passed! ===
