@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from typing import Any
@@ -551,6 +552,38 @@ class FlowEngine:
                     raise first_exception
                 return state
 
+    def _router_llm(self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any) -> Any:
+        """AgentOSRouterLLM for an agent/llm node. Called from the event loop; used from worker threads."""
+        from agentos.llm.router_llm import AgentOSRouterLLM
+
+        run_id = state.run_id
+
+        def on_call(record: dict[str, Any]) -> None:
+            fut = asyncio.run_coroutine_threadsafe(
+                self._append_event(run_id=run_id, type="llm_call", data=record), loop
+            )
+            fut.result(timeout=10)
+
+        def key_lookup(provider: str, env_name: str | None) -> str | None:
+            if self.secret_resolver is None or not env_name:
+                return None
+            try:
+                secret = self.secret_resolver(env_name)
+                if asyncio.iscoroutine(secret):
+                    return asyncio.run_coroutine_threadsafe(secret, loop).result(timeout=5)
+                return secret
+            except Exception:
+                return None  # not in the vault: fall back to the environment
+
+        return AgentOSRouterLLM(
+            preferred_model=node.config.get("model") or node.config.get("llm"),
+            key_lookup=key_lookup,
+            on_call=on_call,
+            # THREAT_MODEL T-13: secret-labelled input may only reach local providers.
+            local_only=inbound.confidentiality == Confidentiality.SECRET.value,
+            node_id=node.id,
+        )
+
     _STARTED = (
         NodeState.RUNNING,
         NodeState.SUCCEEDED,
@@ -934,7 +967,12 @@ class FlowEngine:
             else:
                 task_desc = str(task_desc_val)
             # 2.3: per-node model choice (validated against enabled providers on save/publish)
-            llm_to_use = self.custom_llm or node.config.get("model") or node.config.get("llm")
+            # 2.4c: real models through AgentOSRouterLLM (fallback chain, llm_call events, T-13).
+            # A custom LLM (tests/use cases) or MOCK mode keeps the previous behaviour exactly.
+            if self.custom_llm is not None or os.environ.get("AGENTOS_MOCK_LLM") == "1":
+                llm_to_use = self.custom_llm or node.config.get("model") or node.config.get("llm")
+            else:
+                llm_to_use = self._router_llm(state, node, effective_inbound, loop)
 
             def _run_crewai() -> str:
                 from crewai.agent.core import Agent
@@ -973,9 +1011,16 @@ class FlowEngine:
         # 6. LLM Node
         if node.type == "llm":
             prompt = inputs.get("prompt", "")
-            completion = f"Completion for: {prompt}"
+            completion = f"Completion for: {prompt}"  # MOCK mode (unchanged)
             if self.custom_llm and hasattr(self.custom_llm, "call"):
                 completion = str(self.custom_llm.call([{"role": "user", "content": prompt}]))
+            elif os.environ.get("AGENTOS_MOCK_LLM") != "1":
+                # 2.4c: real call through the provider chain (runs in a thread; events via the loop).
+                router_llm = self._router_llm(state, node, effective_inbound, asyncio.get_running_loop())
+                messages = [{"role": "user", "content": prompt if isinstance(prompt, str) else json.dumps(prompt)}]
+                if node.config.get("system_prompt"):
+                    messages.insert(0, {"role": "system", "content": str(node.config["system_prompt"])})
+                completion = await asyncio.to_thread(router_llm.call, messages)
 
             out_lbl = effective_inbound
             succ_ev = await self._append_event(
