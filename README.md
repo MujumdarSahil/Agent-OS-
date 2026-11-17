@@ -130,6 +130,72 @@ passwords: keep them out of files you commit), then start the backend as in step
 | `docker` commands fail / `--wait` never finishes | Docker Desktop is not running. Start it and check with `docker ps`. |
 | `npm run dev` fails with "Cannot find native binding" | A broken `node_modules`. Delete `ui/node_modules` and run `npm install` again. |
 
+## What AgentOS can do, in plain English
+
+Status badges: **Works today (verified)** = covered by automated tests that run in CI in MOCK mode
+(simulated LLM, fake network, no real emails); **Experimental** = present but partial or not fully
+tested; **Planned** = not built yet. "Verified" never means tested against real paid providers.
+
+**Flows and the visual builder** — *Works today (verified)*. You draw a workflow in the browser: a
+trigger, agents, HTTP calls, conditions, approvals and actions such as sending an email, joined by
+arrows that say which output feeds which input. Save it, then publish it as a fixed version. Use it
+when you want an automation that people can read and review instead of a script.
+Use cases: [05 visual builder](examples/usecases/05-visual-builder/README.md),
+[06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
+an if/else branch, join parallel branches, pause for a while and continue later, call another
+published flow, and send a failed step to an error handler instead of failing the whole run.
+Use it to model real processes ("if the page reports an incident, page on-call; otherwise do nothing").
+Use case: [06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Calling web APIs safely** — *Works today (verified)*. The HTTP step can fetch pages and call APIs,
+but it refuses internal and cloud-metadata addresses (SSRF), re-checks every redirect, caps response
+size and time, and only lets outside data go to hosts an admin has allowlisted. Use it to pull data
+into a flow without opening a door into your network.
+Use case: [06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Triggers: webhooks and schedules** — *Works today (verified)*. Flows can start from a signed
+webhook (with replay protection) or on a cron schedule. Use it to react to events from other systems
+or to run something every morning.
+Use case: [04 webhook trigger](examples/usecases/04-webhook-trigger/README.md); schedules are covered by
+`agentos/tests/test_scheduler_2_2.py`.
+
+**Agents and tools** — *Works today (verified) for agents calling built-in tools; Experimental for
+MCP servers and stored custom tool code*. An agent node runs a CrewAI agent, but every tool call it
+makes goes through an AgentOS proxy that checks it first. Use it when a step needs judgement, such as
+summarising a ticket.
+Use case: [01 email summary and exfiltration attempt](examples/usecases/01-email-summary-exfil/README.md).
+
+**Providers, fallback and the vault** — *Works today (verified with mocked providers)*. You can
+configure several LLM providers, set an order to fall back on when one fails, and pick a model per
+node. API keys are stored encrypted and are never shown back. Use it to avoid depending on a single
+provider. Real provider calls are not part of the automated checks.
+Use case: [02 provider fallback](examples/usecases/02-provider-fallback/README.md).
+
+**Security labels and blocked attacks** — *Works today (verified)*. Every value remembers where it
+came from and whether it can be trusted. Data from webhooks, web pages, emails and tools is
+untrusted, and it cannot choose who receives an email, which URL is called, or whether a destructive
+action runs. Unsafe flows are refused when you publish and blocked again while running.
+Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
+[04](examples/usecases/04-webhook-trigger/README.md),
+[06](examples/usecases/06-http-and-branching/README.md).
+
+**Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
+values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
+without sending anything.
+Use case: [05 visual builder](examples/usecases/05-visual-builder/README.md).
+
+**Runs and the live view** — *Works today (verified)*. Each run shows live progress per step, a full
+event history, and for anything blocked, the reason and where the data came from. The view reconnects
+without losing events. Runs are queued and executed by a worker (in-process in Standalone mode).
+Use cases: [03 queue and worker](examples/usecases/03-flow-queue-worker/README.md),
+[05 visual builder](examples/usecases/05-visual-builder/README.md).
+
+**Packs** — *Experimental (v1 agent/tool packaging via `agentos pack`); Planned (2.0 packs carrying
+flows, prompts and policies)*. Packs will let you share a ready-made automation and install it with
+one command.
+
 ## Features
 
 ### Core Components
