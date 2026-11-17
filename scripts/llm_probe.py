@@ -91,6 +91,11 @@ def closest_ids(model_id: str, ids: set[str], limit: int = 5) -> list[str]:
     return picks[:limit]
 
 
+def list_headers(key: str) -> dict[str, str]:
+    # Explicit User-Agent: some provider firewalls answer 403 to Python's default "Python-urllib/x.y".
+    return {"Authorization": f"Bearer {key}", "Accept": "application/json", "User-Agent": "AgentOS-probe/0.2"}
+
+
 def list_failed(err: Exception) -> str:
     """Status code only for HTTP errors (never the body or the key)."""
     code = getattr(err, "code", None)
@@ -109,7 +114,7 @@ def probe_models() -> int:
             continue
         url = MODEL_LISTS[prefix]
         if url not in cache:
-            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+            req = urllib.request.Request(url, headers=list_headers(key))
             try:
                 with urllib.request.urlopen(req, timeout=20) as r:
                     data = json.loads(r.read())
