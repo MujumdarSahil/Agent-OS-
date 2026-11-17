@@ -40,9 +40,30 @@ async function eventSeqs(page: Page): Promise<number[]> {
   return page.getByTestId('event-row').evaluateAll(rows => rows.map(r => Number(r.getAttribute('data-seq'))))
 }
 
-test('benign run: live node status -> succeeded, 1 send', async ({ page, request }) => {
-  await seedAndPublish(request, 'notify.flow.json', 'uc05_notify_run')
-  await openRunPanel(page, 'uc05_notify_run')
+test('benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 send', async ({ page }) => {
+  // Build manual_trigger -> send_email in the UI: drop the trigger, add the email via "+".
+  await page.goto('/flows/uc05_notify_run?new=1')
+  await page.getByTestId('palette-manual_trigger').dragTo(page.getByTestId('flow-canvas'), { targetPosition: { x: 80, y: 120 } })
+  await page.getByTestId('node-rename-input').fill('trig')
+  await page.getByTestId('node-rename-apply').click()
+  await page.getByTestId('add-next-trig').click()
+  await page.getByTestId('next-node-search').fill('send')
+  await page.getByTestId('next-node-option-send_email').click()
+  await page.getByTestId('node-rename-input').fill('notify')
+  await page.getByTestId('node-rename-apply').click()
+  await expect(page.locator('.react-flow__edge-text', { hasText: 'payload→body' })).toBeVisible() // auto-mapping
+  for (const [arg, value] of [['to', 'support@corp.local'], ['subject', 'New customer ticket']]) {
+    await page.getByTestId('pinned-key-new').selectOption(arg)
+    await page.getByTestId('pinned-value-new').fill(value)
+    await page.getByTestId('pinned-add').click()
+  }
+  await page.getByTestId('save-flow').click()
+  await expect(page.getByTestId('editor-message')).toHaveText('Saved draft.')
+  await page.getByTestId('publish-flow').click()
+  await expect(page.getByTestId('editor-message')).toHaveText('Published version 1.')
+
+  await page.getByTestId('toggle-run-panel').click()
+  await expect(page.getByTestId('untrusted-input-note')).toHaveText('Inputs are treated as untrusted.')
   await startRun(page, { text: 'Customer reports the export button does nothing.' })
 
   await expect(page.getByTestId('run-status')).toHaveText('succeeded')
