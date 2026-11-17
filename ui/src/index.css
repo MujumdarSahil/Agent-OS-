@@ -612,3 +612,22 @@ tr:hover td { background: var(--bg-hover); }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* Flow builder: zoom controls in the app's dark theme (2.4b) */
+.react-flow__controls {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.react-flow__controls-button {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+.react-flow__controls-button:hover {
+  background: var(--bg-hover);
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
+}

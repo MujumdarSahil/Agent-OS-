@@ -98,13 +98,15 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 3 }}>
         <span style={{ color: 'var(--text-secondary)' }}>{type}</span>
-        <span
-          data-testid={`side-effect-${id}`}
-          style={{ color: SIDE_EFFECT_COLOR[sideEffect] ?? 'var(--text-muted)', fontSize: 10, border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}
-          title="side-effect class"
-        >
-          {sideEffect}
-        </span>
+        {sideEffect !== 'none' && (
+          <span
+            data-testid={`side-effect-${id}`}
+            style={{ color: SIDE_EFFECT_COLOR[sideEffect] ?? 'var(--text-muted)', fontSize: 10, border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}
+            title="side-effect class"
+          >
+            {sideEffect}
+          </span>
+        )}
       </div>
       {summary && (
         <div data-testid={`node-summary-${id}`} className="truncate" style={{ marginTop: 3, color: 'var(--text-muted)', fontSize: 11 }}>
@@ -167,6 +169,12 @@ export function decorateEdge(e: CanvasEdge, selected: boolean): CanvasEdge {
     className: [d?.violated ? 'violated' : '', loop ? 'loop-edge' : '', onError ? 'error-edge' : ''].filter(Boolean).join(' '),
     label: loop ? `loop ≤${loop.max_iterations}${mapping ? ` · ${mapping}` : ''}` : mapping || undefined,
     animated: !!loop,
+    // Dark-theme label chip sized to its text (SVG text, so it is never truncated).
+    labelStyle: { fill: 'var(--text-primary)', fontSize: 11, fontFamily: 'ui-monospace, monospace' },
+    labelShowBg: true,
+    labelBgStyle: { fill: 'var(--bg-surface)', stroke: d?.violated ? 'var(--accent-red)' : 'var(--border)', strokeWidth: 1 },
+    labelBgPadding: [6, 3] as [number, number],
+    labelBgBorderRadius: 4,
     markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
     style: {
       stroke,

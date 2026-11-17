@@ -157,8 +157,12 @@ def evaluate_sink_argument_rule(
                     target_arg=arg_name,
                     path=path,
                     reason=(
-                        f"Untrusted body cannot be sent to external recipient {pinned_to_val!r}. "
-                        "Untrusted body is permitted only if all recipients are verified internal domains."
+                        (
+                            f"Untrusted body cannot be sent to external recipient {pinned_to_val!r}. "
+                            if pinned_to_val
+                            else "Untrusted body cannot be sent: the recipient is not fixed (not pinned). "
+                        )
+                        + "Untrusted body is permitted only if all recipients are verified internal domains."
                     ),
                 )
             )

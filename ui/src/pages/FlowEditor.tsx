@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, applyEdgeChanges, applyNodeChanges, useReactFlow,
+  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, applyEdgeChanges, applyNodeChanges, useNodesInitialized, useReactFlow,
   type Connection, type EdgeChange, type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -87,6 +87,7 @@ function Editor() {
   const [runStatuses, setRunStatuses] = useState<Record<string, NodeRunStatus>>({})
   const onRunStatuses = useCallback((s: Record<string, NodeRunStatus>) => setRunStatuses(s), [])
   const history = useRef(new History<GraphState>())
+  const [showMinimap, setShowMinimap] = useState(true)
   const [, setHistoryTick] = useState(0)
 
   useEffect(() => {
@@ -107,7 +108,19 @@ function Editor() {
     setLoops(f.loops ?? {})
     setStatus(f.status)
     setLoaded(true)
+    setPendingFit(true)
   }, [loaded, isNew, specsQ.data, flowQ.data, specs])
+
+  // Centre the flow at a readable size (never zoomed in beyond 100%) once xyflow has measured the nodes.
+  const nodesInitialized = useNodesInitialized()
+  const [pendingFit, setPendingFit] = useState(false)
+  useEffect(() => {
+    if (pendingFit && nodesInitialized) {
+      setPendingFit(false)
+      // Short delay so a canvas resize (e.g. the violation table appearing) is measured first.
+      window.setTimeout(() => void rf.fitView({ padding: 0.2, maxZoom: 1 }), 40)
+    }
+  }, [pendingFit, nodesInitialized, rf])
 
   // ---- history (undo/redo) --------------------------------------------------
   const graphRef = useRef<GraphState>({ nodes, edges, entrypoint, loops })
@@ -313,7 +326,7 @@ function Editor() {
   }
   const doLayout = () => {
     commit(g => ({ ...g, nodes: autoLayout(g.nodes, g.edges) }))
-    window.setTimeout(() => rf.fitView({ padding: 0.2 }), 50)
+    setPendingFit(true)
   }
 
   // ---- save / publish / export ----------------------------------------------
@@ -371,6 +384,7 @@ function Editor() {
       if (err instanceof PublishRefusedError) {
         setViolations(err.violations)
         setMessage({ kind: 'error', text: `Publish refused: ${err.violations.length} security violation(s).` })
+        setPendingFit(true) // the violation table shrinks the canvas: keep the highlighted path in view
       } else {
         setMessage({ kind: 'error', text: `Publish failed: ${apiErrorMessage(err)}` })
       }
@@ -429,7 +443,10 @@ function Editor() {
           <button className="btn btn-ghost btn-sm" data-testid="undo" onClick={undo} disabled={!history.current.canUndo} title="Undo (Ctrl+Z)">Undo</button>
           <button className="btn btn-ghost btn-sm" data-testid="redo" onClick={redo} disabled={!history.current.canRedo} title="Redo (Ctrl+Y)">Redo</button>
           <button className="btn btn-ghost btn-sm" data-testid="auto-layout" onClick={doLayout} disabled={!nodes.length}>Auto-layout</button>
-          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => rf.fitView({ padding: 0.2 })}>Fit view</button>
+          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => rf.fitView({ padding: 0.2, maxZoom: 1 })}>Fit view</button>
+          <button className="btn btn-ghost btn-sm" data-testid="toggle-minimap" aria-pressed={showMinimap} onClick={() => setShowMinimap(v => !v)}>
+            {showMinimap ? 'Hide minimap' : 'Show minimap'}
+          </button>
           <button className="btn btn-ghost" data-testid="toggle-run-panel" onClick={() => setMode(m => (m === 'edit' ? 'run' : 'edit'))}>
             {mode === 'edit' ? 'Run panel' : 'Back to editing'}
           </button>
@@ -493,16 +510,20 @@ function Editor() {
               // Fit only when opening an existing flow; a new canvas stays at zoom 1 so drops land under the cursor.
               fitView={!isNew}
               fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+              colorMode="dark"
             >
               <Background />
               <Controls />
-              <MiniMap
-                pannable
-                zoomable
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', width: 140, height: 90 }}
-                maskColor="rgba(0,0,0,0.35)"
-                nodeColor={n => CATEGORY_STYLE[categoryOf((n as CanvasNode).data.def.type)].color}
-              />
+              {showMinimap && (
+                <MiniMap
+                  pannable
+                  zoomable
+                  position="bottom-right"
+                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, width: 160, height: 110, margin: 12 }}
+                  maskColor="rgba(0,0,0,0.35)"
+                  nodeColor={n => CATEGORY_STYLE[categoryOf((n as CanvasNode).data.def.type)].color}
+                />
+              )}
             </ReactFlow>
           </BuilderActions.Provider>
           {picker && (
@@ -587,7 +608,7 @@ function Palette({ specs, onAdd }: { specs: NodeSpecInfo[]; onAdd: (s: NodeSpecI
               onClick={() => onAdd(s)}
             >
               <span className="flex items-center gap-1"><Icon size={12} color={st.color} />{s.type}</span>
-              <span className="text-muted" style={{ fontSize: 10 }}>{s.side_effect}</span>
+              {s.side_effect !== 'none' && <span className="text-muted" style={{ fontSize: 10 }}>{s.side_effect}</span>}
             </button>
           )
         })}
