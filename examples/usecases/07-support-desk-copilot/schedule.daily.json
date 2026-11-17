@@ -1,0 +1,13 @@
+{
+  "name": "Support desk daily check",
+  "flow_id": "uc07_support_desk",
+  "cron_expression": "0 8 * * *",
+  "timezone": "UTC",
+  "misfire_policy": "skip",
+  "inputs": {
+    "ticket_id": "DAILY",
+    "customer": "scheduler@corp.local",
+    "subject": "Daily support queue check",
+    "body": "Scheduled daily run: summarise the support queue status for the team. No customer action needed."
+  }
+}
