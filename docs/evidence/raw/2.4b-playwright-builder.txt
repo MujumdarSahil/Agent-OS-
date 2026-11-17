@@ -1,0 +1,61 @@
+[WebServer] INFO:     Started server process [6140]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] 2026-11-17 12:02:28,272 [WARNING] agentos_server.inprocess_worker: In-process flow worker: no transport registry configured; using MockTransport for send_email (MOCK: nothing is delivered).
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+
+Running 14 tests using 1 worker
+
+[WebServer] INFO:     127.0.0.1:18960 - "WebSocket /api/v2/flows/uc05_notify_run/runs/run_babe474353fc/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 12:02:37 pm [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered notifications.
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+[WebServer] INFO:     connection closed
+  ok  1 [chromium] › e2e\builder-run.spec.ts:43:1 › benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 send (4.5s)
+[WebServer] INFO:     127.0.0.1:18980 - "WebSocket /api/v2/flows/uc05_approval_ok/runs/run_5ee74358ef47/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok  2 [chromium] › e2e\builder-run.spec.ts:77:1 › approval: exact sink args shown with untrusted marking -> approve -> succeeded (3.9s)
+[WebServer] INFO:     127.0.0.1:19001 - "WebSocket /api/v2/flows/uc05_approval_reject/runs/run_36651f780bba/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok  3 [chromium] › e2e\builder-run.spec.ts:108:1 › approval: reject -> failed with 0 sends (3.4s)
+[WebServer] INFO:     127.0.0.1:19022 - "WebSocket /api/v2/flows/uc05_approval_reconnect/runs/run_23a47206d18b/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 12:02:47 pm [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered notifications.
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     127.0.0.1:19025 - "WebSocket /api/v2/flows/uc05_approval_reconnect/runs/run_23a47206d18b/events?after_seq=8" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok  4 [chromium] › e2e\builder-run.spec.ts:123:1 › WebSocket reconnect replays missed events with after_seq (no gaps, no duplicates) (3.9s)
+  ok  5 [chromium] › e2e\builder-run.spec.ts:151:1 › MOCK-UI: blocked call shows reason and provenance chain (synthetic stream) (2.8s)
+  ok  6 [chromium] › e2e\builder-ux.spec.ts:20:1 › drop on canvas places the node under the cursor (1.9s)
+  ok  7 [chromium] › e2e\builder-ux.spec.ts:30:1 › automatic ids, palette click, rename validation (2.5s)
+  ok  8 [chromium] › e2e\builder-ux.spec.ts:48:1 › "+" picker adds and connects the next node with an auto-suggested mapping (2.3s)
+  ok  9 [chromium] › e2e\builder-ux.spec.ts:62:1 › condition true/false outputs create branch edges (2.8s)
+[WebServer] 12:03:04 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok 10 [chromium] › e2e\builder-ux.spec.ts:72:1 › undo/redo (keyboard and buttons) and the Delete key (2.9s)
+[WebServer] 12:03:07 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] 12:03:07 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] 12:03:07 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok 11 [chromium] › e2e\builder-ux.spec.ts:93:1 › keyboard connect from the drawer and auto-layout orders nodes left to right (4.4s)
+  ok 12 [chromium] › e2e\builder-ux.spec.ts:114:1 › unsaved-changes warning when leaving the editor (1.9s)
+  ok 13 [chromium] › e2e\builder.spec.ts:90:1 › use case 01 benign flow: build -> save -> publish OK (6.3s)
+  ok 14 [chromium] › e2e\builder.spec.ts:107:1 › use case 01 exfiltration variant: publish refused, agent node highlighted (5.4s)
+
+  14 passed (1.5m)
+
+Running 7 tests using 1 worker
+
+  ok 1 [chromium] › e2e\management.spec.ts:265:3 › AgentOS 2.0 UI Core Resource Management › 1. Auth Gate blocks unauthenticated users and unlocks via token (1.6s)
+  ok 2 [chromium] › e2e\management.spec.ts:288:3 › AgentOS 2.0 UI Core Resource Management › 2. Token from URL fragment (#token=...) automatically authenticates (805ms)
+  ok 3 [chromium] › e2e\management.spec.ts:300:3 › AgentOS 2.0 UI Core Resource Management › 3. Agents page (v2) creates and lists agents with NodeSpec tools (1.3s)
+  ok 4 [chromium] › e2e\management.spec.ts:321:3 › AgentOS 2.0 UI Core Resource Management › 4. Tools page (v2) displays project vs stored tools (1.1s)
+  ok 5 [chromium] › e2e\management.spec.ts:338:3 › AgentOS 2.0 UI Core Resource Management › 5. Squads page (v2) assigns member roles (1.2s)
+  ok 6 [chromium] › e2e\management.spec.ts:350:3 › AgentOS 2.0 UI Core Resource Management › 6. External MCP Servers page (v2) enforces dormant security policy (1.3s)
+  ok 7 [chromium] › e2e\management.spec.ts:368:3 › AgentOS 2.0 UI Core Resource Management › 7. Providers & Vault page (v2) masks secrets and manages fallback policy (1.6s)
+
+  7 passed (14.4s)
