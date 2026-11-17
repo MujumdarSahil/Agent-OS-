@@ -320,6 +320,31 @@ PROVIDER_REGISTRY.append({
     "tags": ["unverified", "openai-compatible", "gateway"],
 })
 
+# 2.4c owner decision: default fallback order for a fresh workspace (free providers first). A
+# user-saved fallback policy (Fallback page) overrides both the order and the enabled flags.
+DEFAULT_FREE_ORDER = [
+    "zai_glm_4_7_flash",
+    "openrouter_gemma_4_31b_free",
+    "openrouter_nemotron_3_nano_omni_free",
+    "groq_llama3_3",          # Groq stays 4th; its ids are re-chosen by the owner (see below)
+    "groq_llama3_1_instant",
+    "groq_qwen3_32b",
+]
+# Groq: the owner confirmed on Groq's model page that llama-3.3-70b-versatile is deprecated.
+# Replacement ids are NOT guessed: the owner picks them from `scripts/llm_probe.py models`.
+# DeepSeek: deepseek-chat was missing from the live model list; same procedure.
+DEPRECATED_MODEL_IDS = {"groq_llama3_3", "deepseek_v4_flash"}
+
+for _i, _name in enumerate(DEFAULT_FREE_ORDER, start=1):
+    _prov = next(p for p in PROVIDER_REGISTRY if p["name"] == _name)
+    _prov["priority"] = _i
+for _prov in PROVIDER_REGISTRY:
+    # Paid (or unavailable / deprecated) entries are off by default; enable them on the Fallback page.
+    if "paid" in _prov["tags"] or _prov["name"] in DEPRECATED_MODEL_IDS:
+        _prov.setdefault("default_enabled", False)
+    if _prov["name"] in DEPRECATED_MODEL_IDS:
+        _prov["deprecated"] = True
+
 
 async def export_vault_provider_keys(vault: Any) -> List[str]:
     """Load vault secrets named like a provider key variable (e.g. GROQ_API_KEY) into this process's

@@ -252,6 +252,66 @@ def test_chain_has_only_keyed_or_local_providers_and_skips_outdated(monkeypatch)
     keyed = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] == "OPENROUTER_API_KEY"}
     local = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] is None}
     outdated = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
-    assert outdated == {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free",
-                        "gemini_flash"}
+    paid = {p["name"] for p in reg.PROVIDER_REGISTRY if "paid" in p["tags"]}
+    retired = {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free", "gemini_flash"}
+    assert outdated == paid | retired
     assert names == (keyed | local) - outdated
+
+
+def test_default_free_order_and_paid_off_by_default(monkeypatch):
+    from agentos.llm import provider_registry as reg
+
+    by_priority = [p["name"] for p in sorted(reg.PROVIDER_REGISTRY, key=lambda p: p["priority"])]
+    assert by_priority[:4] == ["zai_glm_4_7_flash", "openrouter_gemma_4_31b_free",
+                               "openrouter_nemotron_3_nano_omni_free", "groq_llama3_3"]
+    off = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
+    for name in ("openai_gpt4o", "openai_gpt4o_mini", "together_llama3_3_70b", "together_qwen2_5_72b",
+                 "deepseek_v4_flash", "zai_glm_5_3", "groq_llama3_3", "groq_llama3_1_instant", "groq_qwen3_32b"):
+        assert name in off
+    assert {"zai_glm_4_7_flash", "openrouter_gemma_4_31b_free", "openrouter_nemotron_3_nano_omni_free"}.isdisjoint(off)
+    assert reg.PROVIDER_REGISTRY[[p["name"] for p in reg.PROVIDER_REGISTRY].index("groq_llama3_3")]["deprecated"]
+
+
+def test_fallback_page_default_policy_follows_registry(tmp_path):
+    import asyncio
+
+    from agentos_server.routes_v2.providers import get_fallback_policy
+
+    class Configs:
+        async def list(self):
+            return []
+
+    request = NS(app=NS(state=NS(storage=NS(provider_configs=Configs()))))
+    items = asyncio.run(get_fallback_policy(request))
+    assert [i.name for i in items[:3]] == ["zai_glm_4_7_flash", "openrouter_gemma_4_31b_free",
+                                          "openrouter_nemotron_3_nano_omni_free"]
+    enabled = {i.name: i.enabled for i in items}
+    assert enabled["zai_glm_4_7_flash"] and not enabled["openai_gpt4o"] and not enabled["groq_llama3_3"]
+
+
+def _probe():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "llm_probe.py"
+    spec = importlib.util.spec_from_file_location("llm_probe", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_probe_closest_ids_names_only_max_five():
+    ids = {"llama-3.1-8b-instant", "llama-4-scout-17b", "llama-4-maverick-17b", "llama-3.3-70b-specdec",
+           "qwen/qwen3-32b", "openai/gpt-oss-120b", "llama-guard-4-12b", "whisper-large-v3"}
+    picks = _probe().closest_ids("llama-3.3-70b-versatile", ids)
+    assert 1 <= len(picks) <= 5 and picks[0] == "llama-3.3-70b-specdec" and set(picks) <= ids
+
+
+def test_probe_list_failure_shows_status_code_only():
+    import urllib.error
+
+    probe = _probe()
+    err = urllib.error.HTTPError("https://api.groq.com/openai/v1/models", 401,
+                                 "Invalid API Key gsk_secret_value_123456", {}, None)
+    assert probe.list_failed(err) == "list failed: HTTP 401"
+    assert probe.list_failed(TimeoutError("x")) == "list failed: TimeoutError"
