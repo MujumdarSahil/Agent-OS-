@@ -62,14 +62,14 @@ def _parse(source: str, template: bool) -> jn.Template:
         ast = _ENV.parse(source if template else "{{ (" + source + ") }}")
     except TemplateSyntaxError as err:
         raise ExpressionError(f"syntax error: {err.message}") from err
-    free = find_undeclared_variables(ast) - {ROOT}
-    names = {n.name for n in ast.find_all(jn.Name)} - {ROOT}
-    if free or names:
-        raise ExpressionError(f"unknown variable(s) {sorted(free | names)}; only '{ROOT}' is available")
     # Templates may contain only text and {{ ... }} placeholders (no {% %} statements).
     for stmt in ast.body:
         if not isinstance(stmt, jn.Output):
             raise ExpressionError("only {{ ... }} placeholders are allowed; {% %} statements are not")
+    free = find_undeclared_variables(ast) - {ROOT}
+    names = {n.name for n in ast.find_all(jn.Name)} - {ROOT}
+    if free or names:
+        raise ExpressionError(f"unknown variable(s) {sorted(free | names)}; only '{ROOT}' is available")
     return ast
 
 
