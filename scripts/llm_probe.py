@@ -7,7 +7,9 @@ Output: provider names, model ids, status, error class, scrubbed error text (max
     # ONE call to one provider, through AgentOSRouterLLM with CrewAI-shaped messages (system + user):
     .\\venv\\Scripts\\python.exe scripts\\llm_probe.py call groq_llama3_3
 
-    # Check registry model ids against each keyed provider's /models list (one GET per provider):
+    # Check registry model ids against each keyed provider's /models list (one GET per provider).
+    # MISSING or deprecated entries also list up to 5 closest live ids (names only). A failed list
+    # shows the HTTP status code only.
     .\\venv\\Scripts\\python.exe scripts\\llm_probe.py models
 
 Options: --project PATH (default: AGENTOS_PROJECT or ~/.agentos/workspace).
@@ -77,6 +79,24 @@ def probe_call(name: str) -> int:
     return rc
 
 
+def closest_ids(model_id: str, ids: set[str], limit: int = 5) -> list[str]:
+    """Up to `limit` live model ids most similar to `model_id` (names only)."""
+    import difflib
+
+    pool = sorted(i for i in ids if i != model_id)
+    picks = difflib.get_close_matches(model_id, pool, n=limit, cutoff=0.3)
+    if len(picks) < limit:  # top up with ids sharing the family prefix (text before the first '-' or '/')
+        family = model_id.split("/")[-1].split("-")[0].lower()
+        picks += [i for i in pool if family and family in i.lower() and i not in picks][: limit - len(picks)]
+    return picks[:limit]
+
+
+def list_failed(err: Exception) -> str:
+    """Status code only for HTTP errors (never the body or the key)."""
+    code = getattr(err, "code", None)
+    return f"list failed: HTTP {code}" if isinstance(code, int) else f"list failed: {type(err).__name__}"
+
+
 def probe_models() -> int:
     from agentos.llm.provider_registry import PROVIDER_REGISTRY
 
@@ -96,11 +116,18 @@ def probe_models() -> int:
                 items = data.get("data", data) if isinstance(data, dict) else data
                 cache[url] = {str(m.get("id")) for m in items if isinstance(m, dict)}
             except Exception as err:
-                cache[url] = f"list failed: {type(err).__name__}"
+                cache[url] = list_failed(err)
         ids = cache[url]
         model_id = p["litellm_model"][len(prefix):]
-        status = ids if isinstance(ids, str) else ("present" if model_id in ids else "MISSING")
+        if isinstance(ids, str):
+            print(f"{p['name']:<40} {model_id:<60} {ids}")
+            continue
+        status = "present" if model_id in ids else "MISSING"
+        if p.get("deprecated"):
+            status += " (deprecated)"
         print(f"{p['name']:<40} {model_id:<60} {status}")
+        if status != "present":
+            print(f"{'':<40} closest available: {', '.join(closest_ids(model_id, ids)) or '(none)'}")
     return 0
 
 
