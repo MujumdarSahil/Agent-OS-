@@ -35,7 +35,10 @@ class FlowWorker:
         transport_registry: Optional[dict[str, Any]] = None,
         custom_llm: Any | None = None,
         track_labels: bool = True,
+        secret_resolver: Any | None = None,
     ) -> None:
+        # 2.3: resolves {"vault": name} credential headers for http_request (e.g. Vault.reveal)
+        self.secret_resolver = secret_resolver
         self.queue = queue
         self.storage = storage
         self.worker_id = worker_id or f"worker_{uuid.uuid4().hex[:8]}"
@@ -124,6 +127,7 @@ class FlowWorker:
                 track_labels=self.track_labels,
                 lease_id=job.lease_id,
                 fencing_checker=self.queue.validate_lease,
+                secret_resolver=self.secret_resolver,
             )
 
             # 3. Requirement 3: Decide run vs resume strictly from event log

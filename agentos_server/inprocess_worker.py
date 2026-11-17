@@ -59,6 +59,8 @@ class InProcessFlowWorker:
             lease_timeout_s=self.lease_timeout_s,
             policy=getattr(state, "security_policy", None),
             transport_registry=registry,
+            # 2.3: {"vault": name} credential headers on http_request resolve through the app vault.
+            secret_resolver=(state.vault.reveal if getattr(state, "vault", None) else None),
         )
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="agentos-inprocess-flow-worker")

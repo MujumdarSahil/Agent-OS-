@@ -35,6 +35,8 @@ from agentos.flows.rules import (
 )
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
 from agentos.flows.state import FlowRunState, NodeState, RunStatus
+from agentos.flows import control_nodes as cn
+from agentos.flows.net_guard import SSRFBlockedError
 from agentos.storage.models import EventRecord, RunRecord
 from agentos.storage.ports import FencingTokenError, Storage
 
@@ -122,7 +124,18 @@ class FlowEngine:
         track_labels: bool = True,
         lease_id: str | None = None,
         fencing_checker: Any | None = None,
+        subflow_depth: int = 0,
+        max_subflow_depth: int = cn.MAX_SUBFLOW_DEPTH,
+        secret_resolver: Any | None = None,
+        clock: Any | None = None,
     ) -> None:
+        # 2.3: subflow nesting, vault credential resolution for http_request headers, injectable clock
+        self.subflow_depth = subflow_depth
+        self.max_subflow_depth = max_subflow_depth
+        self.secret_resolver = secret_resolver
+        self.clock = clock or time.time
+        self._scopes = cn.branch_scopes(flow)
+        self._control_labels: dict[str, Label | None] = {}
         self.flow = flow
         self.storage = storage
         self.policy = policy or SecurityPolicy()
@@ -170,17 +183,25 @@ class FlowEngine:
         inputs: dict[str, Any] | None = None,
         raise_on_error: bool = False,
         trigger: str = "manual",
+        input_labels: dict[str, Any] | None = None,
     ) -> FlowRunState:
-        """Execute flow graph from entrypoint."""
+        """Execute flow graph from entrypoint.
+
+        ``input_labels`` (label dicts per input name) is used only for trigger == "subflow", so a
+        child flow keeps the labels of the values its parent passed in.
+        """
         run_id = run_id or f"run_{uuid.uuid4().hex[:12]}"
         inputs = inputs or {}
 
         # 1. Initialize run record and append run_started event
         self._check_fencing(run_id)
+        existing = await self.storage.runs.get(run_id)
         run_record = RunRecord(
             run_id=run_id,
             mission_name=self.flow.id,
             flow_id=self.flow.id,
+            # keep the version the run was enqueued for (needed to re-enqueue a due wait timer)
+            flow_version=existing.flow_version if existing else None,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )
@@ -194,6 +215,7 @@ class FlowEngine:
                 "entrypoint": self.flow.entrypoint,
                 "inputs": inputs,
                 "trigger": trigger,
+                **({"input_labels": input_labels} if trigger == "subflow" and input_labels else {}),
             },
         )
 
@@ -217,9 +239,26 @@ class FlowEngine:
         if state.status in (RunStatus.SUCCEEDED, RunStatus.CANCELLED):
             return state
 
-        # If waiting for approval, resume cannot continue without approval decision
+        # If waiting for approval, resume cannot continue without approval decision.
+        # 2.3: a due wait-node timer resumes the run.
         if state.status == RunStatus.WAITING:
-            return state
+            details = state.waiting_details or {}
+            if details.get("reason") != "timer" or self.clock() < float(details.get("resume_at") or 0):
+                return state
+            nid = details["node_id"]
+            fired = await self._append_event(run_id=run_id, type="timer_fired", data={"node_id": nid})
+            state.apply_event(fired)
+            in_lbls = state.node_input_labels.get(nid, {})
+            lbl = Label.join_all(list(in_lbls.values()), default=Label.trusted())
+            outputs = {**state.node_inputs.get(nid, {}), "resumed_at": self.clock()}
+            succ = await self._append_event(
+                run_id=run_id, type="node_succeeded",
+                data={"node_id": nid, "outputs": outputs,
+                      "output_labels": {"*": lbl.model_dump(mode="json"), "resumed_at": Label.trusted().model_dump(mode="json")}},
+            )
+            state.apply_event(succ)
+            await self._update_run_status(state, RunStatus.RUNNING, resume_at=None)
+            return await self._execution_loop(state, raise_on_error=raise_on_error)
 
         # Check for uncommitted agent sink intents (Requirement 1.c)
         # An agent node with sink_intent but no matching sink_committed must NOT be re-executed;
@@ -405,6 +444,9 @@ class FlowEngine:
         first_exception: Exception | None = None
 
         while True:
+            # 2.3: mark nodes on branches that were not taken as skipped (propagates downstream)
+            await self._skip_dead_branches(state)
+
             # Identify ready nodes: un-started nodes whose upstream dependencies have succeeded
             ready_nodes = self._get_ready_nodes(state)
 
@@ -415,10 +457,7 @@ class FlowEngine:
                     await self._save_checkpoint(state)
                     return state
 
-                if all(
-                    state.node_states.get(nid) == NodeState.SUCCEEDED
-                    for nid in self.flow.nodes
-                ):
+                if all(cn.node_done(state, nid) for nid in self.flow.nodes):
                     # Flow finished successfully
                     ev = await self._append_event(
                         run_id=state.run_id,
@@ -431,7 +470,10 @@ class FlowEngine:
                     return state
 
                 # If any node failed and no more nodes can proceed -> run failed
-                if any(st == NodeState.FAILED for st in state.node_states.values()):
+                if any(
+                    st == NodeState.FAILED and nid not in state.handled_failures
+                    for nid, st in state.node_states.items()
+                ):
                     ev = await self._append_event(
                         run_id=state.run_id,
                         type="run_failed",
@@ -461,6 +503,24 @@ class FlowEngine:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for nid, res in zip(ready_nodes, results):
+                if isinstance(res, Exception) and self._has_error_handler(nid) and self._is_handleable(res):
+                    # 2.3: route the failure to the node's error_handler; the run continues.
+                    handled_ev = await self._append_event(
+                        run_id=state.run_id,
+                        type="node_failed",
+                        data={
+                            "node_id": nid,
+                            "error": str(res),
+                            "handled": True,
+                            "error_info": {
+                                "failed_node": nid,
+                                "error_type": type(res).__name__,
+                                "message": str(res)[:2000],
+                            },
+                        },
+                    )
+                    state.apply_event(handled_ev)
+                    continue
                 if isinstance(res, Exception):
                     if first_exception is None:
                         first_exception = res
@@ -491,31 +551,47 @@ class FlowEngine:
                     raise first_exception
                 return state
 
+    _STARTED = (
+        NodeState.RUNNING,
+        NodeState.SUCCEEDED,
+        NodeState.FAILED,
+        NodeState.WAITING,
+        NodeState.CANCELLED,
+        NodeState.SKIPPED,
+    )
+
     def _get_ready_nodes(self, state: FlowRunState) -> list[str]:
-        """Return IDs of nodes whose incoming dependencies have all SUCCEEDED."""
-        ready: list[str] = []
-        for node_id, node in self.flow.nodes.items():
-            curr_state = state.node_states.get(node_id)
-            if curr_state in (
-                NodeState.RUNNING,
-                NodeState.SUCCEEDED,
-                NodeState.FAILED,
-                NodeState.WAITING,
-                NodeState.CANCELLED,
-            ):
-                continue
+        """Return IDs of un-started nodes whose inbound edges are resolved and active.
 
-            # Incoming dependencies check
-            inbound_edges = [e for e in self.flow.edges if e.target == node_id]
-            if not inbound_edges and node_id == self.flow.entrypoint:
-                ready.append(node_id)
-            elif inbound_edges and all(
-                state.node_states.get(e.source) == NodeState.SUCCEEDED
-                for e in inbound_edges
-            ):
-                ready.append(node_id)
+        Unbranched edges are active once their source SUCCEEDED (pre-2.3 behaviour); 2.3 adds
+        condition branches, on_error edges and merge modes (see control_nodes.readiness).
+        """
+        return [
+            node_id
+            for node_id in self.flow.nodes
+            if state.node_states.get(node_id) not in self._STARTED
+            and cn.readiness(self.flow, state, node_id) == "ready"
+        ]
 
-        return ready
+    async def _skip_dead_branches(self, state: FlowRunState) -> None:
+        changed = True
+        while changed:
+            changed = False
+            for node_id in self.flow.nodes:
+                if state.node_states.get(node_id) in self._STARTED:
+                    continue
+                if cn.readiness(self.flow, state, node_id) == "skip":
+                    ev = await self._append_event(run_id=state.run_id, type="node_skipped", data={"node_id": node_id})
+                    state.apply_event(ev)
+                    changed = True
+
+    def _has_error_handler(self, node_id: str) -> bool:
+        return any(e.source == node_id and e.branch == "on_error" for e in self.flow.edges)
+
+    @staticmethod
+    def _is_handleable(err: Exception) -> bool:
+        # Security blocks and lease loss always stop the run; they are never routed to a handler.
+        return not isinstance(err, (SinkRuleViolationError, SSRFBlockedError, FencingTokenError))
 
     async def _execute_single_node(self, state: FlowRunState, node_id: str) -> None:
         """Execute a single node within its configured timeout and record events."""
@@ -550,7 +626,17 @@ class FlowEngine:
             else:
                 init_lbl = Label.untrusted(sources={node_id})
 
-            if not inbound_args:
+            sub_labels = (run_init_event or {}).get("data", {}).get("input_labels")
+            if trigger_type == "subflow" and isinstance(sub_labels, dict) and not inbound_args:
+                # 2.3: a subflow keeps the labels of the values its parent passed in.
+                raw_inputs = (run_init_event or {}).get("data", {}).get("inputs", {}) or {}
+                inbound_args = dict(raw_inputs)
+                parent = {k: Label.model_validate(v) for k, v in sub_labels.items()}
+                fallback = Label.join_all(list(parent.values()), default=init_lbl)
+                inbound_labels = {k: parent.get(k, fallback) for k in inbound_args}
+                inbound_labels["*"] = fallback
+                inbound_labels["payload"] = fallback
+            elif not inbound_args:
                 raw_inputs = (run_init_event or {}).get("data", {}).get("inputs", {})
                 inbound_args = dict(raw_inputs) if isinstance(raw_inputs, dict) else {"payload": raw_inputs}
                 inbound_labels = {"*": init_lbl, "payload": init_lbl}
@@ -566,14 +652,20 @@ class FlowEngine:
                 inbound_args[k] = v
                 inbound_labels[k] = Label.trusted(sources={node_id})
 
+        # 2.3: control-dependency label (join of deciding predicates), recorded for provenance
+        control_lbl = cn.runtime_control_label(self._scopes, state, node_id)
+        start_data: dict[str, Any] = {
+            "node_id": node_id,
+            "inputs": inbound_args,
+            "input_labels": {k: v.model_dump(mode="json") for k, v in inbound_labels.items()},
+        }
+        if control_lbl is not None:
+            start_data["control_label"] = control_lbl.model_dump(mode="json")
+        self._control_labels[node_id] = control_lbl  # read by _dispatch_node (signature kept stable)
         start_ev = await self._append_event(
             run_id=state.run_id,
             type="node_started",
-            data={
-                "node_id": node_id,
-                "inputs": inbound_args,
-                "input_labels": {k: v.model_dump(mode="json") for k, v in inbound_labels.items()},
-            },
+            data=start_data,
         )
         state.apply_event(start_ev)
 
@@ -592,6 +684,8 @@ class FlowEngine:
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
         except asyncio.TimeoutError as err:
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
+            if self._has_error_handler(node_id):
+                raise  # the execution loop records it as a handled failure
             fail_ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_failed",
@@ -613,7 +707,51 @@ class FlowEngine:
     ) -> None:
         """Dispatch execution based on node type."""
         node_id = node.id
+        control_label = self._control_labels.get(node_id)
         effective_inbound = Label.join_all(list(input_labels.values()), default=Label.trusted())
+
+        # 2.3 node catalog (dispatched before the generic sink branch)
+        if node.type in ("condition", "merge", "error_handler", "subflow", "http_request"):
+            if node.type == "condition":
+                outputs, labels = cn.run_condition(self.flow, state, node, effective_inbound)
+            elif node.type == "merge":
+                outputs, labels = cn.run_merge(self.flow, state, node)
+            elif node.type == "error_handler":
+                outputs, labels = cn.run_error_handler(self.flow, state, node)
+            elif node.type == "subflow":
+                outputs, labels = await cn.run_subflow(self, state, node, inputs, input_labels)
+            else:
+                outputs, labels = await cn.run_http_request(self, state, node, inputs, input_labels, control_label)
+            ev = await self._append_event(
+                run_id=state.run_id,
+                type="node_succeeded",
+                data={
+                    "node_id": node_id,
+                    "outputs": outputs,
+                    "output_labels": {k: v.model_dump(mode="json") for k, v in labels.items()},
+                },
+            )
+            state.apply_event(ev)
+            return
+
+        if node.type == "wait":
+            delay = float(node.config.get("delay_seconds", 0))
+            resume_at = self.clock() + delay
+            wait_ev = await self._append_event(
+                run_id=state.run_id,
+                type="node_waiting",
+                data={"node_id": node_id, "reason": "timer", "resume_at": resume_at, "delay_seconds": delay},
+            )
+            state.apply_event(wait_ev)
+            run_wait_ev = await self._append_event(
+                run_id=state.run_id, type="run_waiting", data={"node_id": node_id, "reason": "timer"}
+            )
+            state.apply_event(run_wait_ev)
+            await self._update_run_status(state, RunStatus.WAITING, resume_at=resume_at)
+            return
+
+        # 2.3: destructive sinks require a trusted control dependency (shared rule code)
+        cn.check_control(node_id, spec.side_effect, control_label)
 
         # 1. Trigger nodes (webhook_trigger, manual_trigger)
         if node.type in ("webhook_trigger", "manual_trigger"):
@@ -795,7 +933,8 @@ class FlowEngine:
                 task_desc = json.dumps(task_desc_val)
             else:
                 task_desc = str(task_desc_val)
-            llm_to_use = self.custom_llm or node.config.get("llm")
+            # 2.3: per-node model choice (validated against enabled providers on save/publish)
+            llm_to_use = self.custom_llm or node.config.get("model") or node.config.get("llm")
 
             def _run_crewai() -> str:
                 from crewai.agent.core import Agent
@@ -871,6 +1010,7 @@ class FlowEngine:
         state: FlowRunState,
         status: RunStatus,
         error: str | None = None,
+        resume_at: Any = "unchanged",
     ) -> None:
         """Update run record in storage."""
         self._check_fencing(state.run_id)
@@ -879,6 +1019,8 @@ class FlowEngine:
         if record:
             record.status = status.value
             record.error = error
+            if resume_at != "unchanged":
+                record.resume_at = resume_at
             record.outputs = state.node_outputs
             record.current_lease_id = self.lease_id
             await self.storage.runs.put(record)
