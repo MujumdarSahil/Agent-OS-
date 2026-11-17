@@ -293,6 +293,28 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
 ]
 
+def enabled_model_ids(policy_configs: Any = None) -> set:
+    """Model identifiers a flow node may select (2.3 per-node model choice).
+
+    A provider counts as enabled when it is available (key configured or local) - or every registry
+    provider in MOCK mode (AGENTOS_MOCK_LLM=1) - and it is not disabled in the fallback policy.
+    Both the provider name and its LiteLLM model string are accepted.
+    """
+    disabled = {
+        c.get("name")
+        for c in (policy_configs or [])
+        if isinstance(c, dict) and c.get("enabled", True) is False
+    }
+    providers = PROVIDER_REGISTRY if os.environ.get("AGENTOS_MOCK_LLM") == "1" else get_available_providers()
+    ids: set = set()
+    for prov in providers:
+        if prov["name"] in disabled:
+            continue
+        ids.add(prov["name"])
+        ids.add(prov["litellm_model"])
+    return ids
+
+
 def get_available_providers() -> List[Dict[str, Any]]:
     """
     Returns a list of LLM providers whose required environment variables are set.

@@ -53,6 +53,7 @@ async def create_flow(flow: FlowRecord, request: Request) -> FlowRecord:
     if existing is not None:
         raise HTTPException(status_code=400, detail=f"Flow {flow.id!r} draft already exists; use PUT to update")
     try:
+        _check_node_models(flow.nodes)
         await storage.flows.put_draft(flow)
     except (InvalidFlowConfigError, ValueError) as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -77,6 +78,7 @@ async def put_flow(flow_id: str, flow: FlowRecord, request: Request) -> FlowReco
     if flow.id != flow_id:
         raise HTTPException(status_code=400, detail=f"Path flow_id {flow_id!r} does not match body id {flow.id!r}")
     try:
+        _check_node_models(flow.nodes)
         await storage.flows.put_draft(flow)
     except (InvalidFlowConfigError, ValueError) as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -138,9 +140,15 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     except Exception as err:
         raise HTTPException(status_code=400, detail=f"Flow structural validation failed: {err}")
 
+    # 2.3: per-node model choice limited to enabled providers
+    _check_node_models(draft.nodes)
+
+    # 2.3: resolve subflow summaries (exact published versions), with cycle and depth checks
+    summaries = await _resolve_subflow_summaries(storage, flow_def)
+
     # Run publish gate verification
     policy = getattr(request.app.state, "security_policy", None) or SecurityPolicy()
-    analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy)
+    analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy, subflow_summaries=summaries)
     res = analyzer.verify()
     if not res.is_valid:
         violations_payload = [
@@ -171,8 +179,61 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         flow_id=flow_id,
         content_sha256=content_sha256,
         policy_hash=policy_hash,
+        analysis=analyzer.summary(),
     )
     return published
+
+
+MAX_SUBFLOW_DEPTH = 5
+
+
+def _check_node_models(nodes: Dict[str, Any]) -> None:
+    """Reject a per-node `model` (llm/agent) that is not served by an enabled provider."""
+    from agentos.llm.provider_registry import enabled_model_ids
+    from agentos.llm.router_factory import get_fallback_policy_cache
+
+    allowed: Optional[set] = None
+    for nid, node in (nodes or {}).items():
+        node_dict = node if isinstance(node, dict) else node.model_dump()
+        model = (node_dict.get("config") or {}).get("model")
+        if node_dict.get("type") not in ("llm", "agent") or not model:
+            continue
+        if allowed is None:
+            allowed = enabled_model_ids(get_fallback_policy_cache())
+        if model not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Node {nid!r}: model {model!r} is not provided by an enabled provider",
+            )
+
+
+async def _resolve_subflow_summaries(storage: Any, flow_def: FlowDefinition) -> Dict[Any, Any]:
+    """Load published analysis summaries of referenced subflows; detect cycles and deep nesting."""
+    summaries: Dict[Any, Any] = {}
+
+    async def visit(refs: List[tuple], stack: List[tuple], depth: int) -> None:
+        for key in refs:
+            if key in stack or key[0] == flow_def.id:
+                chain = " -> ".join(f"{k[0]}@v{k[1]}" for k in stack + [key])
+                raise HTTPException(status_code=400, detail=f"Subflow cycle detected: {flow_def.id} -> {chain}")
+            if depth > MAX_SUBFLOW_DEPTH:
+                raise HTTPException(status_code=400, detail=f"Subflow nesting deeper than {MAX_SUBFLOW_DEPTH}")
+            rec = await storage.flows.get_version(key[0], key[1])
+            if rec is None:
+                raise HTTPException(status_code=400, detail=f"Subflow {key[0]!r} v{key[1]} is not published")
+            summaries[key] = rec.analysis  # None for versions published before 2.3 -> treated as unknown
+            child_refs = [
+                (n["config"]["flow_id"], int(n["config"]["version"]))
+                for n in (rec.nodes or {}).values()
+                if isinstance(n, dict) and n.get("type") == "subflow"
+            ]
+            await visit(child_refs, stack + [key], depth + 1)
+
+    top = [
+        (n.config["flow_id"], int(n.config["version"])) for n in flow_def.nodes.values() if n.type == "subflow"
+    ]
+    await visit(top, [], 1)
+    return summaries
 
 
 @router.get("/{flow_id}/versions", response_model=List[FlowRecord])
