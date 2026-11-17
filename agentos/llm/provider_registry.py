@@ -83,6 +83,9 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "gemini/gemini-2.0-flash",
         "api_key_env": "GEMINI_API_KEY",
         "api_base_env": None,
+        # 2.4c: LIVE run returned NotFoundError for this id (raw/2.4c-live.txt). The replacement id is
+        # not verified here, so it is off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 30,
         "tags": ["paid", "fast", "gemini"]
     },

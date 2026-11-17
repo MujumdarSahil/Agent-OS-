@@ -252,5 +252,6 @@ def test_chain_has_only_keyed_or_local_providers_and_skips_outdated(monkeypatch)
     keyed = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] == "OPENROUTER_API_KEY"}
     local = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] is None}
     outdated = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
-    assert outdated == {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free"}
+    assert outdated == {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free",
+                        "gemini_flash"}
     assert names == (keyed | local) - outdated
