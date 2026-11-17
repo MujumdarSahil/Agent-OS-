@@ -15,7 +15,8 @@ AgentOSRouterLLM: a CrewAI BaseLLM that calls real models through the AgentOS pr
 - ``on_call`` receives metadata only (provider, model, attempts, tokens, latency) - never keys,
   prompts or responses. A failed attempt carries ``error_message``: the provider's error text,
   truncated to 200 characters with key-like strings scrubbed (rule 6).
-- Circuit breaker: a provider that failed with NotFound / Authentication / PermissionDenied, a
+- Circuit breaker: a provider that failed with NotFound / Authentication / PermissionDenied (or any
+  error whose text says the API key is invalid/expired - Groq sends that as 400 BadRequest), a
   decommissioned model, or a "no balance / insufficient quota" error is skipped for a long cooldown
   (AGENTOS_LLM_COOLDOWN_S, default 600 s); transient rate limits, timeouts and outages get a short
   one (AGENTOS_LLM_SHORT_COOLDOWN_S, default 60 s). Skips are recorded as "skipped (cooldown)".
@@ -47,6 +48,10 @@ _SHORT_ERRORS = {"RateLimitError", "Timeout", "APITimeoutError", "TimeoutError",
                  "APIConnectionError", "InternalServerError"}
 _NO_BALANCE = re.compile(r"insufficient[_ ](balance|quota|funds|credit)|no (credit|balance)|quota exceeded|"
                          r"exceeded your (current )?quota|billing|payment required|out of credits", re.I)
+# Some providers (e.g. Groq) answer an invalid or expired key with HTTP 400 BadRequest, not 401.
+_BAD_KEY = re.compile(r"invalid[_ ]api[_ ]key|incorrect[_ ]api[_ ]key|invalid[_ ](x-)?api[-_ ]key|"
+                      r"api[_ ]key[_ ](is )?(invalid|expired|not valid|revoked)|expired[_ ]api[_ ]key|"
+                      r"invalid[_ ]authentication|unauthorized", re.I)
 _MODEL_GONE = re.compile(r"decommissioned|model[_ ]not[_ ]found|does not exist|no longer (supported|available)|"
                          r"not a valid model|unknown model", re.I)
 _KEYLIKE = re.compile(
@@ -79,7 +84,7 @@ def scrub_error_message(message: Any, secrets: tuple[str, ...] = ()) -> str:
 def cooldown_seconds(err: BaseException) -> float:
     """0 = no cooldown (request-specific error); otherwise how long to skip this provider."""
     name, text = type(err).__name__, str(err)
-    if name in _LONG_ERRORS or _NO_BALANCE.search(text) or _MODEL_GONE.search(text):
+    if name in _LONG_ERRORS or _BAD_KEY.search(text) or _NO_BALANCE.search(text) or _MODEL_GONE.search(text):
         return _env_float("AGENTOS_LLM_COOLDOWN_S", 600.0)
     if name in _SHORT_ERRORS or "timeout" in name.lower():
         return _env_float("AGENTOS_LLM_SHORT_COOLDOWN_S", 60.0)

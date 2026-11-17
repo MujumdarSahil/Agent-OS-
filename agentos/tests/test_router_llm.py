@@ -214,6 +214,18 @@ def test_hard_failures_open_a_long_cooldown(monkeypatch, err):
     assert llm_events[-1]["attempts"][0]["error_class"] == "skipped (cooldown)"
 
 
+@pytest.mark.parametrize("text", [
+    "GroqException - {\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}",
+    "Incorrect API key provided: [redacted]",
+    "Error: API key expired. Please renew the API key.",
+    "INVALID_API_KEY",
+])
+def test_bad_request_for_invalid_key_is_treated_as_auth_failure(monkeypatch, text):
+    monkeypatch.setenv("AGENTOS_LLM_COOLDOWN_S", "600")
+    assert rl.cooldown_seconds(BadRequestError(text)) == 600
+    assert rl.cooldown_seconds(Exception(text)) == 600
+
+
 def test_transient_rate_limit_gets_short_cooldown_and_plain_bad_request_none(monkeypatch):
     assert rl.cooldown_seconds(RateLimitError("429 too many requests")) == 60
     assert rl.cooldown_seconds(TimeoutError("timed out")) == 60
