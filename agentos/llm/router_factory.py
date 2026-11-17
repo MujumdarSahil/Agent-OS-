@@ -166,7 +166,9 @@ def build_router(
         has_ollama = any(p["name"].startswith("ollama") for p in sorted_providers)
         if not has_ollama:
             # Find the highest priority Ollama provider from provider registry
-            ollama_prov = next((p for p in PROVIDER_REGISTRY if p["name"].startswith("ollama")), None)
+            # 2.4c: respects default_enabled (Ollama is off by default; a saved policy can enable it).
+            ollama_prov = next((p for p in PROVIDER_REGISTRY
+                                if p["name"].startswith("ollama") and p.get("default_enabled", True)), None)
             if ollama_prov:
                 sorted_providers.append(ollama_prov)
 

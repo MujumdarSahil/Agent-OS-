@@ -91,11 +91,12 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
     # Phase 4: DeepSeek — strong coding/reasoning at competitive pricing
     # Docs: https://platform.deepseek.com/  LiteLLM prefix: deepseek/
-    # NOTE: deepseek-chat is scheduled for retirement Jul 24 2026; using deepseek-v4-flash as fallback name
+    # 2.4c: deepseek-chat is gone from DeepSeek's model list; the owner chose deepseek-flash from the
+    # provider's own list. Paid -> disabled by default.
     {
         "name": "deepseek_v4_flash",
-        "display_name": "DeepSeek Chat",
-        "litellm_model": "deepseek/deepseek-chat",
+        "display_name": "DeepSeek Flash",
+        "litellm_model": "deepseek/deepseek-flash",
         "api_key_env": "DEEPSEEK_API_KEY",
         "api_base_env": None,
         "priority": 33,
@@ -104,7 +105,37 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     # Tier 2: Fast/cheap open-weight cloud providers
     # -------------------------------------------------------------------------
-    # Phase 4: Groq additional models (llama3.1 instant and gemma2)
+    # 2.4c: Groq models chosen by the owner from Groq's model page and the live model list.
+    {
+        "name": "groq_gpt_oss_20b",
+        "display_name": "GPT-OSS 20B (Groq)",
+        "litellm_model": "groq/openai/gpt-oss-20b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 38,
+        "tags": ["fast", "groq", "tools"]
+    },
+    {
+        "name": "groq_qwen3_8_27b",
+        "display_name": "Qwen 3.8 27B (Groq)",
+        "litellm_model": "groq/qwen/qwen3.8-27b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 39,
+        "tags": ["groq"]
+    },
+    {
+        "name": "groq_gpt_oss_120b",
+        "display_name": "GPT-OSS 120B (Groq)",
+        "litellm_model": "groq/openai/gpt-oss-120b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 39,
+        "tags": ["groq", "heavy"]
+    },
+    # Deprecated Groq models (Groq docs; live calls return model_not_found). Kept as disabled aliases
+    # because the UI and recorded cassettes reference these names. qwen/qwen3-32b is not verified on
+    # Groq's current list here, so it is disabled too.
     {
         "name": "groq_llama3_3",
         "display_name": "Llama 3.3 70B",
@@ -320,28 +351,29 @@ PROVIDER_REGISTRY.append({
     "tags": ["unverified", "openai-compatible", "gateway"],
 })
 
-# 2.4c owner decision: default fallback order for a fresh workspace (free providers first). A
-# user-saved fallback policy (Fallback page) overrides both the order and the enabled flags.
+# 2.4c owner decision: default fallback order for a fresh workspace. Every other entry is disabled
+# by default (enable it on the Fallback page). A user-saved fallback policy overrides both the order
+# and the enabled flags.
 DEFAULT_FREE_ORDER = [
+    "groq_gpt_oss_20b",
     "zai_glm_4_7_flash",
     "openrouter_gemma_4_31b_free",
     "openrouter_nemotron_3_nano_omni_free",
-    "groq_llama3_3",          # Groq stays 4th; its ids are re-chosen by the owner (see below)
-    "groq_llama3_1_instant",
-    "groq_qwen3_32b",
+    "groq_qwen3_8_27b",
 ]
-# Groq: the owner confirmed on Groq's model page that llama-3.3-70b-versatile is deprecated.
-# Replacement ids are NOT guessed: the owner picks them from `scripts/llm_probe.py models`.
-# DeepSeek: deepseek-chat was missing from the live model list; same procedure.
-DEPRECATED_MODEL_IDS = {"groq_llama3_3", "deepseek_v4_flash"}
+# Deprecated per Groq's docs (live calls return model_not_found); kept as disabled aliases.
+DEPRECATED_MODEL_IDS = {"groq_llama3_3", "groq_llama3_1_instant"}
+# Bring-your-own endpoints are not catalogue picks: each is used only when the user configures it
+# (its own key / local service), as before. They keep their previous behaviour (pending owner confirmation).
+SELF_HOSTED = {"openai_compatible", "omniroute", "ollama_qwen", "ollama_llama"}
 
 for _i, _name in enumerate(DEFAULT_FREE_ORDER, start=1):
     _prov = next(p for p in PROVIDER_REGISTRY if p["name"] == _name)
     _prov["priority"] = _i
+    _prov["default_enabled"] = True
 for _prov in PROVIDER_REGISTRY:
-    # Paid (or unavailable / deprecated) entries are off by default; enable them on the Fallback page.
-    if "paid" in _prov["tags"] or _prov["name"] in DEPRECATED_MODEL_IDS:
-        _prov.setdefault("default_enabled", False)
+    if _prov["name"] not in DEFAULT_FREE_ORDER and _prov["name"] not in SELF_HOSTED:
+        _prov["default_enabled"] = False
     if _prov["name"] in DEPRECATED_MODEL_IDS:
         _prov["deprecated"] = True
 

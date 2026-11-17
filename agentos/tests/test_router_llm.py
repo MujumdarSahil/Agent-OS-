@@ -252,24 +252,47 @@ def test_chain_has_only_keyed_or_local_providers_and_skips_outdated(monkeypatch)
     keyed = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] == "OPENROUTER_API_KEY"}
     local = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] is None}
     outdated = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
-    paid = {p["name"] for p in reg.PROVIDER_REGISTRY if "paid" in p["tags"]}
-    retired = {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free", "gemini_flash"}
-    assert outdated == paid | retired
-    assert names == (keyed | local) - outdated
+    assert names == (keyed | local) - outdated == {"openrouter_gemma_4_31b_free", "openrouter_nemotron_3_nano_omni_free",
+                                                   "ollama_qwen", "ollama_llama"}
 
 
-def test_default_free_order_and_paid_off_by_default(monkeypatch):
+DEFAULT_ORDER = ["groq_gpt_oss_20b", "zai_glm_4_7_flash", "openrouter_gemma_4_31b_free",
+                 "openrouter_nemotron_3_nano_omni_free", "groq_qwen3_8_27b"]
+
+
+def test_default_order_and_everything_else_off_by_default():
     from agentos.llm import provider_registry as reg
 
     by_priority = [p["name"] for p in sorted(reg.PROVIDER_REGISTRY, key=lambda p: p["priority"])]
-    assert by_priority[:4] == ["zai_glm_4_7_flash", "openrouter_gemma_4_31b_free",
-                               "openrouter_nemotron_3_nano_omni_free", "groq_llama3_3"]
-    off = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
-    for name in ("openai_gpt4o", "openai_gpt4o_mini", "together_llama3_3_70b", "together_qwen2_5_72b",
-                 "deepseek_v4_flash", "zai_glm_5_3", "groq_llama3_3", "groq_llama3_1_instant", "groq_qwen3_32b"):
-        assert name in off
-    assert {"zai_glm_4_7_flash", "openrouter_gemma_4_31b_free", "openrouter_nemotron_3_nano_omni_free"}.isdisjoint(off)
-    assert reg.PROVIDER_REGISTRY[[p["name"] for p in reg.PROVIDER_REGISTRY].index("groq_llama3_3")]["deprecated"]
+    assert by_priority[:5] == DEFAULT_ORDER
+    on = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled", True)}
+    assert on == set(DEFAULT_ORDER) | reg.SELF_HOSTED
+    models = {p["name"]: p["litellm_model"] for p in reg.PROVIDER_REGISTRY}
+    assert models["groq_gpt_oss_20b"] == "groq/openai/gpt-oss-20b"
+    assert models["groq_qwen3_8_27b"] == "groq/qwen/qwen3.8-27b"
+    assert models["groq_gpt_oss_120b"] == "groq/openai/gpt-oss-120b"
+    assert models["deepseek_v4_flash"] == "deepseek/deepseek-flash"
+    deprecated = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("deprecated")}
+    assert deprecated == {"groq_llama3_3", "groq_llama3_1_instant"}  # disabled aliases, still referenced by the UI
+
+
+def test_router_chain_follows_default_order(monkeypatch):
+    from agentos.llm import provider_registry as reg
+    from agentos.llm import router_factory as rf
+
+    for p in reg.PROVIDER_REGISTRY:
+        if p["api_key_env"]:
+            monkeypatch.delenv(p["api_key_env"], raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "placeholder-not-a-real-key")
+    monkeypatch.setattr(rf, "check_ollama_reachable", lambda: True)
+    monkeypatch.setattr(rf, "_fallback_policy_cache", None)
+    names = [d["model_info"]["provider"] for d in rf.build_router().model_list]
+    assert names == ["groq_gpt_oss_20b", "groq_qwen3_8_27b", "ollama_qwen", "ollama_llama"]
+    for p in reg.PROVIDER_REGISTRY:  # an Ollama entry switched off is not auto-appended either
+        if p["name"].startswith("ollama"):
+            monkeypatch.setitem(p, "default_enabled", False)
+    names = [d["model_info"]["provider"] for d in rf.build_router().model_list]
+    assert names == ["groq_gpt_oss_20b", "groq_qwen3_8_27b"]
 
 
 def test_fallback_page_default_policy_follows_registry(tmp_path):
@@ -283,10 +306,10 @@ def test_fallback_page_default_policy_follows_registry(tmp_path):
 
     request = NS(app=NS(state=NS(storage=NS(provider_configs=Configs()))))
     items = asyncio.run(get_fallback_policy(request))
-    assert [i.name for i in items[:3]] == ["zai_glm_4_7_flash", "openrouter_gemma_4_31b_free",
-                                          "openrouter_nemotron_3_nano_omni_free"]
-    enabled = {i.name: i.enabled for i in items}
-    assert enabled["zai_glm_4_7_flash"] and not enabled["openai_gpt4o"] and not enabled["groq_llama3_3"]
+    assert [i.name for i in items[:5]] == DEFAULT_ORDER
+    from agentos.llm.provider_registry import SELF_HOSTED
+
+    assert {i.name for i in items if i.enabled} == set(DEFAULT_ORDER) | SELF_HOSTED
 
 
 def _probe():
@@ -314,4 +337,6 @@ def test_probe_list_failure_shows_status_code_only():
     err = urllib.error.HTTPError("https://api.groq.com/openai/v1/models", 401,
                                  "Invalid API Key gsk_secret_value_123456", {}, None)
     assert probe.list_failed(err) == "list failed: HTTP 401"
+    headers = probe.list_headers("k")
+    assert headers["User-Agent"] == "AgentOS-probe/0.2" and headers["Accept"] == "application/json"
     assert probe.list_failed(TimeoutError("x")) == "list failed: TimeoutError"
