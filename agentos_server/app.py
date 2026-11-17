@@ -47,6 +47,31 @@ def load_internal_domains(project_path: str) -> set[str]:
         raise ValueError("agentos.config.yaml: security.internal_domains must be a list of domain strings")
     return {d.strip().lower().lstrip("@") for d in domains if d.strip()}
 
+
+HTTP_ALLOWLIST_ENV = "AGENTOS_HTTP_ALLOWLIST"
+
+
+def load_http_allowlist(project_path: str) -> list[str]:
+    """Admin allowlist of internal hosts for the http_request node.
+
+    Precedence: ``AGENTOS_HTTP_ALLOWLIST`` (comma-separated hosts, ``*.suffix`` or CIDRs) if set,
+    else ``security.http_allowlist`` in ``<project>/agentos.config.yaml``, else empty.
+    """
+    env_val = os.environ.get(HTTP_ALLOWLIST_ENV)
+    if env_val is not None:
+        return sorted({e.strip().lower() for e in env_val.split(",") if e.strip()})
+    cfg_path = os.path.join(project_path, "agentos.config.yaml")
+    if not os.path.isfile(cfg_path):
+        return []
+    import yaml
+
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    entries = ((cfg.get("security") or {}) if isinstance(cfg, dict) else {}).get("http_allowlist") or []
+    if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
+        raise ValueError("agentos.config.yaml: security.http_allowlist must be a list of host/CIDR strings")
+    return sorted({e.strip().lower() for e in entries if e.strip()})
+
 def create_app(
     project_path: Optional[str] = None,
     storage: Optional[Any] = None,
@@ -213,7 +238,10 @@ def create_app(
     app.state.failed_providers = set()
     from agentos.flows.policy import SecurityPolicy
     # Trusted internal email domains are admin configuration (secure default: none trusted).
-    app.state.security_policy = SecurityPolicy(internal_domains=load_internal_domains(project_path))
+    app.state.security_policy = SecurityPolicy(
+        internal_domains=load_internal_domains(project_path),
+        http_allowlist=load_http_allowlist(project_path),
+    )
 
     # Initialize 1.2 Storage port (File or Mongo)
     if storage is not None:
