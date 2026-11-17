@@ -126,6 +126,8 @@ AGENT_NODE_SPEC = NodeSpec(
             "tools": {"type": "array", "items": {"type": "string"}},
             "verbose": {"type": "boolean"},
             "llm": {"type": "string"},
+            # Per-node model choice (2.3): must belong to an enabled provider (checked on save/publish).
+            "model": {"type": "string"},
             # Hardened constraints: MUST be boolean const False if passed
             "cache": {"type": "boolean", "const": False},
             "allow_delegation": {"type": "boolean", "const": False},
@@ -297,6 +299,170 @@ LOOP_NODE_SPEC = NodeSpec(
     side_effect=SideEffectClass.NONE,
 )
 
+# ---------------------------------------------------------------------------
+# 2.3 node catalog
+# ---------------------------------------------------------------------------
+
+HTTP_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
+
+HTTP_REQUEST_SPEC = NodeSpec(
+    type="http_request",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "method": {"type": "string", "enum": HTTP_METHODS, "default": "GET"},
+            # Templates may use {{ nodes.<id>.<field> }}; the label is the join of referenced values.
+            "url": {"type": "string"},
+            "query": {"type": "object", "additionalProperties": {"type": "string"}},
+            "body": {"type": "string"},
+            # Header values are strings, or {"vault": "<secret name>"} credentials bound to a pinned URL.
+            "headers": {
+                "type": "object",
+                "additionalProperties": {
+                    "anyOf": [
+                        {"type": "string"},
+                        {"type": "object", "properties": {"vault": {"type": "string"}}, "required": ["vault"],
+                         "additionalProperties": False},
+                    ]
+                },
+            },
+            "timeout_s": {"type": "number", "minimum": 0.1, "maximum": 30},
+            "max_bytes": {"type": "integer", "minimum": 1, "maximum": 5_000_000},
+        },
+    },
+    input_schema={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string"},
+            "query": {"type": "object"},
+            "body": {},
+            "headers": {"type": "object"},
+        },
+    },
+    output_schema={
+        "type": "object",
+        "properties": {
+            "status": {"type": "integer"},
+            "headers": {"type": "object"},
+            "body": {"type": "string"},
+            "final_url": {"type": "string"},
+            "truncated": {"type": "boolean"},
+        },
+    },
+    # Effective side effect depends on the method (see effective_side_effect); the static value is the
+    # strongest non-destructive one so the builder shows it as a sink.
+    side_effect=SideEffectClass.EXTERNAL_SEND,
+    idempotent=False,
+    timeout_seconds=60,
+    sink_rules={
+        "url": SinkArgumentRule(required_integrity="trusted", allowlist_name="http_allowlist"),
+        "body": SinkArgumentRule(required_integrity="untrusted", condition="untrusted_only_to_allowlisted_hosts"),
+        "query": SinkArgumentRule(required_integrity="untrusted", condition="untrusted_only_to_allowlisted_hosts"),
+        "headers": SinkArgumentRule(required_integrity="untrusted", condition="untrusted_only_to_allowlisted_hosts"),
+    },
+)
+
+CONDITION_NODE_SPEC = NodeSpec(
+    type="condition",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"expression": {"type": "string", "minLength": 1}},
+        "required": ["expression"],
+    },
+    input_schema={"type": "object", "properties": {}},
+    output_schema={
+        "type": "object",
+        "properties": {"branch": {"type": "string", "enum": ["true", "false"]}, "result": {"type": "boolean"}},
+    },
+    side_effect=SideEffectClass.NONE,
+)
+
+MERGE_NODE_SPEC = NodeSpec(
+    type="merge",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"mode": {"type": "string", "enum": ["all", "first"], "default": "all"}},
+    },
+    input_schema={"type": "object", "properties": {}},
+    output_schema={"type": "object", "properties": {"inputs": {"type": "object"}, "first": {"type": "string"}}},
+    side_effect=SideEffectClass.NONE,
+)
+
+WAIT_NODE_SPEC = NodeSpec(
+    type="wait",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"delay_seconds": {"type": "number", "minimum": 0}},
+        "required": ["delay_seconds"],
+    },
+    input_schema={"type": "object", "properties": {}},
+    output_schema={"type": "object", "properties": {"resumed_at": {"type": "number"}}},
+    side_effect=SideEffectClass.NONE,
+)
+
+ERROR_HANDLER_NODE_SPEC = NodeSpec(
+    type="error_handler",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={"type": "object", "properties": {}},
+    output_schema={
+        "type": "object",
+        "properties": {
+            "failed_node": {"type": "string"},
+            "error_type": {"type": "string"},
+            "message": {"type": "string"},
+        },
+    },
+    side_effect=SideEffectClass.NONE,
+)
+
+SUBFLOW_NODE_SPEC = NodeSpec(
+    type="subflow",
+    config_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "flow_id": {"type": "string", "minLength": 1},
+            "version": {"type": "integer", "minimum": 1},
+        },
+        "required": ["flow_id", "version"],
+    },
+    input_schema={"type": "object", "properties": {}},
+    output_schema={"type": "object", "properties": {"outputs": {"type": "object"}}},
+    side_effect=SideEffectClass.NONE,
+)
+
+_HTTP_SIDE_EFFECTS = {
+    "GET": SideEffectClass.READ,
+    "HEAD": SideEffectClass.READ,
+    "POST": SideEffectClass.EXTERNAL_SEND,
+    "PUT": SideEffectClass.EXTERNAL_SEND,
+    "PATCH": SideEffectClass.EXTERNAL_SEND,
+    "DELETE": SideEffectClass.DESTRUCTIVE,
+}
+
+
+def effective_side_effect(node_type: str, config: dict[str, Any] | None = None) -> SideEffectClass:
+    """Side-effect class of a configured node (http_request depends on its method)."""
+    spec = BUILTIN_NODE_SPECS.get(node_type)
+    if node_type == "http_request":
+        method = str((config or {}).get("method") or "GET").upper()
+        return _HTTP_SIDE_EFFECTS.get(method, SideEffectClass.EXTERNAL_SEND)
+    return spec.side_effect if spec else SideEffectClass.NONE
+
+
+def is_checked_sink(node_type: str, config: dict[str, Any] | None = None) -> bool:
+    """Whether sink rules must be evaluated for this node (http_request always, even for GET)."""
+    if node_type == "http_request":
+        return True
+    return effective_side_effect(node_type, config) in (
+        SideEffectClass.EXTERNAL_SEND, SideEffectClass.DESTRUCTIVE, SideEffectClass.WRITE,
+    )
+
+
 BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "webhook_trigger": WEBHOOK_TRIGGER_SPEC,
     "manual_trigger": MANUAL_TRIGGER_SPEC,
@@ -308,4 +474,10 @@ BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "approval": APPROVAL_NODE_SPEC,
     "validator": VALIDATOR_NODE_SPEC,
     "loop": LOOP_NODE_SPEC,
+    "http_request": HTTP_REQUEST_SPEC,
+    "condition": CONDITION_NODE_SPEC,
+    "merge": MERGE_NODE_SPEC,
+    "wait": WAIT_NODE_SPEC,
+    "error_handler": ERROR_HANDLER_NODE_SPEC,
+    "subflow": SUBFLOW_NODE_SPEC,
 }

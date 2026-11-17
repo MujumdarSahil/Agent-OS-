@@ -41,6 +41,8 @@ class EdgeDefinition(BaseModel):
     target: str  # target node id
     # argument mapping: { "target_arg_name": "source_output_field" }
     arg_mapping: dict[str, str] = Field(default_factory=dict)
+    # 2.3 control flow: "true"/"false" from a condition node, "on_error" into an error_handler.
+    branch: str | None = None
 
 
 class FlowDefinition(BaseModel):
@@ -114,6 +116,9 @@ class FlowDefinition(BaseModel):
         # 3. Validate DAG topology (DAG + explicit bounded loops only)
         self._validate_dag_topology()
 
+        # 4. 2.3 control-flow and node-catalog rules
+        self._validate_control_flow()
+
         return self
 
     def _validate_agent_node(self, node_id: str, node: NodeDefinition) -> None:
@@ -165,6 +170,91 @@ class FlowDefinition(BaseModel):
         if not args or not isinstance(args, list) or len(args) == 0:
             raise InvalidFlowConfigError(
                 f"Approval node {node_id!r} requires a non-empty list of approved 'args'."
+            )
+
+    def ancestors(self, node_id: str) -> set[str]:
+        """All nodes with a path to node_id (excluding loop back-edges)."""
+        back = {
+            (str(lp["back_edge"][0]), str(lp["back_edge"][1]))
+            for lp in self.loops.values()
+            if isinstance(lp.get("back_edge"), (list, tuple)) and len(lp["back_edge"]) == 2
+        }
+        result: set[str] = set()
+        stack = [node_id]
+        while stack:
+            cur = stack.pop()
+            for e in self.edges:
+                if e.target == cur and (e.source, e.target) not in back and e.source not in result:
+                    result.add(e.source)
+                    stack.append(e.source)
+        return result
+
+    def _validate_control_flow(self) -> None:
+        from agentos.flows.expressions import ExpressionError, validate as validate_expr
+
+        for edge in self.edges:
+            src, tgt = self.nodes[edge.source], self.nodes[edge.target]
+            if edge.branch is None:
+                if src.type == "condition":
+                    raise InvalidFlowConfigError(
+                        f"Edge {edge.source!r}->{edge.target!r} leaves a condition node and needs branch 'true' or 'false'."
+                    )
+                if tgt.type == "error_handler":
+                    raise InvalidFlowConfigError(
+                        f"Edge {edge.source!r}->{edge.target!r} enters an error_handler and needs branch 'on_error'."
+                    )
+            elif edge.branch in ("true", "false"):
+                if src.type != "condition":
+                    raise InvalidFlowConfigError(f"Branch {edge.branch!r} is only allowed on edges from a condition node.")
+            elif edge.branch == "on_error":
+                if tgt.type != "error_handler":
+                    raise InvalidFlowConfigError("Branch 'on_error' must target an error_handler node.")
+                if src.type in ("webhook_trigger", "manual_trigger", "error_handler"):
+                    raise InvalidFlowConfigError(f"Node {edge.source!r} of type {src.type!r} cannot have an on_error branch.")
+            else:
+                raise InvalidFlowConfigError(f"Unknown edge branch {edge.branch!r}.")
+
+        for node_id, node in self.nodes.items():
+            if node.type == "error_handler":
+                inbound = [e for e in self.edges if e.target == node_id]
+                if len(inbound) != 1:
+                    raise InvalidFlowConfigError(f"error_handler {node_id!r} needs exactly one inbound on_error edge.")
+            upstream = self.ancestors(node_id)
+            try:
+                if node.type == "condition":
+                    validate_expr(node.config["expression"], template=False, upstream=upstream)
+                if node.type == "http_request":
+                    for key in ("url", "body"):
+                        if isinstance(node.config.get(key), str):
+                            validate_expr(node.config[key], template=True, upstream=upstream)
+                    for val in (node.config.get("query") or {}).values():
+                        validate_expr(val, template=True, upstream=upstream)
+            except ExpressionError as err:
+                raise InvalidFlowConfigError(f"Node {node_id!r}: invalid expression: {err}") from err
+            if node.type == "http_request":
+                self._validate_http_credentials(node_id, node)
+            if node.type == "wait":
+                max_delay = float(__import__("os").environ.get("AGENTOS_WAIT_MAX_SECONDS", "86400"))
+                if float(node.config.get("delay_seconds", 0)) > max_delay:
+                    raise InvalidFlowConfigError(
+                        f"wait node {node_id!r}: delay_seconds exceeds the configured maximum ({max_delay:g}s)."
+                    )
+
+    def _validate_http_credentials(self, node_id: str, node: NodeDefinition) -> None:
+        """Vault credential headers are bound to an author-pinned URL with no data references."""
+        from agentos.flows.expressions import references
+
+        vault_headers = [k for k, v in (node.config.get("headers") or {}).items() if isinstance(v, dict)]
+        if not vault_headers:
+            return
+        pinned_url = node.pinned_args.get("url")
+        cfg_url = node.config.get("url")
+        url_is_static = isinstance(pinned_url, str) or (isinstance(cfg_url, str) and not references(cfg_url, template=True))
+        url_from_edge = any(e.target == node_id and "url" in e.arg_mapping for e in self.edges)
+        if not url_is_static or (url_from_edge and not isinstance(pinned_url, str)):
+            raise InvalidFlowConfigError(
+                f"http_request {node_id!r}: vault credential headers {vault_headers} require a pinned URL "
+                "(config.url without {{ }} references, or pinned_args.url)."
             )
 
     def _validate_dag_topology(self) -> None:
