@@ -76,6 +76,40 @@ def test_validate_rejects_non_upstream_reference():
         validate("nodes.later.x == 1", upstream={"fetch"})
 
 
+@pytest.mark.parametrize("expr", [
+    "(nodes.fetch.body ~ 'x') * 200000000",
+    "9 ** 9 ** 9",
+    "2 ** 65",
+    "10 ** 10 * 10 ** 10",
+    "[1, 2] * 100000",
+    "'a' ** 2",
+])
+def test_resource_limits_rejected_quickly(expr):
+    import time
+
+    start = time.perf_counter()
+    with pytest.raises(ExpressionError):
+        evaluate(expr, CTX)
+    assert time.perf_counter() - start < 1.0
+
+
+def test_concat_capped():
+    big = {"big": {"s": "y" * 60_000}}
+    with pytest.raises(ExpressionError):
+        render("{{ nodes.big.s ~ nodes.big.s }}", big)
+    with pytest.raises(ExpressionError):
+        evaluate("nodes.big.s ~ nodes.big.s", big)
+    assert len(render("{{ nodes.big.s ~ '!' }}", big)) == 60_001
+
+
+def test_normal_arithmetic_still_works():
+    assert evaluate("3 * 4 + 2 ** 10", CTX) == 1036
+    assert evaluate("nodes.fetch.status * 2 == 400", CTX) is True
+    assert evaluate("'ab' * 3", CTX) == "ababab"
+    assert evaluate("2 ** 64", CTX) == 2**64
+    assert evaluate("nodes.fetch.body ~ '!'", CTX) == "hello world!"
+
+
 def test_template_statements_rejected():
     with pytest.raises(ExpressionError, match="statements"):
         render("{% for i in nodes.fetch.body %}{{ i }}{% endfor %}", CTX)

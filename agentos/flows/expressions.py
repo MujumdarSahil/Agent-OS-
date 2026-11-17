@@ -16,6 +16,7 @@ from typing import Any
 
 from jinja2 import StrictUndefined, TemplateSyntaxError, Undefined, UndefinedError
 from jinja2 import nodes as jn
+from jinja2.compiler import CodeGenerator
 from jinja2.meta import find_undeclared_variables
 from jinja2.sandbox import SandboxedEnvironment, SecurityError
 
@@ -31,7 +32,53 @@ class ExpressionError(ValueError):
     """Invalid, unsafe or failing expression."""
 
 
+MAX_NUMBER = 10**18  # largest magnitude a multiplication may produce
+MAX_EXPONENT = 64
+MAX_POW_BASE = 10**6  # "small number" bases only
+
+
+def _is_number(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+class _CappedCodeGenerator(CodeGenerator):
+    """Routes `~` concatenation through environment.checked_concat (size-checked before joining)."""
+
+    def visit_Concat(self, node: jn.Concat, frame: Any) -> None:
+        self.write("environment.checked_concat((")
+        for arg in node.nodes:
+            self.visit(arg, frame)
+            self.write(", ")
+        self.write("))")
+
+
 class _StrictSandbox(SandboxedEnvironment):
+    code_generator_class = _CappedCodeGenerator
+    # Resource limits: these operators are checked before computing (and never constant-folded).
+    intercepted_binops = frozenset(["*", "**"])
+
+    def call_binop(self, context: Any, operator: str, left: Any, right: Any) -> Any:
+        if operator == "**":
+            if not (_is_number(left) and _is_number(right)):
+                raise SecurityError("'**' needs numbers")
+            if abs(right) > MAX_EXPONENT or abs(left) > MAX_POW_BASE:
+                raise SecurityError(f"'**' limited to |base| <= {MAX_POW_BASE} and |exponent| <= {MAX_EXPONENT}")
+        elif operator == "*":
+            if _is_number(left) and _is_number(right):
+                if left and right and abs(left) > MAX_NUMBER / abs(right):
+                    raise SecurityError(f"'*' result would exceed {MAX_NUMBER}")
+            else:
+                seq, count = (left, right) if isinstance(left, (str, list, tuple)) else (right, left)
+                if isinstance(seq, (str, list, tuple)) and isinstance(count, int) and not isinstance(count, bool):
+                    if len(seq) * max(count, 0) > MAX_OUTPUT_LEN:
+                        raise SecurityError(f"'*' result would exceed {MAX_OUTPUT_LEN} characters/items")
+        return super().call_binop(context, operator, left, right)
+
+    def checked_concat(self, parts: tuple) -> str:
+        strs = [p if isinstance(p, str) else str(p) for p in parts]
+        if sum(len(s) for s in strs) > MAX_OUTPUT_LEN:
+            raise SecurityError(f"'~' result would exceed {MAX_OUTPUT_LEN} characters")
+        return "".join(strs)
     def is_safe_attribute(self, obj: Any, attr: Any, value: Any) -> bool:
         if isinstance(attr, str) and attr.startswith("_"):
             return False
