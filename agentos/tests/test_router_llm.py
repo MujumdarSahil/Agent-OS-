@@ -20,6 +20,13 @@ class RateLimitError(Exception):
     pass
 
 
+@pytest.fixture(autouse=True)
+def _fresh_breaker():
+    rl.reset_cooldowns()
+    yield
+    rl.reset_cooldowns()
+
+
 def reply(content="ok", tool_calls=None, tokens=(10, 5)):
     return NS(choices=[NS(message=NS(content=content, tool_calls=tool_calls))],
               usage=NS(prompt_tokens=tokens[0], completion_tokens=tokens[1], total_tokens=sum(tokens)))
@@ -49,7 +56,8 @@ def test_fallback_records_attempts_and_metadata(monkeypatch):
     assert llm.call("hello") == "summary"
     ev = events[-1]
     assert ev["status"] == "ok" and ev["provider"] == "openrouter_glm_5_2_free" and ev["node_id"] == "n1"
-    assert ev["attempts"] == [{"provider": "groq", "model": "groq/llama-3.3-70b", "error_class": "RateLimitError"}]
+    assert ev["attempts"] == [{"provider": "groq", "model": "groq/llama-3.3-70b", "error_class": "RateLimitError",
+                               "error_message": "429"}]
     assert ev["total_tokens"] == 15 and ev["latency_ms"] >= 0
     assert calls[0]["api_key"] == "sk-secret-value-123"
     dumped = json.dumps(events)
@@ -144,3 +152,105 @@ def test_react_path_when_function_calling_unsupported(monkeypatch):
     calls = fake(monkeypatch, lambda kw, n: reply("Thought: done\nFinal Answer: ok"))
     out = AgentOSRouterLLM(chain=CHAIN).call("go", tools=[{"type": "function"}], available_functions={})
     assert "Final Answer" in out and "tools" not in calls[0]
+
+
+# ---- 2.4c LIVE follow-up: error text, message hygiene, circuit breaker, timeouts, registry ----
+
+class BadRequestError(Exception):
+    pass
+
+
+class NotFoundError(Exception):
+    pass
+
+
+class AuthenticationError(Exception):
+    pass
+
+
+def test_error_message_is_scrubbed_and_truncated(monkeypatch):
+    key = "gsk_live_example_key_value_0123456789"
+
+    def behaviour(kw, n):
+        if n == 1:
+            raise BadRequestError(f"Invalid request (key {key}) Authorization: Bearer abc.def " + "x" * 300)
+        return reply()
+
+    fake(monkeypatch, behaviour)
+    events = []
+    AgentOSRouterLLM(chain=CHAIN[:2], on_call=events.append, key_lookup=lambda p, e: key).call("hi")
+    msg = events[-1]["attempts"][0]["error_message"]
+    assert len(msg) <= 200 and key not in msg and "gsk_" not in msg and "abc.def" not in msg
+    assert msg.startswith("Invalid request") and "[redacted]" in msg
+    assert rl.scrub_error_message("token 0123456789abcdef0123456789abcdef01 end") == "token [redacted] end"
+
+
+def test_non_standard_message_fields_are_not_sent(monkeypatch):
+    """Regression: strict OpenAI-compatible APIs (Groq, Together, DeepSeek) reject unknown message
+    properties with 400 BadRequest; CrewAI messages may carry 'files' / 'raw_tool_call_parts'."""
+    calls = fake(monkeypatch, lambda kw, n: reply())
+    AgentOSRouterLLM(chain=CHAIN[:1]).call([
+        {"role": "system", "content": "sys", "files": {"a": "b"}},
+        {"role": "user", "content": "hi", "raw_tool_call_parts": [1]},
+        {"role": "assistant", "content": None},
+    ])
+    sent = calls[0]["messages"]
+    assert sent == [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": ""}]
+
+
+@pytest.mark.parametrize("err", [NotFoundError("model not found"), AuthenticationError("invalid api key"),
+                                 RateLimitError("Insufficient Balance"),
+                                 BadRequestError("The model `x` has been decommissioned")])
+def test_hard_failures_open_a_long_cooldown(monkeypatch, err):
+    monkeypatch.setenv("AGENTOS_LLM_COOLDOWN_S", "600")
+    calls = fake(monkeypatch, lambda kw, n: (_ for _ in ()).throw(err) if kw["model"].startswith("groq") else reply())
+    llm_events = []
+    llm = AgentOSRouterLLM(chain=CHAIN[:2], on_call=llm_events.append)
+    llm.call("one")
+    assert 590 < rl._cooldown_left("groq") <= 600
+    llm.call("two")  # groq skipped without a request
+    assert [c["model"] for c in calls] == ["groq/llama-3.3-70b", "openrouter/glm", "openrouter/glm"]
+    assert llm_events[-1]["attempts"][0]["error_class"] == "skipped (cooldown)"
+
+
+def test_transient_rate_limit_gets_short_cooldown_and_plain_bad_request_none(monkeypatch):
+    assert rl.cooldown_seconds(RateLimitError("429 too many requests")) == 60
+    assert rl.cooldown_seconds(TimeoutError("timed out")) == 60
+    assert rl.cooldown_seconds(BadRequestError("messages[0]: unknown field 'files'")) == 0
+    monkeypatch.setenv("AGENTOS_LLM_SHORT_COOLDOWN_S", "5")
+    assert rl.cooldown_seconds(RateLimitError("429")) == 5
+
+
+def test_cooldown_expires(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(rl.time, "monotonic", lambda: clock[0])
+    rl._start_cooldown("groq", 60, "RateLimitError")
+    assert rl._cooldown_left("groq") == 60
+    clock[0] += 61
+    assert rl._cooldown_left("groq") == 0
+
+
+def test_per_attempt_timeout_default_and_overrides(monkeypatch):
+    calls = fake(monkeypatch, lambda kw, n: reply())
+    monkeypatch.delenv("AGENTOS_LLM_ATTEMPT_TIMEOUT_S", raising=False)
+    AgentOSRouterLLM(chain=CHAIN[:1]).call("hi")
+    AgentOSRouterLLM(chain=[{**CHAIN[0], "timeout": 7}]).call("hi")
+    monkeypatch.setenv("AGENTOS_LLM_ATTEMPT_TIMEOUT_S", "12")
+    AgentOSRouterLLM(chain=CHAIN[:1]).call("hi")
+    assert [c["timeout"] for c in calls] == [20.0, 7.0, 12.0]
+
+
+def test_chain_has_only_keyed_or_local_providers_and_skips_outdated(monkeypatch):
+    from agentos.llm import provider_registry as reg
+
+    for p in reg.PROVIDER_REGISTRY:
+        if p["api_key_env"]:
+            monkeypatch.delenv(p["api_key_env"], raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "placeholder-not-a-real-key")
+    names = {p["name"] for p in reg.get_available_providers()}
+    keyed = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] == "OPENROUTER_API_KEY"}
+    local = {p["name"] for p in reg.PROVIDER_REGISTRY if p["api_key_env"] is None}
+    outdated = {p["name"] for p in reg.PROVIDER_REGISTRY if p.get("default_enabled") is False}
+    assert outdated == {"openrouter_mistral_7b_free", "openrouter_laguna_s_2_1_free", "openrouter_glm_5_2_free"}
+    assert names == (keyed | local) - outdated

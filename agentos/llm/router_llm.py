@@ -13,18 +13,105 @@ AgentOSRouterLLM: a CrewAI BaseLLM that calls real models through the AgentOS pr
 - THREAT_MODEL T-13: ``local_only=True`` (secret-labelled input) restricts the chain to local
   providers; with none available the call is refused.
 - ``on_call`` receives metadata only (provider, model, attempts, tokens, latency) - never keys,
-  prompts or responses.
+  prompts or responses. A failed attempt carries ``error_message``: the provider's error text,
+  truncated to 200 characters with key-like strings scrubbed (rule 6).
+- Circuit breaker: a provider that failed with NotFound / Authentication / PermissionDenied, a
+  decommissioned model, or a "no balance / insufficient quota" error is skipped for a long cooldown
+  (AGENTOS_LLM_COOLDOWN_S, default 600 s); transient rate limits, timeouts and outages get a short
+  one (AGENTOS_LLM_SHORT_COOLDOWN_S, default 60 s). Skips are recorded as "skipped (cooldown)".
+- Per-attempt timeout: fallback policy ``timeout_s`` > registry ``timeout_s`` >
+  AGENTOS_LLM_ATTEMPT_TIMEOUT_S > 20 s.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import re
+import threading
 import time
 from typing import Any, Callable, Optional
 
 from crewai.llms.base_llm import BaseLLM as CrewAIBaseLLM
 
 MAX_TOOL_ROUNDS = 8
+DEFAULT_ATTEMPT_TIMEOUT_S = 20.0
+ERROR_MESSAGE_MAX = 200
+SKIPPED_COOLDOWN = "skipped (cooldown)"
+# Only standard chat-completion message fields go to providers; strict OpenAI-compatible APIs
+# (Groq, Together, DeepSeek) reject unknown properties such as CrewAI's "files"/"raw_tool_call_parts".
+_MESSAGE_FIELDS = {"role", "content", "name", "tool_calls", "tool_call_id"}
+
+_LONG_ERRORS = {"NotFoundError", "AuthenticationError", "PermissionDeniedError"}
+_SHORT_ERRORS = {"RateLimitError", "Timeout", "APITimeoutError", "TimeoutError", "ServiceUnavailableError",
+                 "APIConnectionError", "InternalServerError"}
+_NO_BALANCE = re.compile(r"insufficient[_ ](balance|quota|funds|credit)|no (credit|balance)|quota exceeded|"
+                         r"exceeded your (current )?quota|billing|payment required|out of credits", re.I)
+_MODEL_GONE = re.compile(r"decommissioned|model[_ ]not[_ ]found|does not exist|no longer (supported|available)|"
+                         r"not a valid model|unknown model", re.I)
+_KEYLIKE = re.compile(
+    r"(sk|gsk|pk|rk|xai|AIza|hf|ghp|glpat|key)[-_][A-Za-z0-9_\-]{8,}"   # prefixed API keys
+    r"|Bearer\s+\S+"                                                    # auth headers
+    r"|[A-Za-z0-9]{32,}"                                                # long opaque tokens (hex/base62)
+)
+
+_cooldowns: dict[str, tuple[float, str]] = {}
+_cooldown_lock = threading.Lock()
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+
+
+def scrub_error_message(message: Any, secrets: tuple[str, ...] = ()) -> str:
+    """Provider error text safe for the event log: known secrets and key-like strings removed, max 200 chars."""
+    text = " ".join(str(message or "").split())
+    for s in secrets:
+        if s and len(s) >= 6:
+            text = text.replace(s, "[redacted]")
+    text = _KEYLIKE.sub("[redacted]", text)
+    return text if len(text) <= ERROR_MESSAGE_MAX else text[: ERROR_MESSAGE_MAX - 3] + "..."
+
+
+def cooldown_seconds(err: BaseException) -> float:
+    """0 = no cooldown (request-specific error); otherwise how long to skip this provider."""
+    name, text = type(err).__name__, str(err)
+    if name in _LONG_ERRORS or _NO_BALANCE.search(text) or _MODEL_GONE.search(text):
+        return _env_float("AGENTOS_LLM_COOLDOWN_S", 600.0)
+    if name in _SHORT_ERRORS or "timeout" in name.lower():
+        return _env_float("AGENTOS_LLM_SHORT_COOLDOWN_S", 60.0)
+    return 0.0
+
+
+def _cooldown_left(provider: str) -> float:
+    with _cooldown_lock:
+        until, _ = _cooldowns.get(provider, (0.0, ""))
+    return max(0.0, until - time.monotonic())
+
+
+def _start_cooldown(provider: str, seconds: float, reason: str) -> None:
+    if seconds > 0:
+        with _cooldown_lock:
+            _cooldowns[provider] = (time.monotonic() + seconds, reason)
+
+
+def reset_cooldowns() -> None:
+    """Clear the circuit breaker (tests, or after the operator fixes a key)."""
+    with _cooldown_lock:
+        _cooldowns.clear()
+
+
+def _clean_messages(msgs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for m in msgs:
+        clean = {k: v for k, v in m.items() if k in _MESSAGE_FIELDS}
+        if clean.get("content") is None and not clean.get("tool_calls"):
+            clean["content"] = ""
+        out.append(clean)
+    return out
 
 
 class LLMRefusedError(RuntimeError):
@@ -37,17 +124,20 @@ class AllProvidersFailedError(RuntimeError):
 
 def default_chain() -> list[dict[str, Any]]:
     """Ordered provider deployments from the existing router (order, enabled flags, timeouts)."""
+    from agentos.llm.provider_registry import PROVIDER_REGISTRY
     from agentos.llm.router_factory import build_router
 
+    registry_timeout = {p["name"]: p.get("timeout_s") for p in PROVIDER_REGISTRY}
     entries = []
     for d in build_router().model_list:
         params = d.get("litellm_params", {})
         info = d.get("model_info", {}) or {}
+        provider = info.get("provider") or params.get("model")
         entries.append({
-            "provider": info.get("provider") or params.get("model"),
+            "provider": provider,
             "model": params.get("model"),
             "api_base": params.get("api_base"),
-            "timeout": params.get("request_timeout"),
+            "timeout": params.get("request_timeout") or registry_timeout.get(provider),
             "api_key_env": info.get("api_key_env"),
             "local": bool(info.get("local")),
             "order": params.get("order", 1000),
@@ -154,7 +244,7 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
         from_agent: Any = None,
         response_model: Any = None,
     ) -> str:
-        msgs = _to_dict_messages(messages)
+        msgs = _clean_messages(_to_dict_messages(messages))
         chain = self.chain()
         started = time.perf_counter()
         attempts: list[dict[str, Any]] = []
@@ -170,8 +260,15 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
 
         use_tools = bool(tools) and self.supports_function_calling()
         tool_ran = False
+        default_timeout = _env_float("AGENTOS_LLM_ATTEMPT_TIMEOUT_S", DEFAULT_ATTEMPT_TIMEOUT_S)
         for entry in chain:
-            kwargs: dict[str, Any] = {"model": entry["model"], "messages": list(msgs), "timeout": entry.get("timeout") or 60}
+            left = _cooldown_left(entry["provider"])
+            if left > 0:
+                attempts.append({"provider": entry["provider"], "model": entry["model"], "error_class": SKIPPED_COOLDOWN,
+                                 "error_message": f"circuit open for another {int(left)} s"})
+                continue
+            kwargs: dict[str, Any] = {"model": entry["model"], "messages": list(msgs),
+                                      "timeout": float(entry.get("timeout") or default_timeout)}
             if entry.get("api_base"):
                 kwargs["api_base"] = entry["api_base"]
             key = self._api_key(entry)
@@ -206,13 +303,15 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
                         kwargs["messages"].append({"role": "tool", "tool_call_id": tc.id, "content": str(result)})
                     resp = _completion(**kwargs)
             except Exception as err:  # provider failure (rate limit, auth, timeout, ...)
+                attempt = {"provider": entry["provider"], "model": entry["model"], "error_class": type(err).__name__,
+                           "error_message": scrub_error_message(err, (key,) if key else ())}
                 if tool_ran or not self._is_provider_error(err):
                     self._emit({"status": "failed", "provider": entry["provider"], "model": entry["model"],
-                                "attempts": attempts + [{"provider": entry["provider"], "model": entry["model"],
-                                                         "error_class": type(err).__name__}],
+                                "attempts": attempts + [attempt],
                                 "latency_ms": round((time.perf_counter() - started) * 1000, 1), "mock": False})
                     raise
-                attempts.append({"provider": entry["provider"], "model": entry["model"], "error_class": type(err).__name__})
+                _start_cooldown(entry["provider"], cooldown_seconds(err), type(err).__name__)
+                attempts.append(attempt)
                 continue
             content = getattr(resp.choices[0].message, "content", None) or ""
             self._emit({"status": "ok", "provider": entry["provider"], "model": entry["model"], "attempts": attempts,

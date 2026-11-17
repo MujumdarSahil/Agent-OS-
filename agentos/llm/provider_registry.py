@@ -61,7 +61,8 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     {
         "name": "openrouter_claude_sonnet",
         "display_name": "Claude Sonnet (OpenRouter)",
-        "litellm_model": "openrouter/anthropic/claude-3.5-sonnet",
+        # 2.4c: anthropic/claude-3.5-sonnet is no longer listed by OpenRouter (checked 2026-11-17).
+        "litellm_model": "openrouter/anthropic/claude-sonnet-5.5",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
         "priority": 22,
@@ -191,6 +192,8 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "openrouter/mistralai/mistral-7b-instruct:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: no longer listed by OpenRouter (checked 2026-11-17) -> off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 70,
         "tags": ["free-tier", "openrouter"]
     },
@@ -202,6 +205,8 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "openrouter/poolside/laguna-s-2.1:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: no longer listed by OpenRouter (checked 2026-11-17) -> off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 72,
         "tags": ["free-tier", "openrouter"]
     },
@@ -225,6 +230,9 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "openrouter/z-ai/glm-5.2:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: the :free variant is no longer listed by OpenRouter (checked 2026-11-17; only paid
+        # z-ai/glm-5.2 remains). Off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 73,
         "tags": ["free-tier", "openrouter"]
     },
@@ -357,6 +365,8 @@ def get_available_providers() -> List[Dict[str, Any]]:
     """
     available = []
     for prov in PROVIDER_REGISTRY:
+        if prov.get("default_enabled", True) is False:
+            continue  # outdated model id: only an explicit fallback-policy entry re-enables it (router_factory)
         if prov["api_key_env"] is None:
             # Always considered available structurally; connectivity check is done in router_factory
             available.append(prov)

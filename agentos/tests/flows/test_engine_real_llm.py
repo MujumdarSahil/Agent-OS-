@@ -43,6 +43,7 @@ def llm_flow():
 
 @pytest.fixture
 def real_mode(monkeypatch):
+    rl.reset_cooldowns()
     monkeypatch.delenv("AGENTOS_MOCK_LLM", raising=False)
     monkeypatch.setattr(rl, "default_chain", lambda: [dict(e) for e in CHAIN])
     calls = []
@@ -65,7 +66,8 @@ async def test_llm_node_real_call_with_fallback_event(storage, real_mode):
     assert real_mode == ["groq/llama", "openrouter/glm"]
     ev = [e for e in await storage.events.list("r_llm", after_seq=0) if e.type == "llm_call"]
     assert len(ev) == 1 and ev[0].data["provider"] == "openrouter_glm_5_2_free" and ev[0].data["node_id"] == "sum"
-    assert ev[0].data["attempts"][0] == {"provider": "groq", "model": "groq/llama", "error_class": "RateLimitError"}
+    assert ev[0].data["attempts"][0] == {"provider": "groq", "model": "groq/llama", "error_class": "RateLimitError",
+                                         "error_message": "429"}
     assert '"hi"' not in ev[0].model_dump_json()  # metadata only
 
 
