@@ -98,7 +98,9 @@ function Editor() {
     if (!flowQ.data) return
     const f = flowQ.data
     const c = toCanvas(f, specs)
-    setNodes(c.nodes)
+    // Flows saved without layout positions (e.g. imported JSON) get a left-to-right auto-layout.
+    const hasPositions = Object.values(f.nodes).some(n => n.position)
+    setNodes(hasPositions ? c.nodes : autoLayout(c.nodes, c.edges))
     setEdges(c.edges)
     setName(f.name || f.id)
     setEntrypoint(f.entrypoint)
@@ -494,7 +496,13 @@ function Editor() {
             >
               <Background />
               <Controls />
-              <MiniMap pannable zoomable nodeColor={n => CATEGORY_STYLE[categoryOf((n as CanvasNode).data.def.type)].color} />
+              <MiniMap
+                pannable
+                zoomable
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', width: 140, height: 90 }}
+                maskColor="rgba(0,0,0,0.35)"
+                nodeColor={n => CATEGORY_STYLE[categoryOf((n as CanvasNode).data.def.type)].color}
+              />
             </ReactFlow>
           </BuilderActions.Provider>
           {picker && (
