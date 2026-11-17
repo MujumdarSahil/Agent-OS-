@@ -44,6 +44,8 @@ export interface FlowEdgeDef {
   target: string
   /** { target_arg: source_output_field } */
   arg_mapping: Record<string, string>
+  /** 2.3: "true" | "false" from a condition node, "on_error" into an error_handler. */
+  branch?: string | null
 }
 
 export interface LoopDef {

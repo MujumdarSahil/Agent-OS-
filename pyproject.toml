@@ -37,6 +37,8 @@ dependencies = [
     "rich>=13.0.0",
     "cryptography>=41.0.0",
     "requests>=2.31.0",
+    # http_request node: connects to the SSRF-checked IP while keeping the hostname (SNI/Host).
+    "httpx>=0.27,<1.0",
     "pyyaml>=6.0",
     "croniter==6.0.0",
 ]

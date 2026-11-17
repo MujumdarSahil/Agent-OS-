@@ -3,7 +3,198 @@
 [![CI Build Status](https://github.com/MujumdarSahil/Agent-OS-/actions/workflows/ci.yml/badge.svg)](https://github.com/MujumdarSahil/Agent-OS-/actions)
 [![Coverage Status](https://img.shields.io/badge/Coverage-48%25-yellow.svg)](#test-coverage)
 
-A multi-agent framework built on top of **CrewAI** and **LiteLLM** (with experimental/stub **LangGraph** hooks). Instead of reinventing agent execution from scratch, AgentOS integrates these libraries under a clean, class-based interface, supporting squads, MCP servers, distributed skill graphs, unified memory, hierarchical governance, real-time collaboration, planning graphs, role-merging, resource awareness, multi-squad federation, and agent identity. Note: LangGraph execution is currently a stub (`to_langgraph_node()` raises `NotImplementedError`) planned for formal evaluation in the Phase 1.5 flow engine spike.
+AgentOS lets you build AI-agent workflows ("flows") in a visual builder and run them safely. A flow starts from a manual run, a signed webhook or a schedule; it can use CrewAI agents, HTTP calls, conditions, waits, sub-flows and human approvals; and it sends results through actions such as email. Every value carries a security label, so data from webhooks, web pages or tools cannot choose who receives an email, which URL is called or whether a destructive action runs: unsafe flows are refused at publish and blocked again at runtime. LLM calls go through **LiteLLM** with multiple providers, a fallback order and an encrypted key vault. Status of each feature (verified / experimental / planned) is in [What AgentOS can do, in plain English](#what-agentos-can-do-in-plain-english). The v1 Python API (agents, squads, governance, planner) remains available; its older extras (skill graphs, role-merging/composite agents, planning graphs with LLM decomposition, resource monitoring, multi-squad federation, LangGraph hooks) are **v1 experimental**, partly stubs, and not part of the 2.0 flow engine.
+
+## Getting started
+
+This walks you from a clean machine to the visual flow builder running in **MOCK mode**: no API keys,
+no cost, a simulated LLM, and emails that are never actually sent.
+
+> Verified from a fresh clone on Windows 11 / PowerShell 5.1 (see `docs/evidence/raw/2.3-cp3-readme-quickstart.txt`).
+> The macOS/Linux commands are the direct equivalents but were not run on macOS/Linux in that check.
+
+### 1. Prerequisites
+
+| Tool | Version | Needed for |
+|---|---|---|
+| Python | 3.11 | backend (`requires-python >= 3.11`) |
+| Node.js | 20.19+ or 22.12+ (required by Vite 8) | web UI |
+| Git | any recent | cloning |
+| Docker Desktop | any recent | **only** Platform mode (MongoDB/Redis) |
+
+### 2. Get the code and install
+
+Windows PowerShell:
+```powershell
+git clone https://github.com/MujumdarSahil/Agent-OS-.git agentos
+cd agentos
+git checkout 2.0
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -e .
+cd ui
+npm install
+cd ..
+```
+
+macOS / Linux:
+```bash
+git clone https://github.com/MujumdarSahil/Agent-OS-.git agentos
+cd agentos
+git checkout 2.0
+python3.11 -m venv venv
+./venv/bin/python -m pip install --upgrade pip
+./venv/bin/python -m pip install -e .
+cd ui && npm install && cd ..
+```
+
+### 3. Quick start in MOCK mode (no API keys, no cost)
+
+Use two terminals, both starting in the `agentos` folder.
+
+**Terminal 1: backend.** These variables turn on the mock LLM, let runs started from the UI
+actually execute (in-process worker), and trust `corp.local` as an internal email domain for the
+examples (no domain is trusted by default).
+
+Windows PowerShell:
+```powershell
+$env:AGENTOS_MOCK_LLM = "1"
+$env:AGENTOS_INPROCESS_WORKER = "1"
+$env:AGENTOS_INTERNAL_DOMAINS = "corp.local"
+$env:AGENTOS_PROJECT = "demo"
+.\venv\Scripts\python.exe -m uvicorn agentos_server.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+macOS / Linux:
+```bash
+export AGENTOS_MOCK_LLM=1 AGENTOS_INPROCESS_WORKER=1 AGENTOS_INTERNAL_DOMAINS=corp.local AGENTOS_PROJECT=demo
+./venv/bin/python -m uvicorn agentos_server.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+**Terminal 2: web UI.**
+```bash
+cd ui
+npm run dev
+```
+
+**Open the app.** The backend prints a box with `One-Time UI Access Link: http://localhost:5173/#token=…`.
+Open that link: the token is stored for the browser session and removed from the address bar. The
+same token is saved in `~/.agentos/api.token` if you need to paste it into the login screen.
+
+**First thing to try:** build and publish the use case 01 flow in the visual builder (**Flows → New
+flow**). The step-by-step walkthrough is in
+[examples/usecases/05-visual-builder/README.md](examples/usecases/05-visual-builder/README.md):
+publish the safe version (recipient pinned), then remove the pinned recipient and watch publish refuse
+the unsafe version and highlight the path.
+
+### 4. Using a real model
+
+1. Open **Providers & Vault** in the UI and add the API key for your provider. Keys are stored
+   encrypted in the vault, and the API never returns them in plain text.
+2. Stop the backend, start it again **without** `AGENTOS_MOCK_LLM` (PowerShell:
+   `Remove-Item Env:AGENTOS_MOCK_LLM`; macOS/Linux: `unset AGENTOS_MOCK_LLM`).
+3. Real model calls cost money with your provider. Not covered by the automated checks.
+
+### 5. Platform mode (optional: MongoDB + Redis)
+
+Standalone mode (above) keeps everything in files and in memory. Platform mode stores data in
+MongoDB and uses Redis for the queue. Start Docker Desktop first, then:
+
+```bash
+./venv/bin/python -m pip install -e ".[platform]"     # Windows: .\venv\Scripts\python.exe -m pip install -e ".[platform]"
+sh docker/mongo-init.sh                               # Windows: pwsh docker/mongo-init.ps1 ; prints AGENTOS_MONGO_URI
+docker compose -f docker/compose.mongo.yml up -d --wait
+sh docker/redis-init.sh                               # Windows: pwsh docker/redis-init.ps1 ; prints AGENTOS_REDIS_URI
+docker compose -f docker/compose.redis.yml up -d --wait
+```
+Set `AGENTOS_MONGO_URI` and `AGENTOS_REDIS_URI` to the printed values (they contain generated
+passwords: keep them out of files you commit), then start the backend as in step 3.
+
+> These are the scripts and compose files the CI `mongo-live` and `redis-live` jobs use; they were not
+> re-run for this README because Docker Desktop was not running.
+
+### 6. Stopping everything
+
+- Press **Ctrl+C** in both terminals.
+- Platform mode: `docker compose -f docker/compose.mongo.yml down` and
+  `docker compose -f docker/compose.redis.yml down` (data is kept in Docker volumes).
+
+### 7. Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `401 Unauthorized` / login screen keeps appearing | The token is missing or old. Open the newest one-time link from the backend output, or paste the contents of `~/.agentos/api.token`. |
+| `Invalid Host header` | The API only answers on `localhost` / `127.0.0.1` (DNS-rebinding protection). Open `http://localhost:5173`, not a LAN IP or another hostname. |
+| Runs stay `queued` forever | No worker is running. Start the backend with `AGENTOS_INPROCESS_WORKER=1`. |
+| An email step is refused with "untrusted body … external recipient" | No internal domain is trusted by default. Set `AGENTOS_INTERNAL_DOMAINS` (or `security.internal_domains` in `agentos.config.yaml`). |
+| `docker` commands fail / `--wait` never finishes | Docker Desktop is not running. Start it and check with `docker ps`. |
+| `npm run dev` fails with "Cannot find native binding" | A broken `node_modules`. Delete `ui/node_modules` and run `npm install` again. |
+
+## What AgentOS can do, in plain English
+
+Status badges: **Works today (verified)** = covered by automated tests that run in CI in MOCK mode
+(simulated LLM, fake network, no real emails); **Experimental** = present but partial or not fully
+tested; **Planned** = not built yet. "Verified" never means tested against real paid providers.
+
+**Flows and the visual builder** — *Works today (verified)*. You draw a workflow in the browser: a
+trigger, agents, HTTP calls, conditions, approvals and actions such as sending an email, joined by
+arrows that say which output feeds which input. Save it, then publish it as a fixed version. Use it
+when you want an automation that people can read and review instead of a script.
+Use cases: [05 visual builder](examples/usecases/05-visual-builder/README.md),
+[06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
+an if/else branch, join parallel branches, pause for a while and continue later, call another
+published flow, and send a failed step to an error handler instead of failing the whole run.
+Use it to model real processes ("if the page reports an incident, page on-call; otherwise do nothing").
+Use case: [06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Calling web APIs safely** — *Works today (verified)*. The HTTP step can fetch pages and call APIs,
+but it refuses internal and cloud-metadata addresses (SSRF), re-checks every redirect, caps response
+size and time, and only lets outside data go to hosts an admin has allowlisted. Use it to pull data
+into a flow without opening a door into your network.
+Use case: [06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Triggers: webhooks and schedules** — *Works today (verified)*. Flows can start from a signed
+webhook (with replay protection) or on a cron schedule. Use it to react to events from other systems
+or to run something every morning.
+Use case: [04 webhook trigger](examples/usecases/04-webhook-trigger/README.md); schedules are covered by
+`agentos/tests/test_scheduler_2_2.py`.
+
+**Agents and tools** — *Works today (verified) for agents calling built-in tools; Experimental for
+MCP servers and stored custom tool code*. An agent node runs a CrewAI agent, but every tool call it
+makes goes through an AgentOS proxy that checks it first. Use it when a step needs judgement, such as
+summarising a ticket.
+Use case: [01 email summary and exfiltration attempt](examples/usecases/01-email-summary-exfil/README.md).
+
+**Providers, fallback and the vault** — *Works today (verified with mocked providers)*. You can
+configure several LLM providers, set an order to fall back on when one fails, and pick a model per
+node. API keys are stored encrypted and are never shown back. Use it to avoid depending on a single
+provider. Real provider calls are not part of the automated checks.
+Use case: [02 provider fallback](examples/usecases/02-provider-fallback/README.md).
+
+**Security labels and blocked attacks** — *Works today (verified)*. Every value remembers where it
+came from and whether it can be trusted. Data from webhooks, web pages, emails and tools is
+untrusted, and it cannot choose who receives an email, which URL is called, or whether a destructive
+action runs. Unsafe flows are refused when you publish and blocked again while running.
+Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
+[04](examples/usecases/04-webhook-trigger/README.md),
+[06](examples/usecases/06-http-and-branching/README.md).
+
+**Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
+values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
+without sending anything.
+Use case: [05 visual builder](examples/usecases/05-visual-builder/README.md).
+
+**Runs and the live view** — *Works today (verified)*. Each run shows live progress per step, a full
+event history, and for anything blocked, the reason and where the data came from. The view reconnects
+without losing events. Runs are queued and executed by a worker (in-process in Standalone mode).
+Use cases: [03 queue and worker](examples/usecases/03-flow-queue-worker/README.md),
+[05 visual builder](examples/usecases/05-visual-builder/README.md).
+
+**Packs** — *Experimental (v1 agent/tool packaging via `agentos pack`); Planned (2.0 packs carrying
+flows, prompts and policies)*. Packs will let you share a ready-made automation and install it with
+one command.
 
 ## Features
 

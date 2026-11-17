@@ -132,6 +132,8 @@ class FlowRecord(BaseModel):
     loops: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     content_sha256: Optional[str] = None
     policy_hash: Optional[str] = None
+    # 2.3: static analysis summary of a published version (reused when called as a subflow)
+    analysis: Optional[Dict[str, Any]] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
     published_at: Optional[Timestamp] = None
@@ -149,6 +151,8 @@ class RunRecord(BaseModel):
     provider: Optional[str] = None
     current_lease_id: Optional[str] = None
     idempotency_key: Optional[str] = None
+    # 2.3: epoch seconds when a run waiting on a wait-node timer becomes due (None otherwise)
+    resume_at: Optional[float] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 

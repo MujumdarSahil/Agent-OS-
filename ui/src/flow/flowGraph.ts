@@ -15,6 +15,7 @@ export interface FlowNodeData extends Record<string, unknown> {
 }
 
 export interface FlowEdgeData extends Record<string, unknown> {
+  branch?: string | null
   arg_mapping: Record<string, string>
   loop?: { loopNodeId: string; max_iterations: number }
   violated: boolean
@@ -79,7 +80,7 @@ export function makeEdge(e: FlowEdgeDef, loop?: { loopNodeId: string; max_iterat
     id: edgeId(e.source, e.target),
     source: e.source,
     target: e.target,
-    data: { arg_mapping: { ...(e.arg_mapping ?? {}) }, loop, violated: false },
+    data: { arg_mapping: { ...(e.arg_mapping ?? {}) }, loop, violated: false, branch: e.branch ?? null },
   }
 }
 
@@ -121,7 +122,12 @@ export function fromCanvas(
     version: null,
     entrypoint: meta.entrypoint,
     nodes: outNodes,
-    edges: edges.map(e => ({ source: e.source, target: e.target, arg_mapping: { ...(e.data?.arg_mapping ?? {}) } })),
+    edges: edges.map(e => ({
+      source: e.source,
+      target: e.target,
+      arg_mapping: { ...(e.data?.arg_mapping ?? {}) },
+      ...(e.data?.branch ? { branch: e.data.branch } : {}),
+    })),
     loops: meta.loops ?? {},
   }
 }

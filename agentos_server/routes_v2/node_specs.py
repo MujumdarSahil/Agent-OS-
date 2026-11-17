@@ -33,4 +33,16 @@ def _spec_to_dict(spec: NodeSpec) -> Dict[str, Any]:
 @router.get("")
 async def list_node_specs() -> List[Dict[str, Any]]:
     """Return every built-in NodeSpec, sorted by type. Read-only."""
-    return [_spec_to_dict(BUILTIN_NODE_SPECS[t]) for t in sorted(BUILTIN_NODE_SPECS)]
+    from agentos.llm.provider_registry import enabled_model_ids
+    from agentos.llm.router_factory import get_fallback_policy_cache
+
+    models = sorted(enabled_model_ids(get_fallback_policy_cache()))
+    out = []
+    for t in sorted(BUILTIN_NODE_SPECS):
+        d = _spec_to_dict(BUILTIN_NODE_SPECS[t])
+        props = d["config_schema"].get("properties", {})
+        if t in ("llm", "agent") and "model" in props and models:
+            # 2.3: the builder offers only models served by enabled providers (checked again on save/publish)
+            d["config_schema"] = {**d["config_schema"], "properties": {**props, "model": {**props["model"], "enum": models}}}
+        out.append(d)
+    return out

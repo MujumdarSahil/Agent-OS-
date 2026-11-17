@@ -1,0 +1,30 @@
+{
+  "id": "uc06_ssrf_redirect",
+  "name": "SSRF via redirect",
+  "entrypoint": "trig",
+  "nodes": {
+    "trig": {
+      "id": "trig",
+      "type": "manual_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "fetch": {
+      "id": "fetch",
+      "type": "http_request",
+      "config": {
+        "method": "GET"
+      },
+      "pinned_args": {
+        "url": "https://status.example.com/redirect"
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "trig",
+      "target": "fetch"
+    }
+  ],
+  "loops": {}
+}

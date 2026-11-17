@@ -344,6 +344,10 @@ export default function FlowEditor() {
               specs={specs}
               loops={loops}
               onMapping={m => updateEdgeMapping(selectedEdge.id, m)}
+              onBranch={b => {
+                setEdges(es => es.map(e => (e.id === selectedEdge.id ? { ...e, data: { ...e.data!, branch: b } } : e)))
+                markDirty()
+              }}
               onLoops={l => { setLoops(l); markDirty() }}
               onRemove={removeSelected}
             />
@@ -475,6 +479,7 @@ function EdgeInspector(props: {
   specs: Record<string, NodeSpecInfo>
   loops: Record<string, LoopDef>
   onMapping: (m: Record<string, string>) => void
+  onBranch: (b: string | null) => void
   onLoops: (l: Record<string, LoopDef>) => void
   onRemove: () => void
 }) {
@@ -539,6 +544,22 @@ function EdgeInspector(props: {
           Add mapping
         </button>
       </div>
+      {(src?.data.def.type === 'condition' || tgt?.data.def.type === 'error_handler') && (
+        <div>
+          <div className="form-label">Branch</div>
+          <select
+            className="form-select"
+            data-testid="edge-branch"
+            value={edge.data?.branch ?? ''}
+            onChange={e => props.onBranch(e.target.value || null)}
+          >
+            <option value="">(choose)</option>
+            {src?.data.def.type === 'condition' && <option value="true">true</option>}
+            {src?.data.def.type === 'condition' && <option value="false">false</option>}
+            {tgt?.data.def.type === 'error_handler' && <option value="on_error">on_error</option>}
+          </select>
+        </div>
+      )}
       <div>
         <div className="form-label">Bounded loop back-edge</div>
         {loopNodes.length === 0 ? (

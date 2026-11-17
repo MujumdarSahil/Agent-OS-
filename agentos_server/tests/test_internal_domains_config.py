@@ -8,7 +8,22 @@ from __future__ import annotations
 
 import pytest
 
-from agentos_server.app import create_app, load_internal_domains
+from agentos_server.app import create_app, load_http_allowlist, load_internal_domains
+
+
+def test_http_allowlist_default_empty_config_and_env(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGENTOS_HTTP_ALLOWLIST", raising=False)
+    (tmp_path / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+    assert load_http_allowlist(str(tmp_path)) == []
+    (tmp_path / "agentos.config.yaml").write_text(
+        "security:\n  http_allowlist: ['*.corp.internal', 10.9.0.0/16]\n", encoding="utf-8"
+    )
+    assert load_http_allowlist(str(tmp_path)) == ["*.corp.internal", "10.9.0.0/16"]
+    monkeypatch.setenv("AGENTOS_HTTP_ALLOWLIST", "wiki.local")
+    assert load_http_allowlist(str(tmp_path)) == ["wiki.local"]
+    monkeypatch.setenv("AGENTOS_API_TOKEN", "t")
+    policy = create_app(project_path=str(tmp_path)).state.security_policy
+    assert policy.is_http_allowlisted("http://wiki.local/x") and not policy.is_http_allowlisted("http://evil.example/")
 
 
 def _project(tmp_path, cfg: str = "preferred_tags: []\n"):

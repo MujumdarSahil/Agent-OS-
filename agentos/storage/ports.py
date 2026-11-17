@@ -97,7 +97,9 @@ class FlowRepository(Protocol):
 
     async def list_flows(self) -> List[FlowRecord]: ...
 
-    async def publish(self, flow_id: str, content_sha256: str, policy_hash: str) -> FlowRecord: ...
+    async def publish(
+        self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None
+    ) -> FlowRecord: ...
 
     async def delete_flow(self, flow_id: str) -> bool:
         """Delete an unpublished flow. Raises ValueError if published versions exist."""

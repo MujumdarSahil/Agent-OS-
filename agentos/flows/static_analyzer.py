@@ -13,8 +13,11 @@ from dataclasses import dataclass, field
 from agentos.flows.labels import Confidentiality, Label
 from agentos.flows.models import FlowDefinition, NodeDefinition
 from agentos.flows.policy import SecurityPolicy
-from agentos.flows.rules import RuleViolation, evaluate_sink_argument_rule
-from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
+from typing import Any
+
+from agentos.flows.expressions import label_of, references
+from agentos.flows.rules import RuleViolation, evaluate_control_dependency, evaluate_sink_argument_rule
+from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass, effective_side_effect, is_checked_sink
 
 # Backwards compatibility alias
 Violation = RuleViolation
@@ -41,9 +44,108 @@ class PublishVerificationResult:
 class StaticFlowAnalyzer:
     """Analyzes flow graphs for Information Flow Control (IFC) and sink policy compliance."""
 
-    def __init__(self, flow: FlowDefinition, policy: SecurityPolicy | None = None) -> None:
+    def __init__(
+        self,
+        flow: FlowDefinition,
+        policy: SecurityPolicy | None = None,
+        subflow_summaries: dict[tuple[str, int], dict[str, Any] | None] | None = None,
+    ) -> None:
         self.flow = flow
         self.policy = policy or SecurityPolicy()
+        # (flow_id, version) -> published analysis summary of a subflow (None/missing = unknown).
+        self.subflow_summaries = subflow_summaries or {}
+        self._labels: dict[str, dict[str, Label]] = {}
+
+    # ------------------------------------------------------------------ 2.3 helpers
+
+    def _descendants(self, start: str) -> set[str]:
+        back = {
+            (str(lp["back_edge"][0]), str(lp["back_edge"][1]))
+            for lp in self.flow.loops.values()
+            if isinstance(lp.get("back_edge"), (list, tuple)) and len(lp["back_edge"]) == 2
+        }
+        seen = {start}
+        stack = [start]
+        while stack:
+            cur = stack.pop()
+            for e in self.flow.edges:
+                if e.source == cur and (e.source, e.target) not in back and e.target not in seen:
+                    seen.add(e.target)
+                    stack.append(e.target)
+        return seen
+
+    def control_labels(self, node_output_labels: dict[str, dict[str, Label]]) -> dict[str, Label]:
+        """Join of every condition predicate (and failure path) that decides whether a node runs."""
+        ctrl: dict[str, Label] = {}
+        for e in self.flow.edges:
+            if e.branch in ("true", "false"):
+                lbl = label_of(self.flow.nodes[e.source].config.get("expression", ""), node_output_labels)
+            elif e.branch == "on_error":
+                # A failure can be induced by attacker-controlled input or responses: untrusted.
+                lbl = Label.untrusted(sources={e.source})
+            else:
+                continue
+            for n in self._descendants(e.target):
+                ctrl[n] = ctrl[n].join(lbl) if n in ctrl else lbl
+        return ctrl
+
+    def http_arg_labels_and_context(
+        self,
+        node_id: str,
+        node: NodeDefinition,
+        arg_labels: dict[str, Label],
+        labels: dict[str, dict[str, Label]],
+    ) -> tuple[dict[str, Label], dict[str, Any]]:
+        """Static labels of http_request url/body/query/headers and the sink context for the rules."""
+        cfg = node.config
+        out = dict(arg_labels)
+        for key in ("url", "body"):
+            if isinstance(cfg.get(key), str) and key not in node.pinned_args:
+                out[key] = label_of(cfg[key], labels, template=True)
+        cfg_query = cfg.get("query") or {}
+        if cfg_query and "query" not in node.pinned_args:
+            q_lbls = [label_of(v, labels, template=True) for v in cfg_query.values()]
+            if "query" in out:
+                q_lbls.append(out["query"])
+            out["query"] = Label.join_all(q_lbls, default=Label.trusted())
+        plain_headers = {k: v for k, v in (cfg.get("headers") or {}).items() if isinstance(v, str)}
+        if plain_headers and "headers" not in out:
+            out["headers"] = Label.trusted(sources={node_id})
+        static_url = node.pinned_args.get("url")
+        if not isinstance(static_url, str):
+            cfg_url = cfg.get("url")
+            url_mapped = any(e.target == node_id and "url" in e.arg_mapping for e in self.flow.edges)
+            if isinstance(cfg_url, str) and not references(cfg_url, template=True) and not url_mapped:
+                static_url = cfg_url
+            else:
+                static_url = None
+        query_from_data = any(e.target == node_id and "query" in e.arg_mapping for e in self.flow.edges) or any(
+            references(v, template=True) for v in cfg_query.values()
+        )
+        from agentos.flows.net_guard import url_host
+
+        ctx = {
+            "method": str(cfg.get("method") or "GET").upper(),
+            "host": url_host(static_url) if static_url else None,
+            "host_allowlisted": bool(static_url) and self.policy.is_http_allowlisted(static_url),
+            "query_from_data": query_from_data,
+        }
+        return out, ctx
+
+    def summary(self) -> dict[str, Any]:
+        """Analysis summary stored with a published version (reused when called as a subflow)."""
+        labels, _, _ = self._propagate_labels_fixpoint()
+        terminals = [n for n in self.flow.nodes if not any(e.source == n for e in self.flow.edges)]
+        out = Label.join_all([lbl for t in terminals for lbl in labels.get(t, {}).values()], default=Label.trusted())
+        has_waiting = any(n.type in ("approval", "wait") for n in self.flow.nodes.values())
+        refs = []
+        for n in self.flow.nodes.values():
+            if n.type == "subflow":
+                key = (n.config["flow_id"], int(n.config["version"]))
+                refs.append(list(key))
+                child = self.subflow_summaries.get(key) or {}
+                has_waiting = has_waiting or bool(child.get("has_waiting"))
+        return {"output_label": out.model_dump(mode="json"), "has_waiting": has_waiting, "subflows": refs}
 
     def verify(self) -> PublishVerificationResult:
         """Statically inspect flow graph and verify that sink arguments satisfy security policies."""
@@ -51,6 +153,7 @@ class StaticFlowAnalyzer:
 
         # 1. Propagate labels across graph edges (including back-edges) to a fixpoint
         node_output_labels, node_effective_inbound, node_paths = self._propagate_labels_fixpoint()
+        control = self.control_labels(node_output_labels)
 
         # 2. Verify all sink policies on the stabilized label environment
         for node_id, node in self.flow.nodes.items():
@@ -67,15 +170,34 @@ class StaticFlowAnalyzer:
                     if src_field in src_labels:
                         arg_labels[target_arg] = src_labels[src_field]
 
-            # Direct sink nodes check
-            if spec.side_effect in (
-                SideEffectClass.EXTERNAL_SEND,
-                SideEffectClass.DESTRUCTIVE,
-                SideEffectClass.WRITE,
-            ):
+            # Direct sink nodes check (effective side effect: http_request depends on its method)
+            eff = effective_side_effect(node.type, node.config)
+            if is_checked_sink(node.type, node.config):
+                eff_spec = spec.model_copy(update={"side_effect": eff})
+                sink_ctx = None
+                if node.type == "http_request":
+                    arg_labels, sink_ctx = self.http_arg_labels_and_context(
+                        node_id, node, arg_labels, node_output_labels
+                    )
                 self._check_node_sinks(
-                    node_id, node, spec, arg_labels, effective_inbound, current_path, violations
+                    node_id, node, eff_spec, arg_labels, effective_inbound, current_path, violations, sink_ctx
                 )
+
+            # 2.3: destructive sinks need a trusted control dependency
+            violations.extend(evaluate_control_dependency(node_id, eff, control.get(node_id), current_path))
+
+            # 2.3: subflows containing approval/wait are not supported yet (decision C)
+            if node.type == "subflow":
+                key = (node.config["flow_id"], int(node.config["version"]))
+                if (self.subflow_summaries.get(key) or {}).get("has_waiting"):
+                    violations.append(
+                        RuleViolation(
+                            node_id=node_id,
+                            target_arg="(subflow)",
+                            path=current_path,
+                            reason=f"Subflow {key[0]!r} v{key[1]} contains approval or wait nodes; not supported in subflows yet.",
+                        )
+                    )
 
             # Agent nodes with attached tools check
             if node.type == "agent":
@@ -97,6 +219,7 @@ class StaticFlowAnalyzer:
         through a back-edge, it will degrade downstream labels to untrusted.
         """
         node_output_labels: dict[str, dict[str, Label]] = {}
+        self._labels = node_output_labels  # read by expression label computation (condition nodes)
         node_effective_inbound: dict[str, Label] = {}
         node_paths: dict[str, list[str]] = {self.flow.entrypoint: [self.flow.entrypoint]}
 
@@ -183,6 +306,7 @@ class StaticFlowAnalyzer:
         effective_inbound: Label,
         current_path: list[str],
         violations: list[RuleViolation],
+        sink_context: dict[str, Any] | None = None,
     ) -> None:
         """Verify sink arguments on direct sink nodes using the shared rule engine."""
         pinned_args = node.pinned_args
@@ -237,6 +361,7 @@ class StaticFlowAnalyzer:
                 pinned_to_val=pinned_args.get("to"),
                 policy=self.policy,
                 path=current_path,
+                sink_context=sink_context,
             )
             violations.extend(arg_violations)
 
@@ -358,6 +483,8 @@ class StaticFlowAnalyzer:
                 allowlist_name = node.config.get("allowlist_name")
                 if allowlist_name and len(self.policy.allowlists.get(allowlist_name, [])) > 0:
                     is_sound = True
+                elif allowlist_name == "http_allowlist" and self.policy.http_allowlist:
+                    is_sound = True
 
             if is_sound:
                 declassified = Label.trusted(
@@ -397,6 +524,27 @@ class StaticFlowAnalyzer:
                 sources=effective_inbound.sources | {node_id},
             )
             return {"completion": out_lbl, "*": out_lbl}
+
+        # 7. 2.3 node catalog
+        if node.type == "http_request":
+            lbl = Label.untrusted(confidentiality=effective_inbound.confidentiality, sources={node_id})
+            return {k: lbl for k in ("status", "headers", "body", "final_url", "truncated", "*")}
+        if node.type == "condition":
+            pred = label_of(node.config.get("expression", ""), self._labels)
+            return {"branch": pred, "result": pred, "*": effective_inbound.join(pred)}
+        if node.type == "error_handler":
+            lbl = Label.untrusted(sources={node_id})
+            return {k: lbl for k in ("failed_node", "error_type", "message", "*")}
+        if node.type == "subflow":
+            summary = self.subflow_summaries.get((node.config["flow_id"], int(node.config["version"])))
+            if summary and summary.get("output_label"):
+                sub = Label.model_validate(summary["output_label"])
+                lbl = Label(integrity=sub.integrity, confidentiality=sub.confidentiality,
+                            sources=sub.sources | effective_inbound.sources | {node_id})
+                lbl = lbl.join(effective_inbound) if effective_inbound.integrity == "untrusted" else lbl
+            else:
+                lbl = Label.untrusted(confidentiality=effective_inbound.confidentiality, sources={node_id})
+            return {"outputs": lbl, "*": lbl}
 
         # Default fallback: inherit effective inbound label
         out_lbl = Label(

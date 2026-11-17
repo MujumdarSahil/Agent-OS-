@@ -1,0 +1,76 @@
+{
+  "id": "uc06_benign",
+  "name": "Status page -> branch -> internal email",
+  "entrypoint": "trig",
+  "nodes": {
+    "trig": {
+      "id": "trig",
+      "type": "manual_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "fetch": {
+      "id": "fetch",
+      "type": "http_request",
+      "config": {
+        "method": "GET",
+        "timeout_s": 10,
+        "max_bytes": 200000
+      },
+      "pinned_args": {
+        "url": "https://status.example.com/today"
+      }
+    },
+    "is_incident": {
+      "id": "is_incident",
+      "type": "condition",
+      "config": {
+        "expression": "nodes.fetch.status == 200 and 'incident' in nodes.fetch.body"
+      },
+      "pinned_args": {}
+    },
+    "notify": {
+      "id": "notify",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {
+        "to": "ops@corp.local",
+        "subject": "Status page reports an incident"
+      }
+    },
+    "skip_note": {
+      "id": "skip_note",
+      "type": "llm",
+      "config": {},
+      "pinned_args": {}
+    }
+  },
+  "edges": [
+    {
+      "source": "trig",
+      "target": "fetch"
+    },
+    {
+      "source": "fetch",
+      "target": "is_incident"
+    },
+    {
+      "source": "is_incident",
+      "target": "notify",
+      "branch": "true"
+    },
+    {
+      "source": "fetch",
+      "target": "notify",
+      "arg_mapping": {
+        "body": "body"
+      }
+    },
+    {
+      "source": "is_incident",
+      "target": "skip_note",
+      "branch": "false"
+    }
+  ],
+  "loops": {}
+}

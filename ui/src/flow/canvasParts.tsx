@@ -72,7 +72,8 @@ export const nodeTypes = { flowNode: FlowNodeView }
 /** Visual styling for edges: mapping label, distinct bounded-loop look, violation highlight. */
 export function decorateEdge(e: CanvasEdge, selected: boolean): CanvasEdge {
   const d = e.data
-  const mapping = Object.entries(d?.arg_mapping ?? {}).map(([t, s]) => `${s}→${t}`).join(', ')
+  const mappingText = Object.entries(d?.arg_mapping ?? {}).map(([t, s]) => `${s}→${t}`).join(', ')
+  const mapping = [d?.branch ? `[${d.branch}]` : '', mappingText].filter(Boolean).join(' ')
   const loop = d?.loop
   const stroke = d?.violated ? 'var(--accent-red)' : loop ? 'var(--accent-amber)' : selected ? 'var(--border-focus)' : 'var(--text-secondary)'
   return {

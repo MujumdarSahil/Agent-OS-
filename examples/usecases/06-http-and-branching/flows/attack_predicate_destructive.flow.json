@@ -1,0 +1,43 @@
+{
+  "id": "uc06_predicate_destructive",
+  "name": "Attacker predicate -> DELETE",
+  "entrypoint": "hook",
+  "nodes": {
+    "hook": {
+      "id": "hook",
+      "type": "webhook_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "decide": {
+      "id": "decide",
+      "type": "condition",
+      "config": {
+        "expression": "nodes.hook.payload.action == 'purge'"
+      },
+      "pinned_args": {}
+    },
+    "purge": {
+      "id": "purge",
+      "type": "http_request",
+      "config": {
+        "method": "DELETE"
+      },
+      "pinned_args": {
+        "url": "https://internal.corp/api/customers/all"
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "hook",
+      "target": "decide"
+    },
+    {
+      "source": "decide",
+      "target": "purge",
+      "branch": "true"
+    }
+  ],
+  "loops": {}
+}

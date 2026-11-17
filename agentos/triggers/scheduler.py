@@ -155,6 +155,22 @@ class FlowScheduler:
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
+    async def resume_due_timers(self, now_override: Optional[float] = None) -> List[str]:
+        """Re-enqueue runs waiting on a wait-node timer whose resume_at has passed."""
+        now_ts = now_override if now_override is not None else time.time()
+        resumed: List[str] = []
+        for rec in await self.storage.runs.list(limit=1000):
+            if rec.status != "waiting" or rec.resume_at is None or rec.resume_at > now_ts:
+                continue
+            if rec.flow_id is None or rec.flow_version is None:
+                continue
+            rec.resume_at = None  # cleared first so a due timer is enqueued once
+            await self.storage.runs.put(rec)
+            await self.queue.reenqueue(run_id=rec.run_id, flow_id=rec.flow_id, version=rec.flow_version, inputs={})
+            resumed.append(rec.run_id)
+            logger.info("Wait timer due for run %s; re-enqueued", rec.run_id)
+        return resumed
+
     async def ensure_cron_support(self) -> None:
         """Raise CroniterMissingError if schedules exist but croniter is not installed.
 
@@ -198,6 +214,8 @@ class FlowScheduler:
         Evaluate enabled schedules against current time.
         Returns list of enqueued run_ids.
         """
+        # 2.3: re-enqueue runs whose wait-node timer is due (the worker resumes them)
+        await self.resume_due_timers(now_override)
         if not self.storage.schedules or not self.storage.flows:
             return []
         if croniter is None:

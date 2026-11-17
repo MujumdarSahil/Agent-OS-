@@ -21,6 +21,7 @@ class NodeState(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    SKIPPED = "skipped"  # 2.3: on a branch that was not taken
 
 
 class RunStatus(str, Enum):
@@ -54,6 +55,8 @@ class FlowRunState(BaseModel):
     node_durations_ms: dict[str, float] = Field(default_factory=dict)
     # Stored events for replay and provenance tracing
     event_history: list[dict[str, Any]] = Field(default_factory=list)
+    # 2.3: failures routed to an error_handler (node_id -> error info, labelled untrusted)
+    handled_failures: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     def apply_event(self, event: EventRecord) -> None:
         """Apply a single append-only event to advance state deterministically."""
@@ -97,7 +100,21 @@ class FlowRunState(BaseModel):
             nid = d.get("node_id")
             if nid:
                 self.node_states[nid] = NodeState.FAILED
-            self.error = d.get("error")
+            if d.get("handled") and nid:
+                # Routed to an error_handler: the run continues; no run-level error.
+                self.handled_failures[nid] = d.get("error_info") or {"failed_node": nid, "message": d.get("error")}
+            else:
+                self.error = d.get("error")
+
+        elif t == "node_skipped":
+            nid = d.get("node_id")
+            if nid:
+                self.node_states[nid] = NodeState.SKIPPED
+
+        elif t == "timer_fired":
+            self.waiting_node = None
+            self.waiting_details = None
+            self.status = RunStatus.RUNNING
 
         elif t == "node_waiting":
             nid = d.get("node_id")

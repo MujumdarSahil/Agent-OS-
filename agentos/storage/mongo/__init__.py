@@ -189,7 +189,9 @@ class MongoFlowRepository:
             res.append(FlowRecord.model_validate(clean))
         return res
 
-    async def publish(self, flow_id: str, content_sha256: str, policy_hash: str) -> FlowRecord:
+    async def publish(
+        self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None
+    ) -> FlowRecord:
         draft = await self.get_draft(flow_id)
         if draft is None:
             raise ValueError(f"Flow {flow_id!r} draft not found")
@@ -214,6 +216,7 @@ class MongoFlowRepository:
             loops=draft.loops,
             content_sha256=content_sha256,
             policy_hash=policy_hash,
+            analysis=analysis,
             created_at=draft.created_at,
             updated_at=utcnow(),
             published_at=utcnow(),
