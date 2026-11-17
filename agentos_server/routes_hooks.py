@@ -213,6 +213,7 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
         flow_version=latest_version,
         status="queued",
         inputs=inputs_data,
+        trigger="webhook",  # 2.4d: display metadata for run history
     )
     await storage.runs.put(run_record)
 

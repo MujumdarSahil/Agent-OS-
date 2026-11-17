@@ -301,6 +301,7 @@ class FlowScheduler:
                     status="queued",
                     inputs=sched.inputs,
                     idempotency_key=idempotency_key,
+                    trigger="cron",  # 2.4d: display metadata for run history
                 )
 
                 try:

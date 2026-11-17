@@ -203,6 +203,8 @@ class FlowEngine:
             flow_id=self.flow.id,
             # keep the version the run was enqueued for (needed to re-enqueue a due wait timer)
             flow_version=existing.flow_version if existing else None,
+            # 2.4d: keep what started the run (set by the route/webhook/scheduler that created it)
+            trigger=(existing.trigger if existing and existing.trigger else trigger),
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )

@@ -283,6 +283,7 @@ async def enqueue_run(flow_id: str, body: RunFlowRequest, request: Request) -> D
         flow_id=flow_id,
         flow_version=target_version,
         status="queued",
+        trigger="manual",
     )
     await storage.runs.put(run_record)
     await queue.enqueue(
