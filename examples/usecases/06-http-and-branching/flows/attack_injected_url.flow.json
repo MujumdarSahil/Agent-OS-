@@ -1,0 +1,32 @@
+{
+  "id": "uc06_injected_url",
+  "name": "URL taken from webhook payload",
+  "entrypoint": "hook",
+  "nodes": {
+    "hook": {
+      "id": "hook",
+      "type": "webhook_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "post": {
+      "id": "post",
+      "type": "http_request",
+      "config": {
+        "method": "POST",
+        "body": "{{ nodes.hook.payload.notes }}"
+      },
+      "pinned_args": {}
+    }
+  },
+  "edges": [
+    {
+      "source": "hook",
+      "target": "post",
+      "arg_mapping": {
+        "url": "payload"
+      }
+    }
+  ],
+  "loops": {}
+}
