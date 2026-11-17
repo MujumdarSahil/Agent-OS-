@@ -109,6 +109,36 @@ def test_proxy_block_is_not_retried_on_another_provider(monkeypatch):
     assert len(calls) == 1  # no fallback to the next provider after a blocked tool call
 
 
+def test_omniroute_entry_is_hosted_unverified_with_default_base(monkeypatch):
+    monkeypatch.setenv("OMNIROUTE_API_KEY", "placeholder-not-a-real-key")
+    monkeypatch.delenv("AGENTOS_OMNIROUTE_BASE_URL", raising=False)
+    entry = next(e for e in rl.default_chain() if e["provider"] == "omniroute")
+    assert entry["api_base"] == "http://127.0.0.1:20128/v1" and entry["local"] is False
+    from agentos.llm.provider_registry import PROVIDER_REGISTRY
+
+    reg = next(p for p in PROVIDER_REGISTRY if p["name"] == "omniroute")
+    assert "UNVERIFIED" in reg["display_name"]
+
+
+def test_vault_provider_keys_exported_by_name_only(monkeypatch):
+    import asyncio
+
+    from agentos.llm.provider_registry import export_vault_provider_keys
+
+    class FakeVault:
+        async def list(self):
+            return [NS(name="GROQ_API_KEY"), NS(name="unrelated_secret")]
+
+        async def reveal(self, name):
+            return "from-vault"
+
+    monkeypatch.setenv("GROQ_API_KEY", "from-env")
+    assert asyncio.run(export_vault_provider_keys(FakeVault())) == ["GROQ_API_KEY"]
+    import os
+
+    assert os.environ["GROQ_API_KEY"] == "from-vault" and "unrelated_secret" not in os.environ
+
+
 def test_react_path_when_function_calling_unsupported(monkeypatch):
     monkeypatch.setattr(AgentOSRouterLLM, "supports_function_calling", lambda self: False)
     calls = fake(monkeypatch, lambda kw, n: reply("Thought: done\nFinal Answer: ok"))

@@ -173,6 +173,17 @@ def create_app(
             await app.state.scheduler.ensure_cron_support()
             app.state.scheduler.start()
 
+        # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+        if getattr(app.state, "vault", None) is not None:
+            try:
+                from agentos.llm.provider_registry import export_vault_provider_keys
+
+                loaded = await export_vault_provider_keys(app.state.vault)
+                if loaded:
+                    logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+            except Exception as e:
+                logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+
         # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
         from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
         app.state.inprocess_worker = None

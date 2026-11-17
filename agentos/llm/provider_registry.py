@@ -293,6 +293,40 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
 ]
 
+# 2.4c: OmniRoute gateway (UNVERIFIED). OpenAI-compatible; base URL from AGENTOS_OMNIROUTE_BASE_URL
+# (default http://127.0.0.1:20128/v1), model from AGENTOS_OMNIROUTE_MODEL, key OMNIROUTE_API_KEY (vault
+# or env). It relays to hosted models, so it never counts as a local provider (THREAT_MODEL T-13).
+# Run it on 127.0.0.1 with REQUIRE_API_KEY=true; upstream terms may forbid relaying; its request
+# logging can capture prompts.
+PROVIDER_REGISTRY.append({
+    "name": "omniroute",
+    "display_name": "OmniRoute gateway (UNVERIFIED)",
+    "litellm_model": "openai/auto",
+    "api_key_env": "OMNIROUTE_API_KEY",
+    "api_base_env": "AGENTOS_OMNIROUTE_BASE_URL",
+    "priority": 90,
+    "hosted_relay": True,
+    "tags": ["unverified", "openai-compatible", "gateway"],
+})
+
+
+async def export_vault_provider_keys(vault: Any) -> List[str]:
+    """Load vault secrets named like a provider key variable (e.g. GROQ_API_KEY) into this process's
+    environment (in memory only, never written). Vault values take precedence over env ("vault first").
+    Returns the variable names loaded (never the values)."""
+    wanted = {p["api_key_env"] for p in PROVIDER_REGISTRY if p.get("api_key_env")}
+    loaded: List[str] = []
+    for info in await vault.list():
+        name = getattr(info, "name", None)
+        if name in wanted:
+            try:
+                os.environ[name] = (await vault.reveal(name)).strip()
+                loaded.append(name)
+            except Exception:
+                continue
+    return sorted(loaded)
+
+
 def enabled_model_ids(policy_configs: Any = None) -> set:
     """Model identifiers a flow node may select (2.3 per-node model choice).
 

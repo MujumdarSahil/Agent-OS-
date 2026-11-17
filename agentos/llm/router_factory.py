@@ -183,12 +183,18 @@ def build_router(
             api_base = os.environ.get(p["api_base_env"], "").strip()
             if not api_base and p["api_base_env"] == "OLLAMA_BASE_URL":
                 api_base = "http://localhost:11434"
+            if not api_base and p["api_base_env"] == "AGENTOS_OMNIROUTE_BASE_URL":
+                api_base = "http://127.0.0.1:20128/v1"
 
         # Construct litellm_params
         override = overrides_by_name.get(p["name"])
         order_val = override["order"] if override and "order" in override else (idx + 1)
         litellm_params = {
-            "model": p["litellm_model"],
+            "model": (
+                f"openai/{os.environ['AGENTOS_OMNIROUTE_MODEL']}"
+                if p["name"] == "omniroute" and os.environ.get("AGENTOS_OMNIROUTE_MODEL")
+                else p["litellm_model"]
+            ),
             "order": order_val,
         }
         if override and override.get("timeout_s"):
