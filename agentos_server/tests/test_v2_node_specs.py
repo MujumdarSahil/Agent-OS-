@@ -172,3 +172,6 @@ async def test_publish_refusal_violation_format_is_stable(client):
         assert isinstance(v["path"], list) and all(isinstance(p, str) for p in v["path"])
         assert isinstance(v["reason"], str) and v["reason"]
     assert any(v["node_id"] == "agent_node" for v in detail["violations"])
+    # Unpinned recipient: the reason says so instead of "external recipient None".
+    body = next(v for v in detail["violations"] if v["target_arg"] == "send_email.body")
+    assert "recipient is not fixed (not pinned)" in body["reason"] and "None" not in body["reason"]

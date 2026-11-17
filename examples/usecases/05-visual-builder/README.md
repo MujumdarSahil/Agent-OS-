@@ -43,10 +43,16 @@ cd ui; npm run dev
 ```
 Open the one-time link printed by the server, then:
 
-1. **Flows → New flow** `uc05_demo`. Add node `webhook_in` (palette: `webhook_trigger`), then
-   `agent_node` (`agent`). Fill role/goal/backstory, tools `send_email`.
-2. Pin `send_email.to` = `support@corp.local`. Click the canvas background, add edge
-   `webhook_in → agent_node`, map `payload → task`. **Save**, then **Publish** → "Published version 1".
+1. **Flows → New flow** `uc05_demo`. Drag `webhook_trigger` from the palette onto the canvas (or
+   click it). It gets the id `webhook_trigger_1` and its drawer opens: rename it to `webhook_in`.
+   Drag `agent` to the right of it and rename it to `agent_node`. In its drawer fill
+   role/goal/backstory and tools `send_email`. (Double-click any node to reopen its drawer.)
+2. Pin `send_email.to` = `support@corp.local`. Drag from `webhook_in`'s right handle onto
+   `agent_node`'s left handle: the arrow appears with the suggested mapping `payload→task` (click the
+   arrow to change it). Alternatives: the "+" on a node's output adds and connects the next node, and
+   "Connect output to…" in the drawer works from the keyboard. **Save**, then **Publish** →
+   "Published version 1". Useful extras: **Auto-layout**, **Undo/Redo** (Ctrl+Z / Ctrl+Y), the
+   Delete key, the minimap, and a warning if you leave with unsaved changes.
 3. Remove the pinned recipient, **Save**, **Publish** → refused; the violation table lists
    `agent_node · send_email.to · webhook_in → agent_node → send_email` and the nodes/edge turn red.
 4. Create `flows/approval.flow.json` through the API (`POST /api/v2/flows`, then
