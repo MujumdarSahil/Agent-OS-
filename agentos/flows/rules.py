@@ -94,6 +94,7 @@ def evaluate_sink_argument_rule(
     pinned_to_val: Any | None,
     policy: SecurityPolicy,
     path: list[str],
+    sink_context: dict[str, Any] | None = None,
 ) -> list[RuleViolation]:
     """Evaluate IFC rules for a single sink argument.
 
@@ -162,4 +163,59 @@ def evaluate_sink_argument_rule(
                 )
             )
 
+    # 4. Conditional rule (http_request): untrusted or secret data only to admin-allowlisted hosts.
+    #    Applies to body/headers for non-GET methods, and to the query for non-GET methods or when
+    #    the query is built from flow data.
+    if rule.condition == "untrusted_only_to_allowlisted_hosts":
+        ctx = sink_context or {}
+        method = str(ctx.get("method") or "GET").upper()
+        read_only = method in ("GET", "HEAD")
+        applies = (not read_only) or (arg_name == "query" and bool(ctx.get("query_from_data")))
+        sensitive = (
+            arriving_label.integrity == Integrity.UNTRUSTED.value
+            or arriving_label.confidentiality == Confidentiality.SECRET.value
+        )
+        if applies and sensitive and not ctx.get("host_allowlisted"):
+            host = ctx.get("host") or "an unknown host"
+            violations.append(
+                RuleViolation(
+                    node_id=node_id,
+                    target_arg=arg_name,
+                    path=path,
+                    reason=(
+                        f"Untrusted or secret data in {arg_name!r} of a {method} request may only be sent to "
+                        f"admin-allowlisted internal hosts, not {host}."
+                    ),
+                )
+            )
+
     return violations
+
+
+def evaluate_control_dependency(
+    node_id: str,
+    side_effect: SideEffectClass,
+    control_label: Label | None,
+    path: list[str],
+) -> list[RuleViolation]:
+    """DESTRUCTIVE sinks require a TRUSTED control dependency (2.3).
+
+    The control label is the join of every condition predicate (and failure path) that decides
+    whether the node runs. EXTERNAL_SEND sinks keep their per-argument rules instead.
+    """
+    if side_effect != SideEffectClass.DESTRUCTIVE or control_label is None:
+        return []
+    if control_label.integrity == Integrity.TRUSTED.value:
+        return []
+    return [
+        RuleViolation(
+            node_id=node_id,
+            target_arg="(control)",
+            path=path,
+            reason=(
+                f"Destructive sink {node_id!r} is reached through a branch decided by untrusted data "
+                f"(control dependency from {sorted(control_label.sources)}); destructive sinks need a "
+                "trusted control dependency."
+            ),
+        )
+    ]
