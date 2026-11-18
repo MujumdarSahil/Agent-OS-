@@ -43,6 +43,7 @@ from agentos.storage.models import (
     entity_key,
     utcnow,
 )
+from agentos.storage.atomic import atomic_write_text
 from agentos.storage.ports import DuplicateIdempotencyKeyError, FencingTokenError, ReadOnlyEntityError, Storage
 
 M = TypeVar("M", bound=BaseModel)
@@ -59,18 +60,12 @@ def safe_key(name: str) -> str:
 
 
 def _atomic_write(path: Path, text: str, private: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        if private:
-            os.chmod(tmp, 0o600)  # best effort on Windows
-        os.replace(tmp, path)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
+    """Temp file in the same folder, flush + fsync, then os.replace (see agentos.storage.atomic)."""
+    atomic_write_text(path, text, private=private)
+
+
+class CorruptStoreError(ValueError):
+    """A store file exists but cannot be parsed. It is never overwritten automatically."""
 
 
 # ---------------------------------------------------------------------------
@@ -234,20 +229,58 @@ class FileToolRepository(JsonDirRepository[ToolRecord]):
 
 
 class JsonFileMapRepository(Generic[M]):
-    """All entities in a single JSON object file (used for the Standalone vault)."""
+    """All entities in a single JSON object file (used for the Standalone vault).
 
-    def __init__(self, path: Path, model: Type[M], private: bool = False):
+    Fail closed: a file that exists but is not a JSON object (empty, zero-filled, truncated) raises
+    CorruptStoreError on every read AND write, so it is never silently replaced by a new empty map.
+    With ``backup=True`` the previous good file is kept as ``<name>.bak`` before each write.
+    """
+
+    def __init__(self, path: Path, model: Type[M], private: bool = False, backup: bool = False):
         self._path = path
         self._model = model
         self._private = private
+        self._backup = backup
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    @staticmethod
+    def parse(raw: bytes) -> Dict[str, Any]:
+        """The map in ``raw``; raises ValueError when it is not a JSON object."""
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("top level is not a JSON object")
+        return data
+
+    @classmethod
+    def _is_good(cls, raw: bytes) -> bool:
+        try:
+            cls.parse(raw)
+            return True
+        except (ValueError, UnicodeDecodeError):
+            return False
 
     def _load(self) -> Dict[str, Any]:
         if not self._path.exists():
             return {}
-        return json.loads(self._path.read_text(encoding="utf-8") or "{}")
+        raw = self._path.read_bytes()
+        try:
+            return self.parse(raw)
+        except (ValueError, UnicodeDecodeError) as e:
+            bak = self._path.with_name(self._path.name + ".bak")
+            raise CorruptStoreError(
+                f"{self._path} exists but cannot be read ({len(raw)} bytes, not a JSON object: it may be "
+                f"truncated or zero-filled). AgentOS will not overwrite it. "
+                f"A previous good copy may exist at {bak}. Restore it or move the damaged file aside."
+            ) from e
 
     def _save(self, data: Dict[str, Any]) -> None:
-        _atomic_write(self._path, json.dumps(data, indent=2, sort_keys=True), private=self._private)
+        atomic_write_text(
+            self._path, json.dumps(data, indent=2, sort_keys=True),
+            private=self._private, backup=self._backup, is_good=self._is_good,
+        )
 
     async def list(self) -> List[M]:
         return [self._model.model_validate(v) for _, v in sorted(self._load().items())]
@@ -632,7 +665,7 @@ def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> St
         mcp_servers=JsonDirRepository(meta / "mcp_servers", MCPServerRecord),
         provider_configs=JsonDirRepository(meta / "providers", ProviderConfigRecord),
         credentials=JsonFileMapRepository(
-            Path(vault_path) if vault_path else default_vault_path(), EncryptedSecretRecord, private=True
+            Path(vault_path) if vault_path else default_vault_path(), EncryptedSecretRecord, private=True, backup=True
         ),
         runs=FileRunRepository(project_path),
         checkpoints=FileCheckpointRepository(project_path),

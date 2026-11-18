@@ -419,16 +419,16 @@ async def test_vault_crud_masked_values_only(file_client):
     """Vault keys: masked hints only (sk-...abcd), plaintext NEVER returned."""
     raw_secret = "sk-proj-supersecretkey1234567890abcdef"
     payload = {
-        "name": "openai_api_key",
+        "name": "fake_test_provider_key",
         "secret": raw_secret,
-        "provider": "openai",
+        "provider": "fake-provider",
     }
     # 1. Put key
     r = await file_client.post("/api/v2/vault/keys", json=payload)
     assert r.status_code == 200
     created = r.json()
-    assert created["name"] == "openai_api_key"
-    assert created["provider"] == "openai"
+    assert created["name"] == "fake_test_provider_key"
+    assert created["provider"] == "fake-provider"
     assert created["hint"].startswith("sk-")
     assert created["hint"].endswith("cdef")
     # Assert plaintext secret is NOT in the response
@@ -440,19 +440,19 @@ async def test_vault_crud_masked_values_only(file_client):
     assert r.status_code == 200
     keys = r.json()
     assert len(keys) >= 1
-    target = next((k for k in keys if k["name"] == "openai_api_key"), None)
+    target = next((k for k in keys if k["name"] == "fake_test_provider_key"), None)
     assert target is not None
     assert target["hint"].endswith("cdef")
     assert raw_secret not in str(keys)
 
     # 3. Delete key
-    r = await file_client.delete("/api/v2/vault/keys/openai_api_key")
+    r = await file_client.delete("/api/v2/vault/keys/fake_test_provider_key")
     assert r.status_code == 200
     assert r.json() == {"deleted": True}
 
     # Verify list is empty of this key
     r = await file_client.get("/api/v2/vault/keys")
-    assert not any(k["name"] == "openai_api_key" for k in r.json())
+    assert not any(k["name"] == "fake_test_provider_key" for k in r.json())
 
 
 # ---------------------------------------------------------------------------

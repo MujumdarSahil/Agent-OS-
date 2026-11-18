@@ -53,15 +53,15 @@ def _flip_last_byte(b64: str) -> str:
 
 @pytest.mark.asyncio
 async def test_put_and_reveal_roundtrip(vault):
-    info = await vault.put("openai", SECRET, provider="openai")
+    info = await vault.put("fake_provider_a", SECRET, provider="fake_provider_a")
     assert info.hint == "sk-...EKEY"
-    assert await vault.reveal("openai") == SECRET
-    assert await vault.reveal("OpenAI") == SECRET  # same slug rules as every repository
+    assert await vault.reveal("fake_provider_a") == SECRET
+    assert await vault.reveal("Fake_Provider_A") == SECRET  # same slug rules as every repository
 
 
 @pytest.mark.asyncio
 async def test_no_plaintext_in_store_listing_or_info(vault, tmp_path):
-    info = await vault.put("openai", SECRET)
+    info = await vault.put("fake_provider_a", SECRET)
     stored = (tmp_path / "vault.json").read_text(encoding="utf-8")
     listed = await vault.list()
     assert SECRET not in stored
@@ -79,21 +79,21 @@ async def test_each_encryption_uses_fresh_key_and_nonce(master):
 
 @pytest.mark.parametrize("field", ["ciphertext", "wrapped_dek", "nonce"])
 def test_tampering_is_detected(master, field):
-    record = encrypt_secret(master, "openai", SECRET)
+    record = encrypt_secret(master, "fake_provider_a", SECRET)
     tampered = record.model_copy(update={field: _flip_last_byte(getattr(record, field))})
     with pytest.raises(VaultIntegrityError):
         decrypt_secret(master, tampered)
 
 
 def test_ciphertext_is_bound_to_its_entry_name(master):
-    record = encrypt_secret(master, "openai", SECRET)
-    moved = record.model_copy(update={"name": "anthropic"})
+    record = encrypt_secret(master, "fake_provider_a", SECRET)
+    moved = record.model_copy(update={"name": "fake_provider_c"})
     with pytest.raises(VaultIntegrityError):
         decrypt_secret(master, moved)
 
 
 def test_wrong_master_key_is_rejected(master):
-    record = encrypt_secret(master, "openai", SECRET)
+    record = encrypt_secret(master, "fake_provider_a", SECRET)
     other = MasterKey.generate()
     with pytest.raises(VaultKeyMismatch):
         decrypt_secret(other, record)
@@ -104,11 +104,11 @@ def test_wrong_master_key_is_rejected(master):
 
 @pytest.mark.asyncio
 async def test_update_keeps_created_at_and_replaces_value(vault):
-    first = await vault.put("groq", SECRET)
-    second = await vault.put("groq", SECRET + "-rotated")
+    first = await vault.put("fake_provider_b", SECRET)
+    second = await vault.put("fake_provider_b", SECRET + "-rotated")
     assert second.created_at == first.created_at
     assert second.updated_at >= first.updated_at
-    assert await vault.reveal("groq") == SECRET + "-rotated"
+    assert await vault.reveal("fake_provider_b") == SECRET + "-rotated"
 
 
 @pytest.mark.asyncio
@@ -186,7 +186,7 @@ async def backend_storage(request, tmp_path):
 @pytest.mark.asyncio
 async def test_vault_roundtrip_on_backend(backend_storage, master):
     vault = Vault(backend_storage.credentials, master)
-    await vault.put("anthropic", SECRET, provider="anthropic")
-    assert await vault.reveal("anthropic") == SECRET
-    raw = await backend_storage.credentials.get("anthropic")
+    await vault.put("fake_provider_c", SECRET, provider="fake_provider_c")
+    assert await vault.reveal("fake_provider_c") == SECRET
+    raw = await backend_storage.credentials.get("fake_provider_c")
     assert SECRET not in raw.model_dump_json()

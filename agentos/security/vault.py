@@ -28,6 +28,7 @@ from typing import List, Optional
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from agentos.storage.atomic import atomic_write_text
 from agentos.storage.models import EncryptedSecretRecord, entity_key, utcnow
 from agentos.storage.ports import NamedRepository
 
@@ -50,6 +51,10 @@ class VaultIntegrityError(VaultError):
 
 class SecretNotFound(VaultError, KeyError):
     pass
+
+
+class VaultFileError(VaultError):
+    """The Standalone vault file exists but cannot be read or decrypted with the current master key."""
 
 
 def default_master_key_path() -> Path:
@@ -94,14 +99,20 @@ class MasterKey:
             return cls.from_b64(env)
         path = Path(path) if path else default_master_key_path()
         if path.exists():
-            return cls.from_b64(path.read_text(encoding="ascii"))
+            try:
+                return cls.from_b64(path.read_text(encoding="ascii"))
+            except (ValueError, UnicodeDecodeError) as e:
+                # Fail closed: never generate a new key over an existing (damaged) key file.
+                raise VaultError(
+                    f"master key file {path} exists but is not a valid 32-byte base64 key "
+                    f"(it may be truncated or zero-filled). AgentOS will not replace it."
+                ) from e
         if not create:
             raise VaultError(f"no master key: set AGENTOS_MASTER_KEY or create {path}")
         key = cls.generate()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="ascii") as f:
-            f.write(key.to_b64() + "\n")
+        if path.exists():  # created by another process meanwhile: use it, never overwrite
+            return cls.load(path, create=False)
+        atomic_write_text(path, key.to_b64() + "\n", private=True, encoding="ascii")
         return key
 
 
@@ -164,6 +175,38 @@ def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
 
 def _info(record: EncryptedSecretRecord) -> SecretInfo:
     return SecretInfo(record.name, record.provider, record.hint, record.key_id, record.created_at, record.updated_at)
+
+
+def verify_vault_file(path: Path, master: MasterKey) -> int:
+    """Startup check for the Standalone vault file; returns the number of entries.
+
+    Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+    truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+    are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+    Messages name the file and the backup, never entry contents.
+    """
+    import json
+
+    path = Path(path)
+    if not path.exists():
+        return 0
+    bak = path.with_name(path.name + ".bak")
+    hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+    raw = path.read_bytes()
+    try:
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("top level is not a JSON object")
+    except (ValueError, UnicodeDecodeError) as e:
+        raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+    for value in data.values():
+        try:
+            decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+        except VaultKeyMismatch as e:
+            raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+        except (VaultIntegrityError, ValueError) as e:
+            raise VaultFileError(f"vault file {path} has an entry that fails its integrity check. {hint}") from e
+    return len(data)
 
 
 class Vault:
