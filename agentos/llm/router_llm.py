@@ -103,6 +103,22 @@ def _start_cooldown(provider: str, seconds: float, reason: str) -> None:
             _cooldowns[provider] = (time.monotonic() + seconds, reason)
 
 
+def cooldown_snapshot() -> dict[str, dict[str, Any]]:
+    """Read-only view of the circuit breaker: provider -> {seconds_left, error_class} (2.4e).
+
+    In-memory and per process: it is empty after a restart and shows only this process's view.
+    Contains error class names only, never error text or key material.
+    """
+    now = time.monotonic()
+    with _cooldown_lock:
+        items = list(_cooldowns.items())
+    return {
+        p: {"seconds_left": round(until - now, 1), "error_class": reason}
+        for p, (until, reason) in items
+        if until > now
+    }
+
+
 def reset_cooldowns() -> None:
     """Clear the circuit breaker (tests, or after the operator fixes a key)."""
     with _cooldown_lock:

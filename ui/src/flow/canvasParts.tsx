@@ -37,12 +37,17 @@ export const CATEGORY_STYLE: Record<NodeCategory, { color: string; icon: LucideI
 }
 
 /** Callbacks the editor provides to node cards (kept out of node data so it stays serialisable). */
-export const BuilderActions = createContext<{ onAddNext: (nodeId: string, branch: string | null) => void }>({
+export const BuilderActions = createContext<{ onAddNext: (nodeId: string, branch: string | null) => void; vertical?: boolean }>({
   onAddNext: () => undefined,
+  vertical: false,
 })
 
+/** `top` is the position along the output side: right edge (left-to-right) or bottom edge (top-to-bottom). */
 function PlusButton({ nodeId, branch, top }: { nodeId: string; branch: string | null; top: string }) {
-  const { onAddNext } = useContext(BuilderActions)
+  const { onAddNext, vertical } = useContext(BuilderActions)
+  const place = vertical
+    ? { left: top === '35%' ? '30%' : top === '72%' ? '70%' : '50%', bottom: -30, transform: 'translateX(-50%)' }
+    : { right: -34, top, transform: 'translateY(-50%)' }
   return (
     <button
       type="button"
@@ -55,7 +60,7 @@ function PlusButton({ nodeId, branch, top }: { nodeId: string; branch: string | 
         onAddNext(nodeId, branch)
       }}
       style={{
-        position: 'absolute', right: -34, top, transform: 'translateY(-50%)', width: 20, height: 20,
+        position: 'absolute', ...place, width: 20, height: 20,
         borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-card)',
         color: 'var(--text-secondary)', fontSize: 14, lineHeight: '16px', padding: 0, cursor: 'pointer',
       }}
@@ -75,6 +80,15 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
   const border = data.violated ? '2px solid var(--accent-red)' : selected ? '2px solid var(--border-focus)' : '1px solid var(--border)'
   const isCondition = type === 'condition'
   const canFail = !isTrigger(type) && type !== 'error_handler'
+  const { vertical } = useContext(BuilderActions)
+  const inPos = vertical ? Position.Top : Position.Left
+  const outPos = vertical ? Position.Bottom : Position.Right
+  const branchStyle = (at: '35%' | '72%', color: string) =>
+    vertical ? { left: at === '35%' ? '30%' : '70%', background: color } : { top: at, background: color }
+  const branchLabel = (at: '35%' | '72%') =>
+    vertical
+      ? { position: 'absolute' as const, bottom: 2, left: at === '35%' ? '30%' : '70%', transform: 'translateX(-50%)' }
+      : { position: 'absolute' as const, right: 6, top: at, transform: 'translateY(-50%)' }
   return (
     <div
       data-testid={`flow-node-${id}`}
@@ -90,7 +104,7 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
         color: 'var(--text-primary)', fontSize: 12,
       }}
     >
-      {!isTrigger(type) && <Handle type="target" position={Position.Left} />}
+      {!isTrigger(type) && <Handle type="target" position={inPos} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Icon size={14} color={style.color} aria-label={style.label} />
         <strong className="font-mono truncate" style={{ flex: 1 }}>{id}</strong>
@@ -120,16 +134,16 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
       )}
       {isCondition ? (
         <>
-          <Handle type="source" id="true" position={Position.Right} style={{ top: '35%', background: 'var(--accent-green)' }} />
-          <span style={{ position: 'absolute', right: 6, top: '35%', transform: 'translateY(-50%)', fontSize: 9, color: 'var(--accent-green)' }}>true</span>
+          <Handle type="source" id="true" position={outPos} style={branchStyle('35%', 'var(--accent-green)')} />
+          <span style={{ ...branchLabel('35%'), fontSize: 9, color: 'var(--accent-green)' }}>true</span>
           <PlusButton nodeId={id} branch="true" top="35%" />
-          <Handle type="source" id="false" position={Position.Right} style={{ top: '72%', background: 'var(--text-muted)' }} />
-          <span style={{ position: 'absolute', right: 6, top: '72%', transform: 'translateY(-50%)', fontSize: 9, color: 'var(--text-muted)' }}>false</span>
+          <Handle type="source" id="false" position={outPos} style={branchStyle('72%', 'var(--text-muted)')} />
+          <span style={{ ...branchLabel('72%'), fontSize: 9, color: 'var(--text-muted)' }}>false</span>
           <PlusButton nodeId={id} branch="false" top="72%" />
         </>
       ) : (
         <>
-          <Handle type="source" position={Position.Right} />
+          <Handle type="source" position={outPos} />
           <PlusButton nodeId={id} branch={null} top="50%" />
         </>
       )}
@@ -137,9 +151,9 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
         <Handle
           type="source"
           id="on_error"
-          position={Position.Bottom}
+          position={vertical ? Position.Right : Position.Bottom}
           title="on error -> error_handler"
-          style={{ left: '85%', background: 'var(--accent-red)', width: 9, height: 9 }}
+          style={vertical ? { top: '80%', background: 'var(--accent-red)', width: 9, height: 9 } : { left: '85%', background: 'var(--accent-red)', width: 9, height: 9 }}
         />
       )}
     </div>

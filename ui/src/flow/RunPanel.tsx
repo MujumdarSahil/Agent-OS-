@@ -12,7 +12,7 @@ import { apiErrorMessage, decideApproval, listRuns, runEventsUrl, startRun } fro
 import {
   blockedCalls, eventSummary, finalOutput, formatMs, mergeEvents, missingSeqs, nodeIO, nodeStatuses, pendingApproval,
   runStatusFromEvents, runTiming, stepTimeline, triggerOf,
-  type LabelInfo, type RunEvent,
+  type BlockedCall, type LabelInfo, type PendingApproval, type RunEvent,
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
 
@@ -44,26 +44,103 @@ export function UntrustedText({ value, untrusted = true }: { value: unknown; unt
   )
 }
 
-function LabelBadge({ label }: { label?: LabelInfo }) {
+/** Integrity/confidentiality badge. A pinned value reads "pinned in flow" (its source is the flow author). */
+export function LabelBadge({ label, pinned = false }: { label?: LabelInfo; pinned?: boolean }) {
   if (!label) return <span className="badge badge-default" data-testid="label-badge" data-integrity="unknown">label unknown</span>
   const untrusted = label.integrity !== 'trusted'
+  const sources = label.sources ?? []
   return (
     <span
       className="badge"
       data-testid="label-badge"
       data-integrity={label.integrity}
-      style={{ background: untrusted ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', color: untrusted ? 'var(--accent-red)' : 'var(--accent-green)' }}
-      title={`confidentiality: ${label.confidentiality}; sources: ${label.sources.join(', ') || '-'}`}
+      style={{ background: untrusted ? 'rgba(239,68,68,0.15)' : 'rgba(45,212,191,0.15)', color: untrusted ? 'var(--accent-red)' : 'var(--accent-teal, #2dd4bf)' }}
+      title={`confidentiality: ${label.confidentiality}; sources: ${pinned ? 'pinned in flow' : sources.join(', ') || '-'}`}
     >
       {untrusted ? 'UNTRUSTED' : 'trusted'} · {label.confidentiality}
-      {label.sources.length ? ` · from ${label.sources.join(', ')}` : ''}
+      {!pinned && sources.length ? ` · from ${sources.join(', ')}` : ''}
     </span>
   )
 }
 
+/** 2.4d-fix approval card: the exact sink call with every argument and its label (reused on Overview/Approvals). */
+export function ApprovalCard({
+  approval, deciding, onDecide, title,
+}: {
+  approval: PendingApproval
+  deciding: boolean
+  onDecide: (approve: boolean) => void
+  title?: React.ReactNode
+}) {
+  return (
+    <div className="card" style={{ margin: 8, padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
+      <div className="font-semibold">{title ?? <>Approval required: {approval.nodeId}</>}</div>
+      <div className="text-muted" style={{ fontSize: 12 }}>Author prompt:</div>
+      <UntrustedText value={approval.prompt} untrusted={false} />
+      <div className="mt-2" style={{ fontSize: 12 }}>
+        Approving releases this <strong>exact</strong> call to sink <code>{approval.sinkNode ?? '?'}</code>
+        {approval.sinkArgs ? <> (every argument it will receive)</> : null}.
+        Values marked UNTRUSTED came from outside sources and are shown as plain text; pinned values are fixed in the flow.
+      </div>
+      <table style={{ width: '100%', fontSize: 12, marginTop: 6 }} data-testid="approval-call">
+        <tbody>
+          {(approval.sinkArgs ?? approval.args.map(a => ({ ...a, pinned: false, pending: false, source: undefined }))).map(a => (
+            <tr
+              key={a.name}
+              data-testid={`approval-arg-${a.name}`}
+              data-integrity={a.label?.integrity ?? 'unknown'}
+              data-pinned={a.pinned ? 'true' : 'false'}
+            >
+              <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6 }}>{a.name}</td>
+              <td>
+                <LabelBadge label={a.label} pinned={a.pinned} />
+                {a.pinned && <span className="badge badge-default" data-testid="approval-pinned" style={{ marginLeft: 4 }}>pinned in flow</span>}
+                {a.pending ? (
+                  <div className="text-muted" data-testid="approval-pending">not known yet (comes from {a.source ?? '?'}, which has not run)</div>
+                ) : (
+                  <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex gap-2 mt-2">
+        <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding} onClick={() => onDecide(true)}>Approve these values</button>
+        <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding} onClick={() => onDecide(false)}>Reject</button>
+      </div>
+    </div>
+  )
+}
+
+/** Blocked or refused calls with reason and provenance chain (Security tab, Overview, Security log). */
+export function BlockedList({ blocked, empty }: { blocked: BlockedCall[]; empty?: string }) {
+  if (!blocked.length) return <div className="text-muted" data-testid="security-empty">{empty ?? 'No blocked calls in this run.'}</div>
+  return (
+    <div data-testid="blocked-calls">
+      {blocked.map(b => (
+        <div key={`${b.nodeId}-${b.seq}`} className="mb-2" data-testid="blocked-call" data-node={b.nodeId}>
+          <div><code>{b.nodeId}</code> · {b.kind} (#{b.seq})</div>
+          <div data-testid="blocked-reason" style={{ color: 'var(--accent-red)' }}>Reason: {b.reason}</div>
+          <ol style={{ fontSize: 11, margin: '4px 0 0 16px' }} data-testid="provenance-chain">
+            {b.chain.map((s, i) => (
+              <li key={i} data-testid="provenance-step" style={{ color: s.untrusted ? 'var(--accent-red)' : undefined }}>
+                {s.text}{s.seq ? ` #${s.seq}` : ''}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Key/value table: each value with its label; anything not trusted is shown as untrusted text. */
-function LabelledValues({ values, labels, testid }: { values?: Record<string, unknown>; labels: Record<string, LabelInfo>; testid: string }) {
+/** `selfNode`: a trusted value whose only source is this node was pinned in the flow (reads "pinned in flow"). */
+function LabelledValues({ values, labels, testid, selfNode }: { values?: Record<string, unknown>; labels: Record<string, LabelInfo>; testid: string; selfNode?: string }) {
   const keys = Object.keys(values ?? {})
+  const pinnedHere = (lbl?: LabelInfo) =>
+    !!selfNode && lbl?.integrity === 'trusted' && (lbl.sources ?? []).length === 1 && lbl.sources[0] === selfNode
   if (!keys.length) return <div className="text-muted" style={{ fontSize: 12 }} data-testid={`${testid}-empty`}>none</div>
   return (
     <table style={{ width: '100%', fontSize: 12 }} data-testid={testid}>
@@ -74,7 +151,8 @@ function LabelledValues({ values, labels, testid }: { values?: Record<string, un
             <tr key={k} data-testid={`${testid}-row`} data-key={k} data-integrity={lbl?.integrity ?? 'unknown'}>
               <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6, whiteSpace: 'nowrap' }}>{k}</td>
               <td>
-                <LabelBadge label={lbl} />
+                <LabelBadge label={lbl} pinned={pinnedHere(lbl)} />
+                {pinnedHere(lbl) && <span className="badge badge-default" data-testid="value-pinned" style={{ marginLeft: 4 }}>pinned in flow</span>}
                 <UntrustedText value={values![k]} untrusted={lbl?.integrity !== 'trusted'} />
               </td>
             </tr>
@@ -243,7 +321,9 @@ export default function ResultsPanel({
   onInspectNode,
   onStatuses,
   onClose,
+  dock = 'bottom',
 }: {
+  dock?: 'bottom' | 'right'
   flowId: string
   runId: string | null
   onSelectRun: (runId: string) => void
@@ -254,6 +334,8 @@ export default function ResultsPanel({
 }) {
   const [tab, setTab] = useState<Tab>('output')
   const [height, setHeight] = useState(320)
+  const [width, setWidth] = useState(470) // 2.4e: right-docked panel (top-to-bottom flows)
+  const right = dock === 'right'
   const [collapsed, setCollapsed] = useState(false)
   const [deciding, setDeciding] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -307,8 +389,13 @@ export default function ResultsPanel({
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault()
     const y0 = e.clientY
+    const x0 = e.clientX
     const h0 = height
-    const move = (ev: MouseEvent) => setHeight(Math.min(Math.max(160, h0 + (y0 - ev.clientY)), window.innerHeight - 200))
+    const w0 = width
+    const move = (ev: MouseEvent) =>
+      right
+        ? setWidth(Math.min(Math.max(320, w0 + (x0 - ev.clientX)), window.innerWidth - 520))
+        : setHeight(Math.min(Math.max(160, h0 + (y0 - ev.clientY)), window.innerHeight - 200))
     const up = () => {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
@@ -320,14 +407,23 @@ export default function ResultsPanel({
   const runs = [...(history.data ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
 
   return (
-    <div className="card" data-testid="results-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: collapsed ? 'auto' : height, flexShrink: 0 }}>
+    <div
+      className="card"
+      data-testid="results-panel"
+      data-dock={dock}
+      style={right
+        ? { padding: 0, display: 'flex', flexDirection: 'column', width: collapsed ? 'auto' : width, height: '100%', flexShrink: 0, position: 'relative' }
+        : { padding: 0, display: 'flex', flexDirection: 'column', height: collapsed ? 'auto' : height, flexShrink: 0 }}
+    >
       <div
         data-testid="results-resize"
         onMouseDown={startResize}
         title="Drag to resize"
-        style={{ height: 6, cursor: 'ns-resize', borderBottom: '1px solid var(--border)', display: collapsed ? 'none' : undefined }}
+        style={right
+          ? { position: 'absolute', left: -4, top: 0, bottom: 0, width: 8, cursor: 'ew-resize', display: collapsed ? 'none' : undefined, zIndex: 2 }
+          : { height: 6, cursor: 'ns-resize', borderBottom: '1px solid var(--border)', display: collapsed ? 'none' : undefined }}
       />
-      <div className="flex items-center gap-3" style={{ padding: '6px 10px', fontSize: 12, borderBottom: collapsed ? undefined : '1px solid var(--border)' }}>
+      <div className="flex items-center gap-3" style={{ padding: '6px 10px', fontSize: 12, borderBottom: collapsed ? undefined : '1px solid var(--border)', flexWrap: right ? 'wrap' : undefined, rowGap: 4 }}>
         <strong>Results</strong>
         {runId ? (
           <>
@@ -371,9 +467,14 @@ export default function ResultsPanel({
       </div>
 
       {!collapsed && (
-        <div className="flex" style={{ flex: 1, minHeight: 0 }}>
+        <div className="flex" style={{ flex: 1, minHeight: 0, flexDirection: right ? 'column' : 'row' }}>
           {/* run history */}
-          <div style={{ width: 230, borderRight: '1px solid var(--border)', overflowY: 'auto', fontSize: 12 }} data-testid="run-history">
+          <div
+            style={right
+              ? { maxHeight: 110, borderBottom: '1px solid var(--border)', overflowY: 'auto', fontSize: 12, flexShrink: 0 }
+              : { width: 230, borderRight: '1px solid var(--border)', overflowY: 'auto', fontSize: 12 }}
+            data-testid="run-history"
+          >
             <div className="form-label" style={{ padding: '6px 8px 0' }}>History</div>
             {runs.length === 0 && <div className="text-muted" style={{ padding: 8 }}>No runs yet.</div>}
             {runs.map(r => (
@@ -401,47 +502,9 @@ export default function ResultsPanel({
           </div>
 
           {/* main area: approval + tabs */}
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: right ? 'auto' : undefined }}>
             {error && <div style={{ color: 'var(--accent-red)', padding: '4px 10px' }} data-testid="run-error">{error}</div>}
-            {approval && (
-              <div className="card" style={{ margin: 8, padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
-                <div className="font-semibold">Approval required: {approval.nodeId}</div>
-                <div className="text-muted" style={{ fontSize: 12 }}>Author prompt:</div>
-                <UntrustedText value={approval.prompt} untrusted={false} />
-                <div className="mt-2" style={{ fontSize: 12 }}>
-                  Approving releases this <strong>exact</strong> call to sink <code>{approval.sinkNode ?? '?'}</code>
-                  {approval.sinkArgs ? <> (every argument it will receive)</> : null}.
-                  Values marked UNTRUSTED came from outside sources and are shown as plain text; pinned values are fixed in the flow.
-                </div>
-                <table style={{ width: '100%', fontSize: 12, marginTop: 6 }} data-testid="approval-call">
-                  <tbody>
-                    {(approval.sinkArgs ?? approval.args.map(a => ({ ...a, pinned: false, pending: false }))).map(a => (
-                      <tr
-                        key={a.name}
-                        data-testid={`approval-arg-${a.name}`}
-                        data-integrity={a.label?.integrity ?? 'unknown'}
-                        data-pinned={a.pinned ? 'true' : 'false'}
-                      >
-                        <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6 }}>{a.name}</td>
-                        <td>
-                          <LabelBadge label={a.label} />
-                          {a.pinned && <span className="badge badge-default" data-testid="approval-pinned" style={{ marginLeft: 4 }}>pinned</span>}
-                          {a.pending ? (
-                            <div className="text-muted" data-testid="approval-pending">not known yet (comes from {a.source ?? '?'}, which has not run)</div>
-                          ) : (
-                            <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="flex gap-2 mt-2">
-                  <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding} onClick={() => decide(true)}>Approve these values</button>
-                  <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding} onClick={() => decide(false)}>Reject</button>
-                </div>
-              </div>
-            )}
+            {approval && <ApprovalCard approval={approval} deciding={deciding} onDecide={decide} />}
 
             <div className="flex gap-1" role="tablist" style={{ padding: '6px 8px 0' }}>
               {(['output', 'steps', 'logs', 'security'] as Tab[]).map(t => (
@@ -503,33 +566,19 @@ export default function ResultsPanel({
                   ))}
                 </ol>
               )}
-              {tab === 'security' && (
-                blocked.length ? (
-                  <div data-testid="blocked-calls">
-                    {blocked.map(b => (
-                      <div key={b.seq} className="mb-2" data-testid="blocked-call" data-node={b.nodeId}>
-                        <div><code>{b.nodeId}</code> · {b.kind} (#{b.seq})</div>
-                        <div data-testid="blocked-reason" style={{ color: 'var(--accent-red)' }}>Reason: {b.reason}</div>
-                        <ol style={{ fontSize: 11, margin: '4px 0 0 16px' }} data-testid="provenance-chain">
-                          {b.chain.map((s, i) => (
-                            <li key={i} data-testid="provenance-step" style={{ color: s.untrusted ? 'var(--accent-red)' : undefined }}>
-                              {s.text}{s.seq ? ` #${s.seq}` : ''}
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-muted" data-testid="security-empty">No blocked calls in this run.</div>
-                )
-              )}
+              {tab === 'security' && <BlockedList blocked={blocked} />}
             </div>
           </div>
 
           {/* node inspector */}
           {inspectNode && (
-            <div style={{ width: 340, borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12 }} data-testid="node-inspector" data-node={inspectNode}>
+            <div
+              style={right
+                ? { maxHeight: '45%', borderTop: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12, flexShrink: 0 }
+                : { width: 340, borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12 }}
+              data-testid="node-inspector"
+              data-node={inspectNode}
+            >
               <div className="flex items-center mb-1">
                 <strong className="font-mono">{inspectNode}</strong>
                 <button className="btn btn-ghost btn-sm ml-auto" data-testid="node-inspector-close" onClick={() => onInspectNode(null)}>×</button>
@@ -539,7 +588,7 @@ export default function ResultsPanel({
               ) : (
                 <>
                   <div className="form-label">Input</div>
-                  <LabelledValues values={io.inputs} labels={io.inputLabels} testid="node-io-input" />
+                  <LabelledValues values={io.inputs} labels={io.inputLabels} testid="node-io-input" selfNode={inspectNode} />
                   <div className="form-label mt-2">Output</div>
                   {io.error ? (
                     <div style={{ color: 'var(--accent-red)' }} data-testid="node-io-error">{io.error}</div>

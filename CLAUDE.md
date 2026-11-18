@@ -102,3 +102,29 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
 (a) what changed (file list + summary), (b) every command run + raw output,
 (c) tests added with MOCK/CASSETTE/LIVE labels and counts vs baseline, (d) known gaps and
 anything skipped, (e) how the owner can reproduce the demo, (f) PR link + CI result.
+
+## Internal: test coverage (not public until 2.0 release)
+
+Overall framework test coverage: **49%** (measured across 11,110 statements by `pytest --cov=agentos` offline with mock LLM across `agentos/tests`, `agentos/server/tests`, and `agentos/packaging/tests`). Core orchestration, state, and provider layers maintain high verification:
+
+| Module / File | Statements | Missing | Coverage | Status |
+| :--- | :---: | :---: | :---: | :---: |
+| `agentos/core/checkpoint.py` | 70 | 4 | **94%** | Verified (Unit + Characterization) |
+| `agentos/core/governance.py` | 299 | 27 | **91%** | Verified (Unit + LLM Judge) |
+| `agentos/core/agent.py` | 96 | 10 | **90%** | Verified (Unit + CrewAI Mock) |
+| `agentos/core/squad.py` | 210 | 23 | **89%** | Verified (Sequential Execution) |
+| `agentos/core/federation.py` | 104 | 13 | **88%** | Verified (Sequential Handoff) |
+| `agentos/core/umb_adapter.py` | 158 | 3 | **98%** | Verified (SimpleVectorStore + Fallback Warning) |
+| `agentos/core/config_models.py` | 33 | 0 | **100%** | Verified (Pydantic Validation) |
+| `agentos/llm/llm_client.py` | 184 | 8 | **96%** | Verified (Fallback & Mock Routing) |
+| `agentos/llm/router_factory.py` | 62 | 12 | **81%** | Verified (Priority & Tags Ordering) |
+| `agentos/llm/provider_registry.py` | 33 | 11 | **67%** | Verified (Cassette / Available Checks) |
+| `agentos_server/app.py` | 76 | 9 | **88%** | Verified (FastAPI Routes) |
+| `agentos_server/run_manager.py` | 66 | 6 | **91%** | Verified (Async State Tracking) |
+| `agentos/packaging/signer.py` | 97 | 14 | **86%** | Verified (Ed25519 Signing) |
+| `agentos/packaging/pack_format.py` | 141 | 35 | **75%** | Verified (.agentpack Archive) |
+
+To run the coverage test suite locally, use:
+```bash
+pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=term
+```

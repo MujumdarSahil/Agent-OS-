@@ -26,7 +26,7 @@ import {
 import { BuilderActions, CATEGORY_STYLE, StringListField, decorateEdge, nodeTypes } from '../flow/canvasParts'
 import {
   History, autoLayout, branchForHandle, categoryOf, idError, nextNodeId, renameNode, suggestMapping,
-  NODE_H, NODE_W, type GraphState,
+  NODE_H, NODE_W, READABLE_ZOOM, fitZoom, type GraphState, type LayoutDir,
 } from '../flow/builderModel'
 import ResultsPanel, { RunDialog } from '../flow/RunPanel'
 
@@ -99,8 +99,12 @@ function Editor() {
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   // 2.4d run & inspect
-  const [showResults, setShowResults] = useState(false)
-  const [runId, setRunId] = useState<string | null>(null)
+  // 2.4e: /flows/<id>?run=<run_id> (from Overview, Runs, Approvals) opens that run in the results panel.
+  const runParam = search.get('run')
+  const [showResults, setShowResults] = useState(!!runParam)
+  const [runId, setRunId] = useState<string | null>(runParam)
+  const [layoutDir, setLayoutDir] = useState<LayoutDir>('LR')
+  const [panelDock, setPanelDock] = useState<'bottom' | 'right'>('bottom')
   const [inspectNode, setInspectNode] = useState<string | null>(null)
   const [runDialog, setRunDialog] = useState(false)
   const [showPalette, setShowPalette] = useState(isNew)
@@ -125,7 +129,17 @@ function Editor() {
     // Flows saved without layout positions (e.g. imported JSON), or whose stored positions overlap,
     // get a left-to-right auto-layout. This is display only: opening never marks the flow dirty.
     const hasPositions = Object.values(f.nodes).some(n => n.position)
-    setNodes(hasPositions && !overlapping(c.nodes) ? c.nodes : autoLayout(c.nodes, c.edges))
+    const lr = hasPositions && !overlapping(c.nodes) ? c.nodes : autoLayout(c.nodes, c.edges)
+    // 2.4e: a flow that would fit below READABLE_ZOOM left to right opens top to bottom, with the
+    // results panel docked on the right, so its text stays legible. Display only (not dirty).
+    const box = canvasRef.current?.getBoundingClientRect()
+    if (box && box.width > 0 && fitZoom(lr, box.width, box.height) < READABLE_ZOOM) {
+      setNodes(autoLayout(c.nodes, c.edges, 'TB'))
+      setLayoutDir('TB')
+      setPanelDock('right')
+    } else {
+      setNodes(lr)
+    }
     setEdges(c.edges)
     setName(f.name || f.id)
     setEntrypoint(f.entrypoint)
@@ -151,22 +165,31 @@ function Editor() {
   // (drawer, palette) does not refit, and a user who zoomed/panned keeps their view until the next toggle.
   const userMoved = useRef(false)
   const lastHeight = useRef(0)
+  const lastWidth = useRef(0)
+  const refitOnWidth = useRef(false) // 2.4e: a right-docked panel changes the width, not the height
   const [canvasH, setCanvasH] = useState(0) // the minimap would cover nodes on a short canvas
   const nodeCount = useRef(0)
   nodeCount.current = nodes.length
   useEffect(() => {
     userMoved.current = false // a panel toggle always re-fits
-  }, [showResults])
+    refitOnWidth.current = true
+  }, [showResults, panelDock])
   useEffect(() => {
     const el = canvasRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
     let timer: number | undefined
     const ro = new ResizeObserver(entries => {
       const h = Math.round(entries[0].contentRect.height)
+      const w = Math.round(entries[0].contentRect.width)
       const prev = lastHeight.current
+      const prevW = lastWidth.current
       lastHeight.current = h
+      lastWidth.current = w
       setCanvasH(h)
-      if (!prev || Math.abs(h - prev) < 8 || !nodeCount.current || userMoved.current) return
+      const widthFit = refitOnWidth.current && prevW > 0 && Math.abs(w - prevW) >= 8
+      if (widthFit) refitOnWidth.current = false
+      if (!nodeCount.current || userMoved.current) return
+      if (!widthFit && (!prev || Math.abs(h - prev) < 8)) return
       window.clearTimeout(timer)
       timer = window.setTimeout(() => void rf.fitView(FIT), 60)
     })
@@ -383,8 +406,11 @@ function Editor() {
     setDrawer({ kind: 'node', id: newId.trim() })
     return null
   }
-  const doLayout = () => {
-    commit(g => ({ ...g, nodes: autoLayout(g.nodes, g.edges) }))
+  const doLayout = (dir: LayoutDir = layoutDir) => {
+    commit(g => ({ ...g, nodes: autoLayout(g.nodes, g.edges, dir) }))
+    setLayoutDir(dir)
+    setPanelDock(dir === 'TB' ? 'right' : 'bottom')
+    userMoved.current = false
     setPendingFit(true)
   }
 
@@ -482,7 +508,10 @@ function Editor() {
       }),
     [edges, loops, highlights, drawer],
   )
-  const actions = useMemo(() => ({ onAddNext: (id: string, branch: string | null) => setPicker({ from: id, branch }) }), [])
+  const actions = useMemo(
+    () => ({ onAddNext: (id: string, branch: string | null) => setPicker({ from: id, branch }), vertical: layoutDir === 'TB' }),
+    [layoutDir],
+  )
 
   if (specsQ.isLoading || (!isNew && flowQ.isLoading)) return <div className="empty-state">Loading…</div>
   if (specsQ.error) return <div className="empty-state">Could not load node specs: {apiErrorMessage(specsQ.error)}</div>
@@ -490,6 +519,21 @@ function Editor() {
 
   const drawerNode = drawer?.kind === 'node' ? nodes.find(n => n.id === drawer.id) : undefined
   const drawerEdge = drawer?.kind === 'edge' ? edges.find(e => e.id === drawer.id) : undefined
+  const resultsPanel = (
+    <ResultsPanel
+      flowId={flowId}
+      runId={runId}
+      dock={panelDock}
+      onSelectRun={id => {
+        setRunId(id)
+        setInspectNode(null)
+      }}
+      inspectNode={inspectNode}
+      onInspectNode={setInspectNode}
+      onStatuses={onRunStatuses}
+      onClose={() => setShowResults(false)}
+    />
+  )
 
   return (
     <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 48px)' }}>
@@ -499,10 +543,31 @@ function Editor() {
         <input className="form-input" style={{ width: 220 }} aria-label="Flow name" value={name} onChange={e => { setName(e.target.value); markDirty() }} />
         <span className="badge badge-default" data-testid="flow-status">{status}</span>
         {dirty && <span className="text-muted" data-testid="unsaved">unsaved changes</span>}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="btn btn-ghost btn-sm" data-testid="undo" onClick={undo} disabled={!history.current.canUndo} title="Undo (Ctrl+Z)">Undo</button>
           <button className="btn btn-ghost btn-sm" data-testid="redo" onClick={redo} disabled={!history.current.canRedo} title="Redo (Ctrl+Y)">Redo</button>
-          <button className="btn btn-ghost btn-sm" data-testid="auto-layout" onClick={doLayout} disabled={!nodes.length}>Auto-layout</button>
+          <button className="btn btn-ghost btn-sm" data-testid="auto-layout" onClick={() => doLayout()} disabled={!nodes.length}>Auto-layout</button>
+          <button
+            className="btn btn-ghost btn-sm"
+            data-testid="layout-dir"
+            data-dir={layoutDir}
+            onClick={() => doLayout(layoutDir === 'TB' ? 'LR' : 'TB')}
+            disabled={!nodes.length}
+            title="Re-arrange the nodes in the other direction"
+          >
+            {layoutDir === 'TB' ? 'Left to right' : 'Top to bottom'}
+          </button>
+          {showResults && (
+            <button
+              className="btn btn-ghost btn-sm"
+              data-testid="panel-dock"
+              data-dock={panelDock}
+              onClick={() => setPanelDock(d => (d === 'right' ? 'bottom' : 'right'))}
+              title="Show the results panel below or beside the canvas"
+            >
+              {panelDock === 'right' ? 'Results below' : 'Results beside'}
+            </button>
+          )}
           <button className="btn btn-ghost btn-sm" data-testid="toggle-palette" aria-pressed={showPalette} onClick={() => setShowPalette(v => !v)}>
             {showPalette ? 'Hide nodes' : 'Add nodes'}
           </button>
@@ -675,21 +740,9 @@ function Editor() {
           )}
         </div>
         )}
+        {showResults && panelDock === 'right' && resultsPanel}
       </div>
-      {showResults && (
-        <ResultsPanel
-          flowId={flowId}
-          runId={runId}
-          onSelectRun={id => {
-            setRunId(id)
-            setInspectNode(null)
-          }}
-          inspectNode={inspectNode}
-          onInspectNode={setInspectNode}
-          onStatuses={onRunStatuses}
-          onClose={() => setShowResults(false)}
-        />
-      )}
+      {showResults && panelDock === 'bottom' && resultsPanel}
     </div>
   )
 }
@@ -1018,7 +1071,9 @@ function ViolationList({ violations, edges }: { violations: Violation[]; edges: 
   const explain = violations.filter(v => /^[A-Za-z_][\w.]*$/.test(v.target_arg))
   return (
     <div className="card" style={{ padding: 10, borderColor: 'var(--accent-red)' }} data-testid="violation-list">
-      <div className="font-semibold mb-1" style={{ color: 'var(--accent-red)' }}>Publish refused: security violations</div>
+      <div className="font-semibold mb-1" style={{ color: 'var(--accent-red)' }} data-testid="violation-heading">
+        Why: {violations.length} security violation{violations.length === 1 ? '' : 's'}
+      </div>
       {explain.map((v, i) => {
         const arg = v.target_arg.split('.').pop()!
         const chain = dataOrigin(edges, v.node_id, arg)

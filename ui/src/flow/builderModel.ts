@@ -151,11 +151,29 @@ export function configSummary(node: CanvasNode): string {
 export const NODE_W = 230
 export const NODE_H = 96
 
-/** Left-to-right dagre layout; returns a new node array with updated positions. */
-export function autoLayout(nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNode[] {
+export type LayoutDir = 'LR' | 'TB'
+
+/** Zoom at which the nodes' bounding box fits a w x h canvas (padding included); 1 when there are no nodes. */
+export function fitZoom(nodes: CanvasNode[], w: number, h: number, padding = 0.08): number {
+  if (!nodes.length || w <= 0 || h <= 0) return 1
+  const xs = nodes.map(n => n.position.x)
+  const ys = nodes.map(n => n.position.y)
+  const bw = Math.max(...xs) - Math.min(...xs) + NODE_W
+  const bh = Math.max(...ys) - Math.min(...ys) + NODE_H
+  return Math.min((w * (1 - 2 * padding)) / bw, (h * (1 - 2 * padding)) / bh)
+}
+
+/** Below this fit zoom a left-to-right flow is hard to read; the editor opens it top to bottom (2.4e). */
+export const READABLE_ZOOM = 0.6
+
+/** Dagre layout, left-to-right (default) or top-to-bottom; returns a new node array with updated positions. */
+export function autoLayout(nodes: CanvasNode[], edges: CanvasEdge[], dir: LayoutDir = 'LR'): CanvasNode[] {
   const g = new dagre.graphlib.Graph()
-  // ranksep leaves room for the "+" buttons and the mapping label between columns.
-  g.setGraph({ rankdir: 'LR', nodesep: 50, ranksep: 170, marginx: 20, marginy: 20 })
+  // LR: ranksep leaves room for the "+" buttons and the mapping label between columns.
+  // TB: rows are closer (labels sit beside vertical arrows), so tall flows stay readable.
+  g.setGraph(dir === 'TB'
+    ? { rankdir: 'TB', nodesep: 60, ranksep: 70, marginx: 20, marginy: 20 }
+    : { rankdir: 'LR', nodesep: 50, ranksep: 170, marginx: 20, marginy: 20 })
   g.setDefaultEdgeLabel(() => ({}))
   for (const n of nodes) g.setNode(n.id, { width: NODE_W, height: NODE_H })
   for (const e of edges) if (e.data?.loop === undefined) g.setEdge(e.source, e.target)

@@ -142,6 +142,59 @@ export const decideApproval = (flowId: string, runId: string, nodeId: string, ap
     })
     .then(r => r.data)
 
+/** All events of one run (HTTP; used by list pages to build approval cards and provenance chains). */
+export const getRunEvents = (flowId: string, runId: string) =>
+  api
+    .get<{ run_id: string; seq: number; type: string; data: Record<string, unknown>; ts?: string }[]>(
+      `/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/events`,
+    )
+    .then(r => r.data)
+
+// ---- triggers (2.4e list page; secret paths and keys are never requested or shown) ----
+
+export interface WebhookInfo { webhook_id: string; name: string; flow_id: string; rate_limit_per_minute: number; enabled: boolean; created_at?: string }
+export interface ScheduleInfo { schedule_id: string; name: string; flow_id: string; cron_expression: string; timezone: string; enabled: boolean; last_run_at?: string | null; next_run_at?: string | null }
+
+export const listWebhooks = () =>
+  api.get<WebhookInfo[]>('/v2/webhooks').then(r =>
+    r.data.map(w => ({ webhook_id: w.webhook_id, name: w.name, flow_id: w.flow_id, rate_limit_per_minute: w.rate_limit_per_minute, enabled: w.enabled, created_at: w.created_at })))
+export const listSchedules = () => api.get<ScheduleInfo[]>('/v2/schedules').then(r => r.data)
+
+// ---- overview (2.4e) ------------------------------------------------------
+
+export type OverviewWindow = '24h' | '7d'
+export type ProviderHealth = 'healthy' | 'cooling' | 'disabled' | 'no_key'
+
+export interface OverviewData {
+  window: OverviewWindow
+  generated_at: string
+  mode: 'standalone' | 'platform'
+  version: string
+  mock_llm: boolean
+  truncated: boolean
+  kpis: {
+    runs: { total: number; succeeded: number; failed: number; waiting: number; running: number }
+    attacks_blocked: number
+    waiting_for_approval: number
+    model_calls: { total: number; median_latency_ms: number | null; fallbacks: number }
+  }
+  needs_you: { waiting_approvals: number; attacks_blocked_today: number; providers_cooling: number }
+  recent_runs: {
+    run_id: string; flow_id: string; flow_version?: number | null; trigger: string; status: string
+    answered_by: { provider?: string; model?: string; fallback: boolean; mock: boolean } | null
+    started_at: string | null; duration_ms: number | null
+  }[]
+  waiting: { run_id: string; flow_id: string; node_id: string; since: string | null }[]
+  blocked: { run_id: string; flow_id: string; seq: number; kind: string; node_id: string; tool_name?: string | null; reason: string; ts: string | null }[]
+  providers: { name: string; display_name: string; order: number; state: ProviderHealth; cooling_s: number | null; cooling_reason: string | null; has_key: boolean }[]
+  flows: { flow_id: string; name: string; latest_version: number | null; updated_at: string | null }[]
+  getting_started: { key_added: boolean; flow_published: boolean; first_run: boolean; first_approval: boolean; webhook_created: boolean }
+}
+
+/** Read-only aggregate of runs, events, flows and provider health (metadata only). */
+export const getOverview = (window: OverviewWindow) =>
+  api.get<OverviewData>('/v2/overview', { params: { window } }).then(r => r.data)
+
 /** WebSocket URL for run events; token travels in the subprotocol, never in the URL. */
 export function runEventsUrl(flowId: string, runId: string, afterSeq: number): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
