@@ -1,0 +1,9 @@
+﻿history_trigger: webhook
+settled: {"status":"waiting","waitedMs":524}
+steps: [{"node":"ticket","status":"succeeded","duration":"11 ms"},{"node":"triage","status":"succeeded","duration":"911 ms","llm":"groq_gpt_oss_20b · groq/openai/gpt-oss-20b · 567 tokens · groq_gpt_oss_20b: ok (groq/openai/gpt-oss-20b) · 788 ms"},{"node":"lookup","status":"succeeded","duration":"824 ms"},{"node":"is_urgent","status":"succeeded","duration":"13 ms"},{"node":"oncall_approval","status":"waiting","duration":"11 ms"}]
+approval_card: [{"arg":"body","integrity":"untrusted","label":"UNTRUSTED · internal · from ticket"}]
+after_approve: succeeded
+sink_intent: 1
+sink_committed: 1
+send_count: 1
+sinks: {"sinks":["sink_intent:page_oncall","sink_committed:page_oncall"],"attacker":false}
