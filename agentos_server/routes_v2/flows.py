@@ -148,7 +148,13 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
 
     # Run publish gate verification
     policy = getattr(request.app.state, "security_policy", None) or SecurityPolicy()
-    analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy, subflow_summaries=summaries)
+    # 2.5a: same tool lookup as the runtime proxy (built-ins + approved MCP tools); unreviewed or changed
+    # MCP tools refuse publish, and the summary records the hashes of the MCP tools this version uses.
+    from agentos.flows.tool_catalog import ToolCatalog
+
+    mcp_repo = getattr(storage, "mcp_servers", None)
+    catalog = ToolCatalog(await mcp_repo.list() if mcp_repo is not None else [])
+    analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy, subflow_summaries=summaries, tool_catalog=catalog)
     res = analyzer.verify()
     if not res.is_valid:
         violations_payload = [

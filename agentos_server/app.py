@@ -146,6 +146,8 @@ def create_app(
                 app.state.storage = await open_mongo_storage(mongo_uri)
                 from agentos.security.vault import Vault
                 app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                if getattr(app.state, "mcp_manager", None) is not None:
+                    app.state.mcp_manager.storage = app.state.storage
                 app.state.queue.set_storage(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
@@ -228,6 +230,12 @@ def create_app(
         if getattr(app.state, "inprocess_worker", None) is not None:
             await app.state.inprocess_worker.stop()
             app.state.inprocess_worker = None
+        # 2.5a: stop every MCP server child process (no orphans)
+        if getattr(app.state, "mcp_manager", None) is not None:
+            try:
+                await app.state.mcp_manager.stop_all("shutdown")
+            except Exception:
+                logger.exception("Stopping MCP servers failed")
         # Stop scheduler
         if hasattr(app.state, "scheduler") and app.state.scheduler:
             try:
@@ -336,6 +344,17 @@ def create_app(
         except VaultFileError as e:
             raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
     app.state.vault = Vault(app.state.storage.credentials, master_key)
+
+    # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
+    # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.
+    from agentos.mcp.manager import MCPManager
+
+    app.state.mcp_manager = MCPManager(
+        project_path=project_path,
+        storage=app.state.storage,
+        secret_resolver=lambda name: app.state.vault.reveal(name),
+        url_allowlist=list(getattr(app.state.security_policy, "http_allowlist", []) or []),
+    )
 
     # Local API token
     from agentos_server.auth import get_or_create_api_token, print_startup_auth_banner, SecurityMiddleware

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["v2-agents"])
 
 
-def validate_agent_config(config_dict: Dict[str, Any]) -> None:
+def validate_agent_config(config_dict: Dict[str, Any], catalog: Any = None) -> None:
     """Validate agent configuration against hardened agent schema (no mcps/apps/memory/knowledge_sources)."""
     validator = Draft202012Validator(AGENT_NODE_SPEC.config_schema)
     errors = sorted(validator.iter_errors(config_dict), key=lambda e: e.path)
@@ -27,14 +27,21 @@ def validate_agent_config(config_dict: Dict[str, Any]) -> None:
             detail=f"Invalid agent config: {errors[0].message}",
         )
 
-    # Tool validation: tools must be NodeSpec-known (fail-closed rule)
+    # Tool validation: tools must resolve in the shared catalog (fail-closed rule). Built-ins by bare
+    # name; MCP tools only as mcp.<server>.<tool> and only once an admin approved them (2.5a).
+    from agentos.flows.tool_catalog import BUILTIN_CATALOG, ToolLookupError
+
     tools = config_dict.get("tools") or []
     for tool_name in tools:
-        if tool_name not in BUILTIN_NODE_SPECS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Tool '{tool_name}' has no declared NodeSpec (fail closed)",
+        try:
+            (catalog or BUILTIN_CATALOG).resolve(tool_name)
+        except ToolLookupError as err:
+            detail = (
+                f"Tool '{tool_name}' has no declared NodeSpec (fail closed)"
+                if tool_name in BUILTIN_NODE_SPECS or not tool_name.startswith("mcp")
+                else f"{err} (fail closed)"
             )
+            raise HTTPException(status_code=400, detail=detail)
 
 
 @router.get("", response_model=List[AgentYAMLConfig])
@@ -78,7 +85,12 @@ async def put_agent(payload: Dict[str, Any], request: Request) -> AgentYAMLConfi
         if k not in STORAGE_METADATA_KEYS and k not in config_to_validate:
             config_to_validate[k] = v
 
-    validate_agent_config(config_to_validate)
+    catalog = None
+    if any(str(t).startswith("mcp") for t in tools):
+        from agentos.flows.tool_catalog import ToolCatalog
+
+        catalog = ToolCatalog(await storage.mcp_servers.list())
+    validate_agent_config(config_to_validate, catalog)
 
     # 3. Construct AgentYAMLConfig for storage
     storage_dict = {

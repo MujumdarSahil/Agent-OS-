@@ -28,6 +28,7 @@ from agentos.flows.labels import Confidentiality, Label
 from agentos.flows.models import FlowDefinition, NodeDefinition
 from agentos.flows.policy import SecurityPolicy
 from agentos.flows.proxy import AgentOSToolProxy, MockTransport
+from agentos.flows.tool_catalog import BUILTIN_CATALOG, ToolCatalog, ToolLookupError, agent_initial_context
 from agentos.flows.rules import (
     RuleViolation,
     SinkRuleViolationError,
@@ -129,7 +130,12 @@ class FlowEngine:
         max_subflow_depth: int = cn.MAX_SUBFLOW_DEPTH,
         secret_resolver: Any | None = None,
         clock: Any | None = None,
+        mcp_manager: Any | None = None,
+        expected_mcp_hashes: dict[str, str] | None = None,
     ) -> None:
+        # 2.5a: MCP tools run through this manager; hashes recorded at publish are re-checked per run
+        self.mcp_manager = mcp_manager
+        self.expected_mcp_hashes = expected_mcp_hashes
         # 2.3: subflow nesting, vault credential resolution for http_request headers, injectable clock
         self.subflow_depth = subflow_depth
         self.max_subflow_depth = max_subflow_depth
@@ -556,6 +562,39 @@ class FlowEngine:
                     raise first_exception
                 return state
 
+    async def _agent_tool_catalog(self, state: FlowRunState, node_id: str, node: NodeDefinition) -> tuple[ToolCatalog, list[Any]]:
+        """2.5a: the tool catalog for an agent node, failing closed before the agent runs if an MCP tool
+        is not approved now or its hash differs from the one recorded when the flow was published."""
+        from agentos.mcp.catalog import is_mcp_name
+
+        names = list(node.config.get("tools", []) or [])
+        if not any(is_mcp_name(n) for n in names):
+            return BUILTIN_CATALOG, [e for e in (BUILTIN_CATALOG.try_resolve(n) for n in names) if e is not None]
+        repo = getattr(self.storage, "mcp_servers", None)
+        catalog = ToolCatalog(await repo.list() if repo is not None else [])
+        entries = []
+        for name in names:
+            try:
+                entry = catalog.resolve(name)
+            except ToolLookupError as err:
+                if not is_mcp_name(name):
+                    continue  # unknown bare names: rejected by the proxy if the model calls them (as before)
+                await self._append_event(run_id=state.run_id, type="tool_call_rejected", data={
+                    "agent_node": node_id, "tool_name": err.name, "lookup": err.reason, "reason": f"{err} (fail closed)",
+                })
+                raise ValueError(f"{err} (fail closed)") from err
+            if entry.is_mcp and self.expected_mcp_hashes is not None:
+                published = self.expected_mcp_hashes.get(entry.name)
+                if published != entry.sha256:
+                    await self._append_event(run_id=state.run_id, type="mcp_tool_hash_mismatch", data={
+                        "agent_node": node_id, "tool_name": entry.name,
+                        "published_sha256": published, "current_sha256": entry.sha256,
+                    })
+                    raise ValueError(f"MCP tool {entry.name!r} differs from the version this flow was published with "
+                                     f"(fail closed); publish the flow again after review")
+            entries.append(entry)
+        return catalog, entries
+
     def _router_llm(self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any) -> Any:
         """AgentOSRouterLLM for an agent/llm node. Called from the event loop; used from worker threads."""
         from agentos.llm.router_llm import AgentOSRouterLLM
@@ -980,18 +1019,23 @@ class FlowEngine:
         # 5. Agent Node (CrewAI execution mediated through Tool Proxy)
         if node.type == "agent":
             loop = asyncio.get_running_loop()
+            catalog, entries = await self._agent_tool_catalog(state, node_id, node)
             proxy = AgentOSToolProxy(
                 run_id=state.run_id,
                 agent_node_id=node_id,
                 storage=self.storage,
                 policy=self.policy,
                 pinned_args=node.pinned_args,
-                agent_input_label=effective_inbound,
+                # 2.5a: same rule as the static analyzer: an unreplaced MCP description makes the context
+                # untrusted from the start (the model has read server-controlled text)
+                agent_input_label=agent_initial_context(effective_inbound, entries),
                 transport_registry=self.transport_registry,
                 loop=loop,
                 track_labels=self.track_labels,
                 lease_id=self.lease_id,
                 fencing_checker=self.fencing_checker,
+                tool_catalog=catalog,
+                mcp_manager=self.mcp_manager,
             )
 
             # Wrap tools

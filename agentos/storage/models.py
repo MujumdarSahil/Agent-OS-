@@ -69,6 +69,38 @@ class ToolRecord(BaseModel):
     origin: Literal["stored", "project"] = "stored"
 
 
+class MCPToolSnapshot(BaseModel):
+    """What a server said about one tool at discovery. All text here is server-controlled: UNTRUSTED."""
+    name: str
+    description: str = ""
+    input_schema: Dict[str, Any] = Field(default_factory=dict)
+    sha256: str  # sha256 of canonical JSON [name, description, input_schema]
+    label: Literal["untrusted"] = "untrusted"
+    source: str = ""  # "mcp:<server>"
+    discovered_at: Timestamp = Field(default_factory=utcnow)
+
+
+class MCPToolApproval(BaseModel):
+    """An admin's review of one tool. Pins the tool hash and the server launch target."""
+    approved_sha256: str
+    target_fingerprint: str
+    side_effect: Literal["read", "write", "external_send", "destructive"]
+    # arg -> SinkArgumentRule fields; empty above read means "every argument requires trusted"
+    sink_rules: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    untrusted_ok_args: List[str] = Field(default_factory=list)  # args the admin explicitly allows untrusted
+    output_confidentiality: Literal["public", "internal", "confidential", "secret"] = "internal"
+    replacement_description: Optional[str] = None  # admin-written; when set, server text never reaches the model
+    approved_at: Timestamp = Field(default_factory=utcnow)
+    approved_by: str = "local-admin"
+
+
+class MCPToolState(BaseModel):
+    snapshot: MCPToolSnapshot
+    approval: Optional[MCPToolApproval] = None
+    missing: bool = False  # not returned by the latest discovery
+    warnings: List[str] = Field(default_factory=list)
+
+
 class MCPServerRecord(BaseModel):
     """An external MCP server. Values in ``env`` must not be secrets; use ``secret_env``."""
     name: str = Field(..., min_length=1)
@@ -80,6 +112,9 @@ class MCPServerRecord(BaseModel):
     secret_env: Dict[str, str] = Field(default_factory=dict)  # ENV_VAR -> vault credential name
     # stdio servers launch host commands, so records start disabled until allowed.
     enabled: bool = False
+    # 2.5a: discovered tools (normalized name -> state) and the last discovery result
+    tools: Dict[str, MCPToolState] = Field(default_factory=dict)
+    last_discovery: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def _check_target(self):
