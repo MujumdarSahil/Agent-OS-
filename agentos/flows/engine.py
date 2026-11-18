@@ -628,6 +628,39 @@ class FlowEngine:
         # Security blocks and lease loss always stop the run; they are never routed to a handler.
         return not isinstance(err, (SinkRuleViolationError, SSRFBlockedError, FencingTokenError))
 
+    def _sink_call_preview(self, state: FlowRunState, approval_node: Any) -> dict[str, Any]:
+        """Every argument of the sink an approval node approves, for the approval card (display only).
+
+        - pinned args: value + the trusted label pinned values carry, marked ``pinned``;
+        - args mapped from the approval node: ``via_approval`` (their exact values/labels are in ``arguments``);
+        - args mapped from other nodes: current value + label, or ``pending`` if that node has not run.
+        """
+        approves = approval_node.config.get("approves", {}) or {}
+        sink_id = approves.get("sink_node")
+        sink = self.flow.nodes.get(sink_id) if sink_id else None
+        if sink is None:
+            return {}
+        preview: dict[str, Any] = {}
+        for name, value in (sink.pinned_args or {}).items():
+            preview[name] = {"value": value, "pinned": True, "label": Label.trusted(sources={sink_id}).model_dump(mode="json")}
+        for edge in self.flow.edges:
+            if edge.target != sink_id:
+                continue
+            for arg, field in edge.arg_mapping.items():
+                if arg in preview:
+                    continue
+                if edge.source == approval_node.id:
+                    preview[arg] = {"via_approval": True}
+                    continue
+                outputs = state.node_outputs.get(edge.source)
+                if outputs is None or field not in outputs:
+                    preview[arg] = {"pending": True, "source": edge.source}
+                    continue
+                lbl = state.node_output_labels.get(edge.source, {}).get(field)
+                preview[arg] = {"value": outputs[field], "source": edge.source,
+                                "label": lbl.model_dump(mode="json") if lbl else None}
+        return preview
+
     async def _execute_single_node(self, state: FlowRunState, node_id: str) -> None:
         """Execute a single node within its configured timeout and record events."""
         node = self.flow.nodes[node_id]
@@ -831,6 +864,9 @@ class FlowEngine:
                     "prompt": node.config.get("prompt", "Approval required"),
                     "approves": node.config.get("approves", {}),
                     "arguments": inputs,
+                    # 2.4d-fix: display only. The approved sink's full call (pinned args, args from
+                    # other nodes) so the approver sees every argument. Labels and decisions unchanged.
+                    "sink_args": self._sink_call_preview(state, node),
                 },
             )
             state.apply_event(wait_ev)
