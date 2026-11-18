@@ -13,6 +13,31 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Paths that are never answered with the UI (they keep their own 404s and handlers).
+_NON_UI_PREFIXES = ("api", "hooks", "ws")
+
+
+class SPAStaticFiles(StaticFiles):
+    """2.4d-fix: built UI with a single-page-app fallback.
+
+    A client route such as /flows/<id> (no file extension, not under /api, /hooks or /ws) is answered
+    with index.html so deep links and reloads work in single-port mode. Real files are served as before;
+    a missing asset (has an extension) and anything under /api, /hooks, /ws still 404. The Host and
+    token checks run in SecurityMiddleware before this, unchanged.
+    """
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            rel = path.replace("\\", "/").strip("/")  # StaticFiles passes an OS path (backslashes on Windows)
+            first = rel.split("/", 1)[0]
+            last = rel.rsplit("/", 1)[-1]
+            if exc.status_code != 404 or first in _NON_UI_PREFIXES or "." in last:
+                raise
+            return await super().get_response("index.html", scope)
 
 from agentos_server.run_manager import RunManager
 from agentos.core.governance import GovernanceEngine
@@ -360,7 +385,7 @@ def create_app(
     if ui_override and os.path.isfile(os.path.join(ui_override, "index.html")):
         frontend_dist = ui_override
     if os.path.exists(frontend_dist):
-        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+        app.mount("/", SPAStaticFiles(directory=frontend_dist, html=True), name="frontend")
         logger.info(f"Serving frontend from {frontend_dist}")
 
     return app

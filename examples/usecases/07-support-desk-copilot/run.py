@@ -151,12 +151,36 @@ async def _run_usecase_async() -> bool:
                   f"after_reject={st.status.value} outbox={len(outbox.sent_calls)} to_attacker={to_attacker}")
             ok &= passed
 
+            # 2.4d-fix: same fooled model, but the operator approves anyway: the only email still goes to the
+            # pinned recipient; the approval card already showed `to` as pinned + trusted.
+            net, outbox = FakeNetwork(), MockTransport()
+            eng = engine(storage, fd, "injection", net, outbox)
+            st = await eng.run(run_id="uc07_injection_approved", inputs=t["injection"])
+            events = await storage.events.list("uc07_injection_approved", after_seq=0)
+            card = next((e.data.get("sink_args", {}) for e in events if e.type == "node_waiting"), {})
+            st = await eng.approve("uc07_injection_approved", "oncall_approval", "approve")
+            recipients = [c["to"] for c in outbox.sent_calls]
+            passed = (st.status == RunStatus.SUCCEEDED and recipients == ["oncall@corp.local"]
+                      and card.get("to", {}).get("pinned") is True and card["to"]["label"]["integrity"] == "trusted")
+            print(f"[{'PASS' if passed else 'FAIL'}] injection approved anyway: card to={card.get('to', {}).get('value')} "
+                  f"(pinned, trusted) outbox={recipients} to_attacker={any('attacker' in r for r in recipients)}")
+            ok &= passed
+
             # unpinned recipient variant: refused at publish
             v = StaticFlowAnalyzer(unpinned_variant(), POLICY).verify().violations
             refused = any(x.target_arg == "to" for x in v)
             print(f"[{'PASS' if refused else 'FAIL'}] unpinned recipient: publish refused={refused} "
                   f"reasons={[x.reason[:70] for x in v][:1]}")
             ok &= refused
+
+            # 2.4d-fix: the shipped unsafe variant (recipient taken from the ticket via triage) is refused
+            unsafe = FlowDefinition(**json.loads((HERE / "flows" / "support_desk_unsafe.flow.json").read_text(encoding="utf-8")))
+            v = StaticFlowAnalyzer(unsafe, POLICY).verify().violations
+            to_refused = sorted(x.node_id for x in v if x.target_arg == "to")
+            passed = to_refused == ["page_oncall", "queue_note"] and all("ticket" in x.reason for x in v if x.target_arg == "to")
+            print(f"[{'PASS' if passed else 'FAIL'}] support_desk_unsafe.flow.json: publish refused, untrusted 'to' on "
+                  f"{to_refused} (source ticket -> triage)")
+            ok &= passed
         finally:
             await storage.close()
     print("Use case 07:", "ALL PASS" if ok else "FAILURES")
