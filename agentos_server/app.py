@@ -322,6 +322,16 @@ def create_app(
     except Exception as e:
         raise RuntimeError(f"Failed to load vault master key: {e}") from e
     app.state.master_key = master_key
+    # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+    # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+    from agentos.security.vault import VaultFileError, verify_vault_file
+    from agentos.storage.file import JsonFileMapRepository
+    creds = app.state.storage.credentials
+    if isinstance(creds, JsonFileMapRepository):
+        try:
+            verify_vault_file(creds.path, master_key)
+        except VaultFileError as e:
+            raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
     app.state.vault = Vault(app.state.storage.credentials, master_key)
 
     # Local API token

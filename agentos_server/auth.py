@@ -67,13 +67,9 @@ def get_or_create_api_token() -> str:
     # 3. Generate fresh token and store with restricted permissions
     token = secrets.token_urlsafe(32)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # On POSIX, use 0600 permissions
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        mode = 0o600
-        fd = os.open(path, flags, mode)
-        with os.fdopen(fd, "w", encoding="ascii") as f:
-            f.write(token + "\n")
+        # Temp file + fsync + os.replace (0600 on POSIX): a crash never leaves a half-written token file.
+        from agentos.storage.atomic import atomic_write_text
+        atomic_write_text(path, token + "\n", private=True, encoding="ascii")
     except Exception as e:
         logger.warning(f"Could not persist API token to {path}: {e}")
 
