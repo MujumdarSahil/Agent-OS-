@@ -29,6 +29,9 @@ behind a human approval.
 ## Files
 
 - `flows/support_desk.flow.json`: the flow.
+- `flows/support_desk_unsafe.flow.json`: the same flow, except the email recipient comes from the ticket (through
+  triage) instead of being pinned. **Publishing is refused** by the static checker (`send_email.to` must be trusted);
+  the editor shows the data path `ticket.payload → triage → page_oncall.to`. It is a demo of the defence, not a flow to run.
 - `inputs/tickets.json`: `normal`, `urgent` and `injection` tickets.
 - `run.py`: the MOCK runner (scripted LLM, fake DNS/HTTP, recorded outbox). CI runs it through
   `tests/ci/test_usecase_07.py`.
