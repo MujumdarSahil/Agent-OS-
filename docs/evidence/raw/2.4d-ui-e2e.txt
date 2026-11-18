@@ -1,0 +1,212 @@
+﻿node.exe : [WebServer] (node:21580) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] (no... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 7 tests using 1 worker
+
+(node:18864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/7] [chromium] › e2e\management.spec.ts:265:3 › AgentOS 2.0 UI Core Resource Management › 1. Auth Gate blocks unauthenticated users and unlocks via token
+[2/7] [chromium] › e2e\management.spec.ts:288:3 › AgentOS 2.0 UI Core Resource Management › 2. Token from URL fragment (#token=...) automatically authenticates
+[3/7] [chromium] › e2e\management.spec.ts:300:3 › AgentOS 2.0 UI Core Resource Management › 3. Agents page (v2) creates and lists agents with NodeSpec tools
+[4/7] [chromium] › e2e\management.spec.ts:321:3 › AgentOS 2.0 UI Core Resource Management › 4. Tools page (v2) displays project vs stored tools
+[5/7] [chromium] › e2e\management.spec.ts:338:3 › AgentOS 2.0 UI Core Resource Management › 5. Squads page (v2) assigns member roles
+[6/7] [chromium] › e2e\management.spec.ts:350:3 › AgentOS 2.0 UI Core Resource Management › 6. External MCP Servers page (v2) enforces dormant security policy
+[7/7] [chromium] › e2e\management.spec.ts:368:3 › AgentOS 2.0 UI Core Resource Management › 7. Providers & Vault page (v2) masks secrets and manages fallback policy
+  7 passed (9.5s)
+node.exe : [WebServer] INFO:     Started server process [18656]
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] INF...process [18656]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[WebServer] INFO:     Waiting for application startup.
+
+
+[WebServer] 2026-11-18 18:13:21,644 [WARNING] agentos_server.inprocess_worker: In-process flow worker: no transport 
+registry configured; using MockTransport for send_email (MOCK: nothing is delivered).
+[WebServer] INFO:     Application startup complete.
+
+
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+
+[WebServer] (node:16000) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 21 tests using 1 worker
+
+(node:23836) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/21] [chromium] › e2e\builder-run-inspect.spec.ts:45:1 › opening a flow does not mark it dirty and fits all nodes in view
+[2/21] [chromium] › e2e\builder-run-inspect.spec.ts:63:1 › a flow saved with node positions opens clean (no unsaved changes, Publish enabled)
+[WebServer] 6:13:29 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[3/21] [chromium] › e2e\builder-run-inspect.spec.ts:76:1 › Run is disabled with a tooltip until the flow is published
+[4/21] [chromium] › e2e\builder-run-inspect.spec.ts:83:1 › benign run from the Run button: succeeded, output visible, a node input/output visible
+[WebServer] INFO:     127.0.0.1:64727 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_3eb82663763c/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:64731 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_3eb82663763c/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 6:13:32 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] INFO:     connection closed
+
+[5/21] [chromium] › e2e\builder-run-inspect.spec.ts:114:1 › inline approval in the results panel -> approve -> succeeded
+[WebServer] INFO:     127.0.0.1:64754 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_94a030cdcfb2/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     127.0.0.1:64756 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_94a030cdcfb2/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+
+[6/21] [chromium] › e2e\builder-run-inspect.spec.ts:128:1 › attack run (SSRF to the cloud metadata address): blocked, shown in the Security tab
+[WebServer] INFO:     127.0.0.1:64783 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_d1af73e8789a/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:64787 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_d1af73e8789a/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[7/21] [chromium] › e2e\builder-run-inspect.spec.ts:142:1 › a webhook-triggered run appears in the run history and opens in the panel
+[WebServer] INFO:     127.0.0.1:64813 - "WebSocket 
+/api/v2/flows/uc05_history/runs/run_87f347e1e54c423c9c74d98567a624fe/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[8/21] [chromium] › e2e\builder-run.spec.ts:46:1 › benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 send
+[WebServer] INFO:     127.0.0.1:64836 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_7149023e2a9a/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:64838 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_7149023e2a9a/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 6:13:41 pm [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered 
+notifications.
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+
+[WebServer] INFO:     connection closed
+
+[9/21] [chromium] › e2e\builder-run.spec.ts:79:1 › approval: exact sink args shown with untrusted marking -> approve -> succeeded
+[WebServer] INFO:     127.0.0.1:64863 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_22a4d688edcf/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     127.0.0.1:64865 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_22a4d688edcf/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+
+[WebServer] INFO:     connection closed
+[10/21] [chromium] › e2e\builder-run.spec.ts:110:1 › approval: reject -> failed with 0 sends
+
+[WebServer] INFO:     127.0.0.1:64892 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_c1d41daa69ba/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:64894 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_c1d41daa69ba/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[11/21] [chromium] › e2e\builder-run.spec.ts:126:1 › WebSocket reconnect replays missed events with after_seq (no gaps, no duplicates)
+[WebServer] INFO:     127.0.0.1:64921 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_cfcdf5730431/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:64923 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_cfcdf5730431/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     127.0.0.1:64929 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_cfcdf5730431/events?after_seq=8" [accepted]
+
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     connection closed
+[12/21] [chromium] › e2e\builder-run.spec.ts:154:1 › MOCK-UI: blocked call shows reason and provenance chain (synthetic stream)
+[13/21] [chromium] › e2e\builder-ux.spec.ts:20:1 › drop on canvas places the node under the cursor
+[14/21] [chromium] › e2e\builder-ux.spec.ts:30:1 › automatic ids, palette click, rename validation
+[15/21] [chromium] › e2e\builder-ux.spec.ts:48:1 › "+" picker adds and connects the next node with an auto-suggested mapping
+[16/21] [chromium] › e2e\builder-ux.spec.ts:62:1 › condition true/false outputs create branch edges
+[17/21] [chromium] › e2e\builder-ux.spec.ts:72:1 › undo/redo (keyboard and buttons) and the Delete key
+
+[WebServer] 6:13:59 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[18/21] [chromium] › e2e\builder-ux.spec.ts:93:1 › keyboard connect from the drawer and auto-layout orders nodes left to right
+[WebServer] 6:14:01 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] 6:14:01 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] 6:14:01 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[19/21] [chromium] › e2e\builder-ux.spec.ts:114:1 › unsaved-changes warning when leaving the editor
+[20/21] [chromium] › e2e\builder.spec.ts:90:1 › use case 01 benign flow: build -> save -> publish OK
+[21/21] [chromium] › e2e\builder.spec.ts:107:1 › use case 01 exfiltration variant: publish refused, agent node highlighted
+  21 passed (1.2m)

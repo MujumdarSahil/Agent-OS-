@@ -42,6 +42,15 @@ behind a human approval.
 .\venv\Scripts\python.exe examples\usecases\07-support-desk-copilot\run.py      # MOCK, no network
 ```
 
+In the UI (2.4d), open the flow and click **▶ Run**. The dialog is pre-filled from the trigger's
+`sample_input` (the urgent ticket). The bottom results panel then shows:
+- the status, total duration and final output;
+- a **Steps** timeline with durations, and provider, model, tokens and fallback hops for `triage`;
+- each node's input and output with trusted/untrusted labels (click the node);
+- the inline approval card;
+- **Logs** (raw events) and **Security** (blocked calls with provenance);
+- a **History** of all runs (manual, webhook, cron), where webhook tickets sent by `send_webhook.py` appear.
+
 For the full live walkthrough (real model, real UI, approvals), see `docs/demo/DEMO_SCRIPT.md`.
 With a real model, the URGENT/NORMAL decision is the model's own, so it can differ from MOCK.
 Recipients stay pinned either way.
