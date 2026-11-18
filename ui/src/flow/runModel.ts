@@ -188,6 +188,106 @@ export function llmHops(d: Record<string, unknown>): string {
   return `${hops.join(' -> ')}${model}${d.latency_ms !== undefined ? ` · ${str(d.latency_ms)} ms` : ''}`
 }
 
+// ---- 2.4d: run inspection (timeline, node input/output, duration, history) ----------------
+
+const tsMs = (e?: RunEvent) => (e?.ts ? Date.parse(e.ts) : NaN)
+
+export interface LlmInfo {
+  provider: string
+  model: string
+  tokens: number
+  hops: string
+}
+
+export interface Step {
+  nodeId: string
+  status: NodeRunStatus
+  durationMs: number | null
+  startSeq: number
+  llm: LlmInfo[]
+}
+
+/** One row per executed node, in start order, with duration and any llm_call metadata. */
+export function stepTimeline(events: RunEvent[]): Step[] {
+  const statuses = nodeStatuses(events)
+  const steps = new Map<string, Step & { start?: RunEvent; end?: RunEvent }>()
+  for (const e of events) {
+    const id = str(e.data.node_id)
+    if (!id) continue
+    if (e.type === 'node_started' && !steps.has(id)) {
+      steps.set(id, { nodeId: id, status: statuses[id] ?? 'running', durationMs: null, startSeq: e.seq, llm: [], start: e })
+    }
+    const s = steps.get(id)
+    if (!s) continue
+    if (['node_succeeded', 'node_failed', 'node_waiting', 'node_skipped'].includes(e.type)) s.end = e
+    if (e.type === 'llm_call') {
+      s.llm.push({ provider: str(e.data.provider), model: str(e.data.model), tokens: Number(e.data.total_tokens ?? 0), hops: llmHops(e.data) })
+    }
+  }
+  return [...steps.values()].map(({ start, end, ...s }) => {
+    const d = tsMs(end) - tsMs(start)
+    return { ...s, status: statuses[s.nodeId] ?? s.status, durationMs: Number.isFinite(d) ? d : null }
+  })
+}
+
+export interface NodeIO {
+  inputs?: Record<string, unknown>
+  inputLabels: Record<string, LabelInfo>
+  outputs?: Record<string, unknown>
+  outputLabels: Record<string, LabelInfo>
+  error?: string
+}
+
+/** Exact input and output values of a node, with their security labels (latest execution). */
+export function nodeIO(events: RunEvent[], nodeId: string): NodeIO | undefined {
+  let io: NodeIO | undefined
+  for (const e of events) {
+    if (e.data.node_id !== nodeId) continue
+    if (e.type === 'node_started') {
+      io = { inputs: e.data.inputs as Record<string, unknown>, inputLabels: labelsOf(e), outputLabels: {} }
+    } else if (io && e.type === 'node_succeeded') {
+      io.outputs = e.data.outputs as Record<string, unknown>
+      io.outputLabels = (e.data.output_labels as Record<string, LabelInfo>) ?? {}
+    } else if (io && e.type === 'node_failed') {
+      io.error = str(e.data.error ?? e.data.reason)
+    }
+  }
+  return io
+}
+
+/** Milliseconds from run_started to the last event (or now while it is still running). */
+export function runDurationMs(events: RunEvent[], now = Date.now()): number | null {
+  const start = tsMs(events.find(e => e.type === 'run_started'))
+  if (!Number.isFinite(start)) return null
+  const finished = ['run_succeeded', 'run_failed'].includes(events[events.length - 1]?.type ?? '')
+  const end = finished ? tsMs(events[events.length - 1]) : now
+  return Number.isFinite(end) ? Math.max(0, end - start) : null
+}
+
+/** Output of the last node that succeeded (the run's final output). */
+export function finalOutput(events: RunEvent[]): { nodeId: string; outputs: unknown; labels: Record<string, LabelInfo> } | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.type === 'node_succeeded') {
+      return { nodeId: str(e.data.node_id), outputs: e.data.outputs, labels: (e.data.output_labels as Record<string, LabelInfo>) ?? {} }
+    }
+  }
+  return undefined
+}
+
+/** Trigger type for the history list; runs from before 2.4d have none and count as manual. */
+export function triggerOf(run: { trigger?: string | null; mission_name?: string }): string {
+  if (run.trigger) return run.trigger
+  if (run.mission_name?.startsWith('Webhook ')) return 'webhook'
+  if (run.mission_name?.startsWith('Cron ')) return 'cron'
+  return 'manual'
+}
+
+export function formatMs(ms: number | null): string {
+  if (ms === null) return '-'
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`
+}
+
 export function eventSummary(e: RunEvent): string {
   const d = e.data
   const node = str(d.node_id ?? d.agent_node ?? d.sink_node)

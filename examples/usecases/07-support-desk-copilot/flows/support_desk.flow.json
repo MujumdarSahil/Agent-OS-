@@ -6,7 +6,14 @@
     "ticket": {
       "id": "ticket",
       "type": "webhook_trigger",
-      "config": {},
+      "config": {
+        "sample_input": {
+          "ticket_id": "T-1002",
+          "customer": "ops@bigclient.example",
+          "subject": "Production checkout is down",
+          "body": "Since 09:10 UTC every checkout request returns HTTP 500. All our customers are affected and we are losing orders."
+        }
+      },
       "pinned_args": {}
     },
     "triage": {

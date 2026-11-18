@@ -1,0 +1,91 @@
+﻿node.exe : [WebServer] INFO:     Started server process [20116]
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] INF...process [20116]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+
+[WebServer] INFO:     Waiting for application startup.
+
+[WebServer] 2026-11-18 18:25:24,134 [WARNING] agentos_server.inprocess_worker: In-process flow worker: no transport 
+registry configured; using MockTransport for send_email (MOCK: nothing is delivered).
+[WebServer] INFO:     Application startup complete.
+
+
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+[WebServer] (node:4532) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 7 tests using 1 worker
+
+(node:8672) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/7] [chromium] › e2e\builder-run-inspect.spec.ts:45:1 › opening a flow does not mark it dirty and fits all nodes in view
+[2/7] [chromium] › e2e\builder-run-inspect.spec.ts:63:1 › a flow saved with node positions opens clean (no unsaved changes, Publish enabled)
+
+[WebServer] 6:25:31 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[3/7] [chromium] › e2e\builder-run-inspect.spec.ts:76:1 › Run is disabled with a tooltip until the flow is published
+[4/7] [chromium] › e2e\builder-run-inspect.spec.ts:83:1 › benign run from the Run button: succeeded, output visible, a node input/output visible
+[WebServer] INFO:     127.0.0.1:11265 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_a34e0e565ac5/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     127.0.0.1:11269 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_a34e0e565ac5/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     connection closed
+[WebServer] 6:25:35 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] INFO:     connection closed
+
+[5/7] [chromium] › e2e\builder-run-inspect.spec.ts:121:1 › inline approval in the results panel -> approve -> succeeded
+[WebServer] INFO:     127.0.0.1:11292 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_f2b23c62ceb1/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:11296 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_f2b23c62ceb1/events?after_seq=0" [accepted]
+
+
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[6/7] [chromium] › e2e\builder-run-inspect.spec.ts:135:1 › attack run (SSRF to the cloud metadata address): blocked, shown in the Security tab
+[WebServer] INFO:     127.0.0.1:11321 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_b59c018b3825/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+
+[WebServer] INFO:     127.0.0.1:11323 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_b59c018b3825/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+
+[7/7] [chromium] › e2e\builder-run-inspect.spec.ts:149:1 › a webhook-triggered run appears in the run history and opens in the panel
+[WebServer] INFO:     127.0.0.1:11351 - "WebSocket 
+/api/v2/flows/uc05_history/runs/run_d279663c12524be1b286af403a9a0c68/events?after_seq=0" [accepted]
+
+
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+
+  7 passed (37.3s)

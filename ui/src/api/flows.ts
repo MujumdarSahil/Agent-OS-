@@ -118,7 +118,16 @@ export interface RunInfo {
   flow_version?: number | null
   status: string
   error?: string | null
+  /** 2.4d: "manual" | "webhook" | "cron" | "subflow"; null on runs created before 2.4d. */
+  trigger?: string | null
+  mission_name?: string
+  created_at?: string
+  updated_at?: string
 }
+
+/** 2.4d: every run of a flow (manual, webhook, schedule), as returned by the server. */
+export const listRuns = (flowId: string) =>
+  api.get<RunInfo[]>(`/v2/flows/${encodeURIComponent(flowId)}/runs`).then(r => r.data)
 
 /** Inputs are labelled untrusted by the server (manual trigger). */
 export const startRun = (flowId: string, inputs: Record<string, unknown>) =>

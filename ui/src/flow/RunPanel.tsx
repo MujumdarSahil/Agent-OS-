@@ -1,19 +1,23 @@
-// src/flow/RunPanel.tsx — run a published flow, stream live events over the WebSocket
-// (token subprotocol, after_seq replay on reconnect), show blocked calls with provenance,
-// and the approval card (THREAT_MODEL T-14).
+// src/flow/RunPanel.tsx — 2.4d run & inspect: the Run dialog and the bottom results panel.
+// Live events over the WebSocket (token subprotocol, after_seq replay on reconnect); tabs for
+// Output | Steps | Logs | Security; inline approval (THREAT_MODEL T-14); node input/output with
+// labels; run history for the flow (manual, webhook, schedule).
 // Safety (T-12): run values are untrusted and are rendered only as plain text via
 // <UntrustedText>; nothing here renders markdown/HTML or loads remote content.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getAuthToken } from '../api/client'
-import { apiErrorMessage, decideApproval, runEventsUrl, startRun } from '../api/flows'
+import { apiErrorMessage, decideApproval, listRuns, runEventsUrl, startRun } from '../api/flows'
 import {
-  blockedCalls, eventSummary, mergeEvents, missingSeqs, nodeStatuses, pendingApproval, runStatusFromEvents,
+  blockedCalls, eventSummary, finalOutput, formatMs, mergeEvents, missingSeqs, nodeIO, nodeStatuses, pendingApproval,
+  runDurationMs, runStatusFromEvents, stepTimeline, triggerOf,
   type LabelInfo, type RunEvent,
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
 
 type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'finished'
+type Tab = 'output' | 'steps' | 'logs' | 'security'
 
 /** Renders any value as inert text. Never markdown, never HTML, never a link or image. */
 export function UntrustedText({ value, untrusted = true }: { value: unknown; untrusted?: boolean }) {
@@ -29,6 +33,8 @@ export function UntrustedText({ value, untrusted = true }: { value: unknown; unt
         padding: '4px 6px',
         fontSize: 12,
         borderRadius: 4,
+        maxHeight: 220,
+        overflow: 'auto',
         background: untrusted ? 'rgba(245,158,11,0.10)' : 'var(--bg-input)',
         border: untrusted ? '1px dashed var(--accent-amber)' : '1px solid var(--border)',
       }}
@@ -52,6 +58,30 @@ function LabelBadge({ label }: { label?: LabelInfo }) {
       {untrusted ? 'UNTRUSTED' : 'trusted'} · {label.confidentiality}
       {label.sources.length ? ` · from ${label.sources.join(', ')}` : ''}
     </span>
+  )
+}
+
+/** Key/value table: each value with its label; anything not trusted is shown as untrusted text. */
+function LabelledValues({ values, labels, testid }: { values?: Record<string, unknown>; labels: Record<string, LabelInfo>; testid: string }) {
+  const keys = Object.keys(values ?? {})
+  if (!keys.length) return <div className="text-muted" style={{ fontSize: 12 }} data-testid={`${testid}-empty`}>none</div>
+  return (
+    <table style={{ width: '100%', fontSize: 12 }} data-testid={testid}>
+      <tbody>
+        {keys.map(k => {
+          const lbl = labels[k] ?? labels['*']
+          return (
+            <tr key={k} data-testid={`${testid}-row`} data-key={k} data-integrity={lbl?.integrity ?? 'unknown'}>
+              <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6, whiteSpace: 'nowrap' }}>{k}</td>
+              <td>
+                <LabelBadge label={lbl} />
+                <UntrustedText value={values![k]} untrusted={lbl?.integrity !== 'trusted'} />
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -123,31 +153,25 @@ function useRunEvents(flowId: string, runId: string | null) {
   /** Drop the socket; the onclose handler reconnects with after_seq. */
   const reconnect = useCallback(() => ws.current?.close(), [])
 
-  return { events, conn, finished, connects, reconnect, lastSeq: lastSeq.current }
+  return { events, conn, finished, connects, reconnect }
 }
 
-export default function RunPanel({
+// ---------------------------------------------------------------------------- Run dialog
+
+export function RunDialog({
   flowId,
-  canRun,
-  onStatuses,
+  sample,
+  onClose,
+  onStarted,
 }: {
   flowId: string
-  canRun: boolean
-  onStatuses: (s: Record<string, NodeRunStatus>) => void
+  sample?: unknown
+  onClose: () => void
+  onStarted: (runId: string) => void
 }) {
-  const [inputText, setInputText] = useState('{\n  "text": "Customer reports the export button does nothing."\n}')
-  const [runId, setRunId] = useState<string | null>(null)
+  const [inputText, setInputText] = useState(() => JSON.stringify(sample ?? {}, null, 2))
   const [error, setError] = useState<string | null>(null)
-  const [deciding, setDeciding] = useState(false)
-  const { events, conn, finished, connects, reconnect } = useRunEvents(flowId, runId)
-
-  const statuses = useMemo(() => nodeStatuses(events), [events])
-  useEffect(() => onStatuses(statuses), [statuses, onStatuses])
-  const approval = useMemo(() => pendingApproval(events), [events])
-  const blocked = useMemo(() => blockedCalls(events), [events])
-  const gaps = useMemo(() => missingSeqs(events), [events])
-  const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
-  const sends = events.filter(e => e.type === 'sink_committed').length
+  const [busy, setBusy] = useState(false)
 
   const run = async () => {
     setError(null)
@@ -160,13 +184,110 @@ export default function RunPanel({
       setError(`Invalid JSON input: ${(e as Error).message}`)
       return
     }
+    setBusy(true)
     try {
       const r = await startRun(flowId, inputs)
-      setRunId(r.run_id)
+      onStarted(r.run_id)
     } catch (e) {
       setError(`Run failed to start: ${apiErrorMessage(e)}`)
+    } finally {
+      setBusy(false)
     }
   }
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Run flow"
+      data-testid="run-dialog"
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onKeyDown={e => e.key === 'Escape' && onClose()}
+    >
+      <div className="card" style={{ width: 560, maxWidth: '92vw', padding: 16 }}>
+        <div className="font-semibold mb-1">Run the latest published version</div>
+        <label className="form-label" htmlFor="run-input">Input (JSON)</label>
+        <div className="text-muted" style={{ fontSize: 11, color: 'var(--accent-amber)' }} data-testid="untrusted-input-note">
+          Inputs are treated as untrusted.
+        </div>
+        <textarea
+          id="run-input"
+          className="form-textarea font-mono"
+          data-testid="run-input"
+          rows={10}
+          autoFocus
+          value={inputText}
+          onChange={e => setInputText(e.target.value)}
+        />
+        {error && <div style={{ color: 'var(--accent-red)', fontSize: 12 }} data-testid="run-error">{error}</div>}
+        <div className="flex gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" data-testid="run-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" data-testid="run-flow" onClick={run} disabled={busy}>Run</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------- results panel
+
+const STATUS_COLOR: Record<string, string> = {
+  succeeded: 'var(--accent-green)', failed: 'var(--accent-red)', blocked: 'var(--accent-red)',
+  waiting: 'var(--accent-amber)', running: 'var(--accent-blue, #60a5fa)', queued: 'var(--text-muted)',
+}
+
+export default function ResultsPanel({
+  flowId,
+  runId,
+  onSelectRun,
+  inspectNode,
+  onInspectNode,
+  onStatuses,
+  onClose,
+}: {
+  flowId: string
+  runId: string | null
+  onSelectRun: (runId: string) => void
+  inspectNode: string | null
+  onInspectNode: (nodeId: string | null) => void
+  onStatuses: (s: Record<string, NodeRunStatus>) => void
+  onClose: () => void
+}) {
+  const [tab, setTab] = useState<Tab>('output')
+  const [height, setHeight] = useState(320)
+  const [collapsed, setCollapsed] = useState(false)
+  const [deciding, setDeciding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [, setTick] = useState(0)
+  const { events, conn, finished, connects, reconnect } = useRunEvents(flowId, runId)
+
+  const history = useQuery({ queryKey: ['runs', flowId], queryFn: () => listRuns(flowId) })
+  const refetchHistory = history.refetch
+  useEffect(() => void refetchHistory(), [runId, finished, refetchHistory])
+
+  const statuses = useMemo(() => nodeStatuses(events), [events])
+  useEffect(() => onStatuses(statuses), [statuses, onStatuses])
+  const approval = useMemo(() => pendingApproval(events), [events])
+  const blocked = useMemo(() => blockedCalls(events), [events])
+  const steps = useMemo(() => stepTimeline(events), [events])
+  const gaps = useMemo(() => missingSeqs(events), [events])
+  const output = useMemo(() => finalOutput(events), [events])
+  const io = useMemo(() => (inspectNode ? nodeIO(events, inspectNode) : undefined), [events, inspectNode])
+  const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
+  const sends = events.filter(e => e.type === 'sink_committed').length
+
+  // The running clock ticks once a second only while the run is live (no polling of the server).
+  const live = !!runId && !finished && runStatus !== 'waiting'
+  useEffect(() => {
+    if (!live) return
+    const t = window.setInterval(() => setTick(x => x + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [live])
+
+  // A security block is the most important thing to see: open the Security tab when one appears.
+  const blockedCount = blocked.length
+  useEffect(() => {
+    if (blockedCount > 0) setTab('security')
+  }, [blockedCount])
 
   const decide = async (approve: boolean) => {
     if (!runId || !approval) return
@@ -181,104 +302,219 @@ export default function RunPanel({
     }
   }
 
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const y0 = e.clientY
+    const h0 = height
+    const move = (ev: MouseEvent) => setHeight(Math.min(Math.max(160, h0 + (y0 - ev.clientY)), window.innerHeight - 200))
+    const up = () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+
+  const runs = [...(history.data ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
+
   return (
-    <div className="flex flex-col gap-3" data-testid="run-panel">
-      <div>
-        <label className="form-label" htmlFor="run-input">Run input (JSON)</label>
-        <div className="text-muted" style={{ fontSize: 11, color: 'var(--accent-amber)' }} data-testid="untrusted-input-note">
-          Inputs are treated as untrusted.
+    <div className="card" data-testid="results-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: collapsed ? 'auto' : height, flexShrink: 0 }}>
+      <div
+        data-testid="results-resize"
+        onMouseDown={startResize}
+        title="Drag to resize"
+        style={{ height: 6, cursor: 'ns-resize', borderBottom: '1px solid var(--border)', display: collapsed ? 'none' : undefined }}
+      />
+      <div className="flex items-center gap-3" style={{ padding: '6px 10px', fontSize: 12, borderBottom: collapsed ? undefined : '1px solid var(--border)' }}>
+        <strong>Results</strong>
+        {runId ? (
+          <>
+            <span>Run <code data-testid="run-id">{runId}</code></span>
+            <span>Status: <strong data-testid="run-status" style={{ color: STATUS_COLOR[runStatus] }}>{runStatus}</strong></span>
+            <span>Duration: <span data-testid="run-duration">{formatMs(runDurationMs(events))}</span></span>
+            {finished?.error ? <span data-testid="run-error-reason" style={{ color: 'var(--accent-red)' }}>{finished.error}</span> : null}
+            <span className="text-muted">
+              stream <span data-testid="ws-state">{conn}</span> · connections <span data-testid="ws-connects">{connects}</span> ·
+              sends <span data-testid="send-count">{sends}</span> · missing events <span data-testid="missing-seqs">{gaps.length}</span>
+            </span>
+            <button className="btn btn-ghost btn-sm" data-testid="ws-reconnect" onClick={reconnect} disabled={conn !== 'open'}>Reconnect</button>
+          </>
+        ) : (
+          <span className="text-muted" data-testid="results-empty">No run selected. Use Run, or pick a run from the history.</span>
+        )}
+        <div className="ml-auto flex gap-2">
+          <button className="btn btn-ghost btn-sm" data-testid="results-collapse" onClick={() => setCollapsed(c => !c)}>
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+          <button className="btn btn-ghost btn-sm" data-testid="results-close" onClick={onClose}>Close</button>
         </div>
-        <textarea
-          id="run-input"
-          className="form-textarea font-mono"
-          data-testid="run-input"
-          rows={5}
-          value={inputText}
-          onChange={e => setInputText(e.target.value)}
-        />
-        <button className="btn btn-primary btn-sm mt-2" data-testid="run-flow" onClick={run} disabled={!canRun}>
-          Run latest published version
-        </button>
-        {!canRun && <div className="text-muted" style={{ fontSize: 11 }}>Publish the flow first.</div>}
       </div>
 
-      {error && <div style={{ color: 'var(--accent-red)' }} data-testid="run-error">{error}</div>}
-
-      {runId && (
-        <div className="flex flex-col gap-1" style={{ fontSize: 12 }}>
-          <div>Run <code data-testid="run-id">{runId}</code></div>
-          <div>
-            Status: <strong data-testid="run-status">{runStatus}</strong>
-            {finished?.error ? <> · <span data-testid="run-error-reason">{finished.error}</span></> : null}
-          </div>
-          <div>
-            Stream: <span data-testid="ws-state">{conn}</span> · connections <span data-testid="ws-connects">{connects}</span> ·
-            sends <span data-testid="send-count">{sends}</span> · missing events <span data-testid="missing-seqs">{gaps.length}</span>
-            <button className="btn btn-ghost btn-sm ml-2" data-testid="ws-reconnect" onClick={reconnect} disabled={conn !== 'open'}>
-              Reconnect stream
-            </button>
-          </div>
-        </div>
-      )}
-
-      {approval && (
-        <div className="card" style={{ padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
-          <div className="font-semibold">Approval required: {approval.nodeId}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>Author prompt:</div>
-          <UntrustedText value={approval.prompt} untrusted={false} />
-          <div className="mt-2" style={{ fontSize: 12 }}>
-            You are approving these <strong>exact</strong> values for sink <code>{approval.sinkNode ?? '?'}</code>.
-            Values marked UNTRUSTED came from outside sources and are shown as plain text.
-          </div>
-          <table style={{ width: '100%', fontSize: 12, marginTop: 6 }}>
-            <tbody>
-              {approval.args.map(a => (
-                <tr key={a.name} data-testid={`approval-arg-${a.name}`} data-integrity={a.label?.integrity ?? 'unknown'}>
-                  <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6 }}>{a.name}</td>
-                  <td>
-                    <LabelBadge label={a.label} />
-                    <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex gap-2 mt-2">
-            <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding} onClick={() => decide(true)}>Approve these values</button>
-            <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding} onClick={() => decide(false)}>Reject</button>
-          </div>
-        </div>
-      )}
-
-      {blocked.length > 0 && (
-        <div className="card" style={{ padding: 10, borderColor: 'var(--accent-red)' }} data-testid="blocked-calls">
-          <div className="font-semibold" style={{ color: 'var(--accent-red)' }}>Blocked</div>
-          {blocked.map(b => (
-            <div key={b.seq} className="mt-1" data-testid="blocked-call" data-node={b.nodeId}>
-              <div style={{ fontSize: 12 }}><code>{b.nodeId}</code> · {b.kind} (#{b.seq})</div>
-              <div style={{ fontSize: 12 }} data-testid="blocked-reason">Reason: {b.reason}</div>
-              <ol style={{ fontSize: 11, margin: '4px 0 0 16px' }} data-testid="provenance-chain">
-                {b.chain.map((s, i) => (
-                  <li key={i} data-testid="provenance-step" style={{ color: s.untrusted ? 'var(--accent-red)' : undefined }}>
-                    {s.text}{s.seq ? ` #${s.seq}` : ''}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {runId && (
-        <div data-testid="event-list" style={{ fontSize: 11 }}>
-          <div className="form-label">Events</div>
-          <ol style={{ margin: 0, paddingLeft: 18 }}>
-            {events.map(e => (
-              <li key={e.seq} data-testid="event-row" data-seq={e.seq} data-type={e.type} value={e.seq}>
-                <code>{e.type}</code> {eventSummary(e)}
-              </li>
+      {!collapsed && (
+        <div className="flex" style={{ flex: 1, minHeight: 0 }}>
+          {/* run history */}
+          <div style={{ width: 230, borderRight: '1px solid var(--border)', overflowY: 'auto', fontSize: 12 }} data-testid="run-history">
+            <div className="form-label" style={{ padding: '6px 8px 0' }}>History</div>
+            {runs.length === 0 && <div className="text-muted" style={{ padding: 8 }}>No runs yet.</div>}
+            {runs.map(r => (
+              <button
+                key={r.run_id}
+                data-testid="history-row"
+                data-run-id={r.run_id}
+                data-trigger={triggerOf(r)}
+                data-status={r.status}
+                onClick={() => onSelectRun(r.run_id)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', border: 0, cursor: 'pointer',
+                  background: r.run_id === runId ? 'var(--bg-input)' : 'transparent', color: 'inherit',
+                }}
+              >
+                <span className="badge badge-default" style={{ marginRight: 4 }}>{triggerOf(r)}</span>
+                <span style={{ color: STATUS_COLOR[r.status] }}>{r.status}</span>
+                <div className="text-muted" style={{ fontSize: 11 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : r.run_id}</div>
+              </button>
             ))}
-          </ol>
+          </div>
+
+          {/* main area: approval + tabs */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            {error && <div style={{ color: 'var(--accent-red)', padding: '4px 10px' }} data-testid="run-error">{error}</div>}
+            {approval && (
+              <div className="card" style={{ margin: 8, padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
+                <div className="font-semibold">Approval required: {approval.nodeId}</div>
+                <div className="text-muted" style={{ fontSize: 12 }}>Author prompt:</div>
+                <UntrustedText value={approval.prompt} untrusted={false} />
+                <div className="mt-2" style={{ fontSize: 12 }}>
+                  You are approving these <strong>exact</strong> values for sink <code>{approval.sinkNode ?? '?'}</code>.
+                  Values marked UNTRUSTED came from outside sources and are shown as plain text.
+                </div>
+                <table style={{ width: '100%', fontSize: 12, marginTop: 6 }}>
+                  <tbody>
+                    {approval.args.map(a => (
+                      <tr key={a.name} data-testid={`approval-arg-${a.name}`} data-integrity={a.label?.integrity ?? 'unknown'}>
+                        <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6 }}>{a.name}</td>
+                        <td>
+                          <LabelBadge label={a.label} />
+                          <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="flex gap-2 mt-2">
+                  <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding} onClick={() => decide(true)}>Approve these values</button>
+                  <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding} onClick={() => decide(false)}>Reject</button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-1" role="tablist" style={{ padding: '6px 8px 0' }}>
+              {(['output', 'steps', 'logs', 'security'] as Tab[]).map(t => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  data-testid={`tab-${t}`}
+                  className={`btn btn-sm ${tab === t ? 'btn-secondary' : 'btn-ghost'}`}
+                  onClick={() => setTab(t)}
+                >
+                  {t === 'output' ? 'Output' : t === 'steps' ? `Steps (${steps.length})` : t === 'logs' ? `Logs (${events.length})` : `Security${blocked.length ? ` (${blocked.length})` : ''}`}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 8, fontSize: 12 }} data-testid={`tab-panel-${tab}`}>
+              {tab === 'output' && (
+                output ? (
+                  <div data-testid="final-output">
+                    <div className="text-muted mb-1">Final output (last step: <code>{output.nodeId}</code>)</div>
+                    <LabelledValues values={output.outputs as Record<string, unknown>} labels={output.labels} testid="final-output-values" />
+                  </div>
+                ) : (
+                  <div className="text-muted">{runId ? 'No step has finished yet.' : 'Nothing to show.'}</div>
+                )
+              )}
+              {tab === 'steps' && (
+                <table style={{ width: '100%' }} data-testid="step-timeline">
+                  <tbody>
+                    {steps.map(s => (
+                      <tr
+                        key={s.nodeId}
+                        data-testid="step-row"
+                        data-node={s.nodeId}
+                        data-status={s.status}
+                        onClick={() => onInspectNode(s.nodeId)}
+                        style={{ cursor: 'pointer', background: s.nodeId === inspectNode ? 'var(--bg-input)' : undefined }}
+                      >
+                        <td className="font-mono" style={{ padding: '3px 6px' }}>{s.nodeId}</td>
+                        <td style={{ color: STATUS_COLOR[s.status] }}>{s.status}</td>
+                        <td data-testid="step-duration">{formatMs(s.durationMs)}</td>
+                        <td data-testid="step-llm">
+                          {s.llm.map((l, i) => (
+                            <div key={i}>{l.provider} · {l.model} · {l.tokens} tokens · {l.hops}</div>
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {tab === 'logs' && (
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11 }} data-testid="event-list">
+                  {events.map(e => (
+                    <li key={e.seq} data-testid="event-row" data-seq={e.seq} data-type={e.type} value={e.seq}>
+                      <code>{e.type}</code> {eventSummary(e)}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {tab === 'security' && (
+                blocked.length ? (
+                  <div data-testid="blocked-calls">
+                    {blocked.map(b => (
+                      <div key={b.seq} className="mb-2" data-testid="blocked-call" data-node={b.nodeId}>
+                        <div><code>{b.nodeId}</code> · {b.kind} (#{b.seq})</div>
+                        <div data-testid="blocked-reason" style={{ color: 'var(--accent-red)' }}>Reason: {b.reason}</div>
+                        <ol style={{ fontSize: 11, margin: '4px 0 0 16px' }} data-testid="provenance-chain">
+                          {b.chain.map((s, i) => (
+                            <li key={i} data-testid="provenance-step" style={{ color: s.untrusted ? 'var(--accent-red)' : undefined }}>
+                              {s.text}{s.seq ? ` #${s.seq}` : ''}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-muted" data-testid="security-empty">No blocked calls in this run.</div>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* node inspector */}
+          {inspectNode && (
+            <div style={{ width: 340, borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12 }} data-testid="node-inspector" data-node={inspectNode}>
+              <div className="flex items-center mb-1">
+                <strong className="font-mono">{inspectNode}</strong>
+                <button className="btn btn-ghost btn-sm ml-auto" data-testid="node-inspector-close" onClick={() => onInspectNode(null)}>×</button>
+              </div>
+              {!io ? (
+                <div className="text-muted" data-testid="node-io-none">This step has not run in this run.</div>
+              ) : (
+                <>
+                  <div className="form-label">Input</div>
+                  <LabelledValues values={io.inputs} labels={io.inputLabels} testid="node-io-input" />
+                  <div className="form-label mt-2">Output</div>
+                  {io.error ? (
+                    <div style={{ color: 'var(--accent-red)' }} data-testid="node-io-error">{io.error}</div>
+                  ) : (
+                    <LabelledValues values={io.outputs} labels={io.outputLabels} testid="node-io-output" />
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

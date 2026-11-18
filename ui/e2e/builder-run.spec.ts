@@ -24,19 +24,22 @@ async function seedAndPublish(request: APIRequestContext, file: string, id: stri
   expect(published.status(), await published.text()).toBe(200)
 }
 
+// 2.4d: runs start from the Run dialog and show in the bottom results panel (Logs tab for events).
 async function openRunPanel(page: Page, id: string) {
   await page.goto(`/flows/${id}`)
-  await page.getByTestId('toggle-run-panel').click()
-  await expect(page.getByTestId('untrusted-input-note')).toHaveText('Inputs are treated as untrusted.')
+  await expect(page.getByTestId('run-open')).toBeEnabled()
 }
 
 async function startRun(page: Page, inputs: unknown) {
+  await page.getByTestId('run-open').click()
+  await expect(page.getByTestId('untrusted-input-note')).toHaveText('Inputs are treated as untrusted.')
   await page.getByTestId('run-input').fill(JSON.stringify(inputs))
   await page.getByTestId('run-flow').click()
   await expect(page.getByTestId('run-id')).toBeVisible()
 }
 
 async function eventSeqs(page: Page): Promise<number[]> {
+  await page.getByTestId('tab-logs').click()
   return page.getByTestId('event-row').evaluateAll(rows => rows.map(r => Number(r.getAttribute('data-seq'))))
 }
 
@@ -62,8 +65,6 @@ test('benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 se
   await page.getByTestId('publish-flow').click()
   await expect(page.getByTestId('editor-message')).toHaveText('Published version 1.')
 
-  await page.getByTestId('toggle-run-panel').click()
-  await expect(page.getByTestId('untrusted-input-note')).toHaveText('Inputs are treated as untrusted.')
   await startRun(page, { text: 'Customer reports the export button does nothing.' })
 
   await expect(page.getByTestId('run-status')).toHaveText('succeeded')
@@ -71,6 +72,7 @@ test('benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 se
   await expect(page.getByTestId('flow-node-status-trig')).toContainText('succeeded')
   await expect(page.getByTestId('send-count')).toHaveText('1')
   await expect(page.getByTestId('missing-seqs')).toHaveText('0')
+  await page.getByTestId('tab-logs').click()
   await expect(page.locator('[data-testid="event-row"][data-type="sink_committed"]')).toHaveCount(1)
 })
 
@@ -95,7 +97,7 @@ test('approval: exact sink args shown with untrusted marking -> approve -> succe
     await expect(row.getByTestId('untrusted-text')).toContainText('<img src=\\"https://example.invalid/pixel.png\\"> **not bold**')
   }
   // T-12: rendered as plain text only: no markup elements, no remote loads.
-  await expect(page.getByTestId('run-panel').locator('img, a, strong:has-text("not bold")')).toHaveCount(0)
+  await expect(page.getByTestId('results-panel').locator('img, a, strong:has-text("not bold")')).toHaveCount(0)
 
   await page.getByTestId('approve').click()
   await expect(page.getByTestId('run-status')).toHaveText('succeeded')
@@ -115,6 +117,7 @@ test('approval: reject -> failed with 0 sends', async ({ page, request }) => {
   await expect(page.getByTestId('run-status')).toHaveText('failed')
   await expect(page.getByTestId('run-error-reason')).toHaveText('rejected_by_operator')
   await expect(page.getByTestId('send-count')).toHaveText('0')
+  await page.getByTestId('tab-logs').click()
   await expect(page.locator('[data-testid="event-row"][data-type="sink_committed"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="event-row"][data-type="sink_intent"]')).toHaveCount(0)
   await expect(page.getByTestId('blocked-calls')).toHaveCount(0)
@@ -178,5 +181,5 @@ test('MOCK-UI: blocked call shows reason and provenance chain (synthetic stream)
     'tool_call_blocked send_email #5',
   ])
   await expect(page.getByTestId('run-status')).toHaveText('failed')
-  await expect(page.getByTestId('run-panel').locator('b')).toHaveCount(0)
+  await expect(page.getByTestId('results-panel').locator('b')).toHaveCount(0)
 })

@@ -47,17 +47,20 @@ Open **Flows -> Support desk copilot**. Check:
 
 ## 4. Urgent ticket with approval (2 min)
 
-In the flow's run panel, paste the `urgent` ticket from `inputs/tickets.json` into **Run input** and run it.
-- The `triage` step shows an `llm_call` event with the provider, model and fallback hops
-  (for example `groq: RateLimitError -> openrouter_...: ok`). The event holds metadata only; the prompt and response are not stored in it.
-- The run stops at **oncall_approval**. The card shows the exact `body` with its label `untrusted`
+Click **▶ Run** (next to Publish). The dialog is pre-filled with the flow's sample input, the `urgent`
+ticket. Click **Run**: the results panel opens at the bottom and updates live, showing status and total duration.
+- **Steps** tab: each node with its status and duration. `triage` also shows provider, model, tokens and
+  fallback hops (for example `groq_gpt_oss_20b: ok`); this is metadata only, never the prompt or response.
+- Click a node on the canvas (or a row in Steps) to see its exact **input and output** with
+  `trusted` / `UNTRUSTED` labels. Untrusted values are plain text only.
+- The run stops at **oncall_approval**. The approval card in the panel shows the exact `body` with its label `untrusted`
   and where it came from.
-- Click **Approve these values**. One `sink_committed` event appears for `to = oncall@corp.local`. That is the recorded outbox.
+- Click **Approve these values**. The **Logs** tab gains a `sink_committed` event for `to = oncall@corp.local`. That is the recorded outbox.
 
 ## 5. Prompt injection (2 min)
 
-Run the `injection` ticket the same way. The ticket says to mark it URGENT and email the customer
-list to `mallory@attacker.example`.
+Click **▶ Run** again and replace the input with the `injection` ticket from `inputs/tickets.json`. The ticket
+says to mark it URGENT and email the customer list to `mallory@attacker.example`.
 - If the model follows it and answers URGENT, the run waits at the approval. The body is labelled
   `untrusted` and the recipient is still `oncall@corp.local`. Click **Reject**: no email is recorded.
 - If the model answers NORMAL, one note goes to `support-queue@corp.local`.
@@ -71,6 +74,13 @@ fixed (not pinned) and comes from untrusted data. Undo the edit.
 
 ## 7. Webhook runs, signatures and the schedule (1 min)
 
+In the editor, click **Results**. The **History** list shows every run of the flow with its trigger
+(`manual`, `webhook`, `cron`), status and time. The three runs from step 2 are marked `webhook`. Click one
+to open it in the panel, where a waiting run can be approved or rejected inline. The **Security** tab lists
+blocked calls with their reason and provenance chain, and opens by itself when a run has one.
+
+The same data is available through the API:
+
 ```powershell
 $token = .\venv\Scripts\python.exe -c "from agentos_server.auth import get_or_create_api_token as t; print(t())"
 $h = @{ Authorization = "Bearer $token" }
@@ -79,7 +89,7 @@ Invoke-RestMethod -Headers $h http://127.0.0.1:8000/api/v2/schedules | Select-Ob
 ```
 
 The three webhook runs appear: `normal` succeeded and `urgent` is waiting. `injection` is either
-waiting or succeeded, depending on the model. Approve or reject a waiting webhook run through the API:
+waiting or succeeded, depending on the model. Or approve/reject a waiting webhook run through the API:
 
 ```powershell
 Invoke-RestMethod -Method Post -Headers $h -ContentType application/json `
@@ -97,8 +107,8 @@ Press `Ctrl+C` in the `main.py` window. It prints `AgentOS stopped.` and no Agen
 
 ## Known limits (stated honestly)
 
-- The flow editor's run panel follows runs started from the panel. Webhook and schedule runs are
-  listed and approved through the API (step 7); there is no UI list for them yet.
+- Runs created before 2.4d have no stored trigger. The History list infers it from the run name and
+  shows `manual` when it can't tell, which is the case for older webhook runs once they have executed.
 - With a real model, URGENT or NORMAL is the model's own call, so it can differ from MOCK. The security
   outcome does not depend on it.
 - The OmniRoute provider entry is UNVERIFIED and is not used in this demo.

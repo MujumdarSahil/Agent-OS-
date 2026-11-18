@@ -133,6 +133,33 @@ async def test_worker_runs_benign_flow_and_stops_on_shutdown(env, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_history_records_trigger_type(env, monkeypatch):
+    """2.4d: manual and webhook runs keep their trigger after the worker runs them; the list returns it."""
+    import hashlib
+    import hmac
+    import time
+
+    monkeypatch.setenv("AGENTOS_INPROCESS_WORKER", "1")
+    app = _app(env, MockTransport())
+    async with app.router.lifespan_context(app):
+        async with _client(app) as c:
+            manual_id = await _publish_and_run(c, BENIGN, {"text": "hi"})
+            assert await _wait_status(c, "notify_flow", manual_id, {"succeeded", "failed"}) == "succeeded"
+            hook = (await c.post("/api/v2/webhooks", json={"name": "t", "flow_id": "notify_flow"})).json()
+            body, ts = json.dumps({"text": "from webhook"}), int(time.time())
+            sig = "sha256=" + hmac.new(hook["secret_key"].encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
+            r = await c.post(f"/hooks/{hook['secret_path']}", content=body,
+                             headers={"Content-Type": "application/json", "X-AgentOS-Signature": sig,
+                                      "X-AgentOS-Timestamp": str(ts)})
+            assert r.status_code == 202
+            hook_id = r.json()["run_id"]
+            assert await _wait_status(c, "notify_flow", hook_id, {"succeeded", "failed"}) == "succeeded"
+            runs = {x["run_id"]: x for x in (await c.get("/api/v2/flows/notify_flow/runs")).json()}
+    assert runs[manual_id]["trigger"] == "manual"
+    assert runs[hook_id]["trigger"] == "webhook"
+
+
+@pytest.mark.asyncio
 async def test_worker_uses_mock_transport_when_none_configured(env, monkeypatch):
     monkeypatch.setenv("AGENTOS_INPROCESS_WORKER", "1")
     app = _app(env)

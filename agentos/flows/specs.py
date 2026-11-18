@@ -55,6 +55,8 @@ WEBHOOK_TRIGGER_SPEC = NodeSpec(
         "additionalProperties": False,
         "properties": {
             "path": {"type": "string"},
+            # 2.4d: example input that pre-fills the Run dialog (UI only; never used at runtime)
+            "sample_input": {"type": "object"},
         },
     },
     input_schema={},
@@ -75,6 +77,8 @@ MANUAL_TRIGGER_SPEC = NodeSpec(
         "additionalProperties": False,
         "properties": {
             "description": {"type": "string"},
+            # 2.4d: example input that pre-fills the Run dialog (UI only; never used at runtime)
+            "sample_input": {"type": "object"},
         },
     },
     input_schema={},

@@ -153,6 +153,9 @@ class RunRecord(BaseModel):
     idempotency_key: Optional[str] = None
     # 2.3: epoch seconds when a run waiting on a wait-node timer becomes due (None otherwise)
     resume_at: Optional[float] = None
+    # 2.4d: what started the run ("manual" | "webhook" | "cron" | "subflow"); display metadata only,
+    # never used for labels (labels come from the run_started event). None on records from before 2.4d.
+    trigger: Optional[str] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 
