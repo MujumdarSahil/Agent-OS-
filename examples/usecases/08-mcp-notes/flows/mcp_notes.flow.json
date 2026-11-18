@@ -1,0 +1,35 @@
+{
+  "id": "uc08_mcp_notes",
+  "name": "Notes digest (MCP)",
+  "entrypoint": "start",
+  "nodes": {
+    "start": {
+      "id": "start",
+      "type": "manual_trigger",
+      "config": {
+        "sample_input": {"text": "Send the team a digest of today's notes."}
+      },
+      "pinned_args": {},
+      "position": {"x": 40, "y": 120}
+    },
+    "drafter": {
+      "id": "drafter",
+      "type": "agent",
+      "config": {
+        "role": "Notes assistant",
+        "goal": "Read the team's notes and email a short digest",
+        "backstory": "Reads notes through an approved MCP tool and drafts emails.",
+        "tools": ["mcp.notes.list_notes", "send_email"]
+      },
+      "pinned_args": {
+        "send_email.to": "team@corp.local",
+        "send_email.subject": "Notes digest"
+      },
+      "position": {"x": 380, "y": 120}
+    }
+  },
+  "edges": [
+    {"source": "start", "target": "drafter", "arg_mapping": {"task": "payload"}}
+  ],
+  "loops": {}
+}
