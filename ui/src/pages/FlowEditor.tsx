@@ -16,7 +16,7 @@ import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
 import type { RJSFSchema, UiSchema } from '@rjsf/utils'
 import {
-  PublishRefusedError, apiErrorMessage, createFlow, getFlow, getNodeSpecs, publishFlow, saveFlow,
+  PublishRefusedError, apiErrorMessage, createFlow, getFlow, getNodeSpecs, listVersions, publishFlow, saveFlow,
   type FlowRecord, type JSONSchema, type LoopDef, type NodeSpecInfo, type Violation,
 } from '../api/flows'
 import {
@@ -28,10 +28,25 @@ import {
   History, autoLayout, branchForHandle, categoryOf, idError, nextNodeId, renameNode, suggestMapping,
   NODE_H, NODE_W, type GraphState,
 } from '../flow/builderModel'
-import RunPanel from '../flow/RunPanel'
+import ResultsPanel, { RunDialog } from '../flow/RunPanel'
 
 type Drawer = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
 const DND_TYPE = 'application/agentos-node'
+// 2.4d: on open, fit every node; never zoom in past 100% or out past this readable floor.
+const MIN_READABLE_ZOOM = 0.35
+const FIT = { padding: 0.08, maxZoom: 1, minZoom: MIN_READABLE_ZOOM }
+
+/** True when any two node boxes overlap (stored positions are then replaced by auto-layout on open). */
+function overlapping(nodes: CanvasNode[]): boolean {
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i].position
+      const b = nodes[j].position
+      if (Math.abs(a.x - b.x) < NODE_W && Math.abs(a.y - b.y) < NODE_H) return true
+    }
+  }
+  return false
+}
 const rjsfFields = { stringList: StringListField }
 
 function uiSchemaFor(schema: JSONSchema): UiSchema {
@@ -83,7 +98,15 @@ function Editor() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [mode, setMode] = useState<'edit' | 'run'>('edit')
+  // 2.4d run & inspect
+  const [showResults, setShowResults] = useState(false)
+  const [runId, setRunId] = useState<string | null>(null)
+  const [inspectNode, setInspectNode] = useState<string | null>(null)
+  const [runDialog, setRunDialog] = useState(false)
+  const [showPalette, setShowPalette] = useState(isNew)
+  const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
+  const hasPublished = (versionsQ.data?.length ?? 0) > 0
+  const dragMoved = useRef(false)
   const [runStatuses, setRunStatuses] = useState<Record<string, NodeRunStatus>>({})
   const onRunStatuses = useCallback((s: Record<string, NodeRunStatus>) => setRunStatuses(s), [])
   const history = useRef(new History<GraphState>())
@@ -99,9 +122,10 @@ function Editor() {
     if (!flowQ.data) return
     const f = flowQ.data
     const c = toCanvas(f, specs)
-    // Flows saved without layout positions (e.g. imported JSON) get a left-to-right auto-layout.
+    // Flows saved without layout positions (e.g. imported JSON), or whose stored positions overlap,
+    // get a left-to-right auto-layout. This is display only: opening never marks the flow dirty.
     const hasPositions = Object.values(f.nodes).some(n => n.position)
-    setNodes(hasPositions ? c.nodes : autoLayout(c.nodes, c.edges))
+    setNodes(hasPositions && !overlapping(c.nodes) ? c.nodes : autoLayout(c.nodes, c.edges))
     setEdges(c.edges)
     setName(f.name || f.id)
     setEntrypoint(f.entrypoint)
@@ -118,9 +142,17 @@ function Editor() {
     if (pendingFit && nodesInitialized) {
       setPendingFit(false)
       // Short delay so a canvas resize (e.g. the violation table appearing) is measured first.
-      window.setTimeout(() => void rf.fitView({ padding: 0.2, maxZoom: 1 }), 40)
+      window.setTimeout(() => void rf.fitView(FIT), 40)
     }
   }, [pendingFit, nodesInitialized, rf])
+
+  // Opening or closing the results panel resizes the canvas: fit again so every node stays in view.
+  // Only on an actual toggle (never on load, so a new canvas stays at zoom 1 for drops).
+  const prevShowResults = useRef(showResults)
+  useEffect(() => {
+    if (prevShowResults.current !== showResults && nodes.length) setPendingFit(true)
+    prevShowResults.current = showResults
+  }, [showResults, nodes.length])
 
   // ---- history (undo/redo) --------------------------------------------------
   const graphRef = useRef<GraphState>({ nodes, edges, entrypoint, loops })
@@ -288,7 +320,11 @@ function Editor() {
       return
     }
     setNodes(ns => applyNodeChanges(changes, ns))
-    if (changes.some(c => c.type === 'position' && c.dragging === false)) markDirty()
+    // Only a drag that actually moved a node is an edit (a click emits a drag-end with no movement).
+    if (dragMoved.current && changes.some(c => c.type === 'position' && c.dragging === false)) {
+      dragMoved.current = false
+      markDirty()
+    }
   }, [commit, markDirty])
 
   const onEdgesChange = useCallback((changes: EdgeChange<CanvasEdge>[]) => {
@@ -380,6 +416,7 @@ function Editor() {
       const pub = await publishFlow(flowId)
       setStatus(pub.status)
       setMessage({ kind: 'ok', text: `Published version ${pub.version}.` })
+      void versionsQ.refetch() // enables Run
     } catch (err) {
       if (err instanceof PublishRefusedError) {
         setViolations(err.violations)
@@ -405,10 +442,10 @@ function Editor() {
           spec: specs[n.data.def.type],
           isEntrypoint: n.id === entrypoint,
           violated: highlights.nodes.has(n.id) || issueNodes.has(n.id),
-          status: mode === 'run' ? runStatuses[n.id] : undefined,
+          status: showResults && runId ? runStatuses[n.id] : undefined,
         },
       })),
-    [nodes, specs, entrypoint, highlights, issueNodes, mode, runStatuses],
+    [nodes, specs, entrypoint, highlights, issueNodes, showResults, runId, runStatuses],
   )
   const displayEdges = useMemo(
     () =>
@@ -443,12 +480,15 @@ function Editor() {
           <button className="btn btn-ghost btn-sm" data-testid="undo" onClick={undo} disabled={!history.current.canUndo} title="Undo (Ctrl+Z)">Undo</button>
           <button className="btn btn-ghost btn-sm" data-testid="redo" onClick={redo} disabled={!history.current.canRedo} title="Redo (Ctrl+Y)">Redo</button>
           <button className="btn btn-ghost btn-sm" data-testid="auto-layout" onClick={doLayout} disabled={!nodes.length}>Auto-layout</button>
-          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => rf.fitView({ padding: 0.2, maxZoom: 1 })}>Fit view</button>
+          <button className="btn btn-ghost btn-sm" data-testid="toggle-palette" aria-pressed={showPalette} onClick={() => setShowPalette(v => !v)}>
+            {showPalette ? 'Hide nodes' : 'Add nodes'}
+          </button>
+          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => rf.fitView(FIT)}>Fit view</button>
           <button className="btn btn-ghost btn-sm" data-testid="toggle-minimap" aria-pressed={showMinimap} onClick={() => setShowMinimap(v => !v)}>
             {showMinimap ? 'Hide minimap' : 'Show minimap'}
           </button>
-          <button className="btn btn-ghost" data-testid="toggle-run-panel" onClick={() => setMode(m => (m === 'edit' ? 'run' : 'edit'))}>
-            {mode === 'edit' ? 'Run panel' : 'Back to editing'}
+          <button className="btn btn-ghost" data-testid="toggle-run-panel" aria-pressed={showResults} onClick={() => setShowResults(v => !v)}>
+            {showResults ? 'Hide results' : 'Results'}
           </button>
           <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">Export JSON</button>
           <button className="btn btn-secondary" data-testid="save-flow" onClick={onSave} disabled={busy}>Save</button>
@@ -461,8 +501,32 @@ function Editor() {
           >
             Publish
           </button>
+          <span title={hasPublished ? 'Run the latest published version' : 'Publish the flow first: Run uses the latest published version'}>
+            <button
+              className="btn btn-primary"
+              data-testid="run-open"
+              onClick={() => setRunDialog(true)}
+              disabled={!hasPublished}
+              style={!hasPublished ? { pointerEvents: 'none' } : undefined}
+            >
+              ▶ Run
+            </button>
+          </span>
         </div>
       </div>
+      {runDialog && (
+        <RunDialog
+          flowId={flowId}
+          sample={nodes.find(n => n.id === entrypoint)?.data.def.config?.sample_input}
+          onClose={() => setRunDialog(false)}
+          onStarted={id => {
+            setRunDialog(false)
+            setRunId(id)
+            setInspectNode(null)
+            setShowResults(true)
+          }}
+        />
+      )}
 
       {message && (
         <div data-testid="editor-message" data-kind={message.kind} style={{ color: message.kind === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
@@ -479,11 +543,11 @@ function Editor() {
       {violations.length > 0 && <ViolationList violations={violations} />}
 
       <div className="flex gap-3 flex-1" style={{ minHeight: 0 }}>
-        <Palette specs={specsQ.data ?? []} onAdd={s => addNode(s)} />
+        {showPalette && <Palette specs={specsQ.data ?? []} onAdd={s => addNode(s)} />}
         <div
           ref={canvasRef}
           className="card flex-1"
-          style={{ padding: 0, minHeight: 360, position: 'relative' }}
+          style={{ padding: 0, minHeight: 160, position: 'relative' }}
           data-testid="flow-canvas"
           onDragOver={e => {
             e.preventDefault()
@@ -503,13 +567,20 @@ function Editor() {
                 history.current.record(graphRef.current)
                 setHistoryTick(t => t + 1)
               }}
+              onNodeDrag={() => {
+                dragMoved.current = true
+              }}
+              onNodeClick={(_, n) => {
+                if (showResults && runId) setInspectNode(n.id)
+              }}
               onNodeDoubleClick={(_, n) => setDrawer({ kind: 'node', id: n.id })}
               onEdgeClick={(_, e) => setDrawer({ kind: 'edge', id: e.id })}
               deleteKeyCode={['Delete']}
               zoomOnDoubleClick={false}
               // Fit only when opening an existing flow; a new canvas stays at zoom 1 so drops land under the cursor.
               fitView={!isNew}
-              fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+              fitViewOptions={FIT}
+              minZoom={0.2}
               colorMode="dark"
             >
               <Background />
@@ -539,10 +610,9 @@ function Editor() {
             />
           )}
         </div>
-        <div className="card" style={{ width: mode === 'run' ? 420 : 340, overflowY: 'auto', padding: 12 }} data-testid="inspector">
-          {mode === 'run' ? (
-            <RunPanel flowId={flowId} canRun={persisted && !dirty} onStatuses={onRunStatuses} />
-          ) : drawerNode ? (
+        {(drawerNode || drawerEdge || isNew) && (
+        <div className="card" style={{ width: 340, overflowY: 'auto', padding: 12 }} data-testid="inspector">
+          {drawerNode ? (
             <NodeDrawer
               key={drawerNode.id}
               node={drawerNode}
@@ -578,7 +648,22 @@ function Editor() {
             </div>
           )}
         </div>
+        )}
       </div>
+      {showResults && (
+        <ResultsPanel
+          flowId={flowId}
+          runId={runId}
+          onSelectRun={id => {
+            setRunId(id)
+            setInspectNode(null)
+          }}
+          inspectNode={inspectNode}
+          onInspectNode={setInspectNode}
+          onStatuses={onRunStatuses}
+          onClose={() => setShowResults(false)}
+        />
+      )}
     </div>
   )
 }
