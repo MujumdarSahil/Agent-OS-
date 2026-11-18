@@ -161,11 +161,16 @@ or to run something every morning.
 Use case: [04 webhook trigger](examples/usecases/04-webhook-trigger/README.md); schedules are covered by
 `agentos/tests/test_scheduler_2_2.py`.
 
-**Agents and tools** — *Works today (verified) for agents calling built-in tools; Experimental for
-MCP servers and stored custom tool code*. An agent node runs a CrewAI agent, but every tool call it
-makes goes through an AgentOS proxy that checks it first. Use it when a step needs judgement, such as
-summarising a ticket.
-Use case: [01 email summary and exfiltration attempt](examples/usecases/01-email-summary-exfil/README.md).
+**Agents and tools** — *Works today (verified) for agents calling built-in tools and approved MCP tools
+(MCP verified in MOCK against local fixture servers); Experimental for stored custom tool code*. An agent
+node runs a CrewAI agent, but every tool call it makes goes through an AgentOS proxy that checks it first.
+Use it when a step needs judgement, such as summarising a ticket.
+MCP servers (stdio or streamable HTTP) start only after an admin enables them. stdio servers get a minimal
+environment that never contains your keys. Each discovered tool must be reviewed and approved before an
+agent can use it; a tool that changes after approval is blocked until it is reviewed again. MCP tools are
+only ever named `mcp.<server>.<tool>`, so they can't replace a built-in, and their output is untrusted.
+Use cases: [01 email summary and exfiltration attempt](examples/usecases/01-email-summary-exfil/README.md),
+[08 notes digest through MCP](examples/usecases/08-mcp-notes/README.md).
 
 **Providers, fallback and the vault** — *Works today (verified with mocked providers)*. You can
 configure several LLM providers, set an order to fall back on when one fails, and pick a model per
@@ -250,6 +255,11 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
 - **Refused publishes** are shown in the editor but not stored, so the Security log lists run-time blocks only (the 3.1 audit log will record refusals).
 - **Vault startup check**: the Standalone vault file is checked at startup (it must parse and decrypt); the Platform (Mongo) vault is not.
 - **Run history**: runs created before 2.4d have no stored trigger, so older webhook runs may show as `manual`.
+- **MCP servers (2.5a)**: verified in MOCK with local fixture servers only, not against third-party servers.
+  The SSE transport is not supported (use streamable HTTP). For HTTP servers the URL is checked and redirects
+  are refused, but the host is resolved again when connecting, so DNS rebinding is not fully prevented.
+  Server lifecycle is verified with the in-process worker; a separate Platform worker process is not tested.
+  Tool calls above `read` are never retried after a crash and need review instead.
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).
