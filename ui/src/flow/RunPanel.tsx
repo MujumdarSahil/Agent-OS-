@@ -11,7 +11,7 @@ import { getAuthToken } from '../api/client'
 import { apiErrorMessage, decideApproval, listRuns, runEventsUrl, startRun } from '../api/flows'
 import {
   blockedCalls, eventSummary, finalOutput, formatMs, mergeEvents, missingSeqs, nodeIO, nodeStatuses, pendingApproval,
-  runDurationMs, runStatusFromEvents, stepTimeline, triggerOf,
+  runStatusFromEvents, runTiming, stepTimeline, triggerOf,
   type LabelInfo, type RunEvent,
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
@@ -262,7 +262,9 @@ export default function ResultsPanel({
 
   const history = useQuery({ queryKey: ['runs', flowId], queryFn: () => listRuns(flowId) })
   const refetchHistory = history.refetch
-  useEffect(() => void refetchHistory(), [runId, finished, refetchHistory])
+  // Refresh the history whenever the selected run changes status (queued -> running -> waiting -> ...).
+  const liveStatus = finished?.status ?? runStatusFromEvents(events)
+  useEffect(() => void refetchHistory(), [runId, liveStatus, refetchHistory])
 
   const statuses = useMemo(() => nodeStatuses(events), [events])
   useEffect(() => onStatuses(statuses), [statuses, onStatuses])
@@ -331,7 +333,25 @@ export default function ResultsPanel({
           <>
             <span>Run <code data-testid="run-id">{runId}</code></span>
             <span>Status: <strong data-testid="run-status" style={{ color: STATUS_COLOR[runStatus] }}>{runStatus}</strong></span>
-            <span>Duration: <span data-testid="run-duration">{formatMs(runDurationMs(events))}</span></span>
+            {(() => {
+              const t = runTiming(events)
+              if (t.waitingSince) {
+                return (
+                  <span>
+                    Active: <span data-testid="run-duration">{formatMs(t.activeMs)}</span> ·{' '}
+                    <span data-testid="run-waiting-since" style={{ color: STATUS_COLOR.waiting }}>
+                      waiting since {new Date(t.waitingSince).toLocaleTimeString()}
+                    </span>
+                  </span>
+                )
+              }
+              return (
+                <span>
+                  {t.waitingMs > 0 ? 'Active' : 'Duration'}: <span data-testid="run-duration">{formatMs(t.activeMs)}</span>
+                  {t.waitingMs > 0 && <> · <span data-testid="run-waited">waited {formatMs(t.waitingMs)}</span></>}
+                </span>
+              )
+            })()}
             {finished?.error ? <span data-testid="run-error-reason" style={{ color: 'var(--accent-red)' }}>{finished.error}</span> : null}
             <span className="text-muted">
               stream <span data-testid="ws-state">{conn}</span> · connections <span data-testid="ws-connects">{connects}</span> ·
@@ -370,7 +390,11 @@ export default function ResultsPanel({
                 }}
               >
                 <span className="badge badge-default" style={{ marginRight: 4 }}>{triggerOf(r)}</span>
-                <span style={{ color: STATUS_COLOR[r.status] }}>{r.status}</span>
+                {(() => {
+                  // The selected run shows its live status (the list can lag behind the stream).
+                  const s = r.run_id === runId && runStatus ? runStatus : r.status
+                  return <span data-testid="history-status" style={{ color: STATUS_COLOR[s] }}>{s}</span>
+                })()}
                 <div className="text-muted" style={{ fontSize: 11 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : r.run_id}</div>
               </button>
             ))}
@@ -385,17 +409,28 @@ export default function ResultsPanel({
                 <div className="text-muted" style={{ fontSize: 12 }}>Author prompt:</div>
                 <UntrustedText value={approval.prompt} untrusted={false} />
                 <div className="mt-2" style={{ fontSize: 12 }}>
-                  You are approving these <strong>exact</strong> values for sink <code>{approval.sinkNode ?? '?'}</code>.
-                  Values marked UNTRUSTED came from outside sources and are shown as plain text.
+                  Approving releases this <strong>exact</strong> call to sink <code>{approval.sinkNode ?? '?'}</code>
+                  {approval.sinkArgs ? <> (every argument it will receive)</> : null}.
+                  Values marked UNTRUSTED came from outside sources and are shown as plain text; pinned values are fixed in the flow.
                 </div>
-                <table style={{ width: '100%', fontSize: 12, marginTop: 6 }}>
+                <table style={{ width: '100%', fontSize: 12, marginTop: 6 }} data-testid="approval-call">
                   <tbody>
-                    {approval.args.map(a => (
-                      <tr key={a.name} data-testid={`approval-arg-${a.name}`} data-integrity={a.label?.integrity ?? 'unknown'}>
+                    {(approval.sinkArgs ?? approval.args.map(a => ({ ...a, pinned: false, pending: false }))).map(a => (
+                      <tr
+                        key={a.name}
+                        data-testid={`approval-arg-${a.name}`}
+                        data-integrity={a.label?.integrity ?? 'unknown'}
+                        data-pinned={a.pinned ? 'true' : 'false'}
+                      >
                         <td className="font-mono" style={{ verticalAlign: 'top', paddingRight: 6 }}>{a.name}</td>
                         <td>
                           <LabelBadge label={a.label} />
-                          <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
+                          {a.pinned && <span className="badge badge-default" data-testid="approval-pinned" style={{ marginLeft: 4 }}>pinned</span>}
+                          {a.pending ? (
+                            <div className="text-muted" data-testid="approval-pending">not known yet (comes from {a.source ?? '?'}, which has not run)</div>
+                          ) : (
+                            <UntrustedText value={a.value} untrusted={a.label?.integrity !== 'trusted'} />
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -146,13 +146,36 @@ function Editor() {
     }
   }, [pendingFit, nodesInitialized, rf])
 
-  // Opening or closing the results panel resizes the canvas: fit again so every node stays in view.
-  // Only on an actual toggle (never on load, so a new canvas stays at zoom 1 for drops).
-  const prevShowResults = useRef(showResults)
+  // 2.4d-fix: fit into the VISIBLE canvas. When the canvas height changes (results panel opened, closed
+  // or resized) refit once the new size is applied, so no node ends up below the panel. A width change
+  // (drawer, palette) does not refit, and a user who zoomed/panned keeps their view until the next toggle.
+  const userMoved = useRef(false)
+  const lastHeight = useRef(0)
+  const [canvasH, setCanvasH] = useState(0) // the minimap would cover nodes on a short canvas
+  const nodeCount = useRef(0)
+  nodeCount.current = nodes.length
   useEffect(() => {
-    if (prevShowResults.current !== showResults && nodes.length) setPendingFit(true)
-    prevShowResults.current = showResults
-  }, [showResults, nodes.length])
+    userMoved.current = false // a panel toggle always re-fits
+  }, [showResults])
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let timer: number | undefined
+    const ro = new ResizeObserver(entries => {
+      const h = Math.round(entries[0].contentRect.height)
+      const prev = lastHeight.current
+      lastHeight.current = h
+      setCanvasH(h)
+      if (!prev || Math.abs(h - prev) < 8 || !nodeCount.current || userMoved.current) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void rf.fitView(FIT), 60)
+    })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      window.clearTimeout(timer)
+    }
+  }, [rf])
 
   // ---- history (undo/redo) --------------------------------------------------
   const graphRef = useRef<GraphState>({ nodes, edges, entrypoint, loops })
@@ -483,7 +506,7 @@ function Editor() {
           <button className="btn btn-ghost btn-sm" data-testid="toggle-palette" aria-pressed={showPalette} onClick={() => setShowPalette(v => !v)}>
             {showPalette ? 'Hide nodes' : 'Add nodes'}
           </button>
-          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => rf.fitView(FIT)}>Fit view</button>
+          <button className="btn btn-ghost btn-sm" data-testid="fit-view" onClick={() => { userMoved.current = false; void rf.fitView(FIT) }}>Fit view</button>
           <button className="btn btn-ghost btn-sm" data-testid="toggle-minimap" aria-pressed={showMinimap} onClick={() => setShowMinimap(v => !v)}>
             {showMinimap ? 'Hide minimap' : 'Show minimap'}
           </button>
@@ -540,7 +563,7 @@ function Editor() {
           ))}
         </ul>
       )}
-      {violations.length > 0 && <ViolationList violations={violations} />}
+      {violations.length > 0 && <ViolationList violations={violations} edges={edges} />}
 
       <div className="flex gap-3 flex-1" style={{ minHeight: 0 }}>
         {showPalette && <Palette specs={specsQ.data ?? []} onAdd={s => addNode(s)} />}
@@ -570,6 +593,9 @@ function Editor() {
               onNodeDrag={() => {
                 dragMoved.current = true
               }}
+              onMoveEnd={ev => {
+                if (ev) userMoved.current = true // user zoom/pan (programmatic fits have no event)
+              }}
               onNodeClick={(_, n) => {
                 if (showResults && runId) setInspectNode(n.id)
               }}
@@ -585,7 +611,7 @@ function Editor() {
             >
               <Background />
               <Controls />
-              {showMinimap && (
+              {showMinimap && (canvasH === 0 || canvasH >= 320) && (
                 <MiniMap
                   pannable
                   zoomable
@@ -963,10 +989,48 @@ function EdgeDrawer(props: {
   )
 }
 
-function ViolationList({ violations }: { violations: Violation[] }) {
+/**
+ * Where a refused sink argument's data comes from, following the flow's own arg mappings backwards
+ * (display only; the security decision is the static checker's). E.g.
+ * ["ticket.payload", "triage", "page_oncall.to"]: the ticket feeds triage, whose output becomes `to`.
+ */
+export function dataOrigin(edges: CanvasEdge[], nodeId: string, arg: string): string[] {
+  const chain = [`${nodeId}.${arg}`]
+  const seen = new Set([nodeId])
+  let edge = edges.find(e => e.target === nodeId && arg in (e.data?.arg_mapping ?? {}))
+  let field = edge ? edge.data!.arg_mapping[arg] : undefined
+  while (edge && !seen.has(edge.source) && chain.length < 12) {
+    const src = edge.source
+    seen.add(src)
+    const next = edges.find(e => e.target === src && Object.keys(e.data?.arg_mapping ?? {}).length)
+    if (!next) {
+      chain.unshift(`${src}.${field}`) // origin: where the data enters the flow
+      break
+    }
+    chain.unshift(src)
+    edge = next
+    field = Object.values(next.data!.arg_mapping)[0]
+  }
+  return chain
+}
+
+function ViolationList({ violations, edges }: { violations: Violation[]; edges: CanvasEdge[] }) {
+  const explain = violations.filter(v => /^[A-Za-z_][\w.]*$/.test(v.target_arg))
   return (
     <div className="card" style={{ padding: 10, borderColor: 'var(--accent-red)' }} data-testid="violation-list">
       <div className="font-semibold mb-1" style={{ color: 'var(--accent-red)' }}>Publish refused: security violations</div>
+      {explain.map((v, i) => {
+        const arg = v.target_arg.split('.').pop()!
+        const chain = dataOrigin(edges, v.node_id, arg)
+        return (
+          <div key={`x${i}`} className="mb-2" style={{ fontSize: 13 }} data-testid="violation-explain" data-node={v.node_id} data-arg={arg}>
+            <strong className="font-mono">{v.node_id}.{arg}</strong> would be filled from untrusted data:{' '}
+            <span className="font-mono" data-testid="violation-chain">{chain.join(' → ')}</span>.{' '}
+            The data starts at <code>{chain[0].split('.')[0]}</code>, which is outside input, so <code>{arg}</code> must be
+            pinned in the flow (or come from an allowlist or an approval), not taken from that data.
+          </div>
+        )
+      })}
       <table style={{ width: '100%', fontSize: 12 }}>
         <thead>
           <tr><th align="left">Node</th><th align="left">Arg</th><th align="left">Path</th><th align="left">Reason</th></tr>

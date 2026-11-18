@@ -28,8 +28,19 @@ export interface PendingApproval {
   prompt: string
   sinkNode?: string
   args: ApprovalArg[]
+  /** 2.4d-fix: every argument the sink will receive (pinned, via the approval, from other nodes). */
+  sinkArgs?: SinkArg[]
   waitingSeq: number
 }
+
+export interface SinkArg extends ApprovalArg {
+  pinned: boolean
+  /** Comes from a node that has not run yet; its value is not known at approval time. */
+  pending: boolean
+  source?: string
+}
+
+type RawSinkArg = { value?: unknown; label?: LabelInfo; pinned?: boolean; via_approval?: boolean; pending?: boolean; source?: string }
 
 export interface ProvenanceStep {
   text: string
@@ -117,11 +128,19 @@ export function pendingApproval(events: RunEvent[]): PendingApproval | undefined
       const args = (e.data.arguments as Record<string, unknown>) ?? {}
       const approves = (e.data.approves as { sink_node?: string; args?: string[] }) ?? {}
       const names = approves.args?.length ? approves.args : Object.keys(args)
+      const raw = e.data.sink_args as Record<string, RawSinkArg> | undefined
+      const sinkArgs: SinkArg[] | undefined = raw && Object.keys(raw).length
+        ? Object.entries(raw).map(([n, s]) =>
+            s.via_approval
+              ? { name: n, value: args[n], label: labels[n], pinned: false, pending: false, source: nodeId }
+              : { name: n, value: s.value, label: s.label, pinned: !!s.pinned, pending: !!s.pending, source: s.source })
+        : undefined
       pending = {
         nodeId,
         prompt: str(e.data.prompt),
         sinkNode: approves.sink_node,
         args: names.map(n => ({ name: n, value: args[n], label: labels[n] })),
+        sinkArgs,
         waitingSeq: e.seq,
       }
     } else if (e.type === 'approval_decision' && pending && e.data.node_id === pending.nodeId) {
@@ -262,6 +281,39 @@ export function runDurationMs(events: RunEvent[], now = Date.now()): number | nu
   const finished = ['run_succeeded', 'run_failed'].includes(events[events.length - 1]?.type ?? '')
   const end = finished ? tsMs(events[events.length - 1]) : now
   return Number.isFinite(end) ? Math.max(0, end - start) : null
+}
+
+export interface RunTiming {
+  /** Time the run was actually executing (wall time minus time spent waiting). */
+  activeMs: number | null
+  /** Total time spent waiting (approval or timer), closed waits only plus an open one up to now. */
+  waitingMs: number
+  /** Set while the run is waiting right now: when the wait began (ISO timestamp). */
+  waitingSince?: string
+  finished: boolean
+}
+
+/** Active vs waiting time. A wait runs from run_waiting to the next event (the decision or timer resume). */
+export function runTiming(events: RunEvent[], now = Date.now()): RunTiming {
+  const startEv = events.find(e => e.type === 'run_started')
+  const start = tsMs(startEv)
+  const last = events[events.length - 1]
+  const finished = ['run_succeeded', 'run_failed'].includes(last?.type ?? '')
+  if (!Number.isFinite(start)) return { activeMs: null, waitingMs: 0, finished }
+  let waitingMs = 0
+  let openSince: RunEvent | undefined
+  for (const e of events) {
+    if (openSince && e.seq > openSince.seq) {
+      const d = tsMs(e) - tsMs(openSince)
+      if (Number.isFinite(d)) waitingMs += Math.max(0, d)
+      openSince = undefined
+    }
+    if (e.type === 'run_waiting') openSince = e
+  }
+  // Still waiting: the counter stops at the moment the wait began.
+  const end = openSince ? tsMs(openSince) : finished ? tsMs(last) : now
+  const activeMs = Number.isFinite(end) ? Math.max(0, end - start - waitingMs) : null
+  return { activeMs, waitingMs, waitingSince: openSince?.ts, finished }
 }
 
 /** Output of the last node that succeeded (the run's final output). */
