@@ -138,6 +138,16 @@ All workflow executions are modeled as append-only event streams. Every node sta
 - **ChromaDB Dependency Exemptions Gap Note:** Four audit exemptions in `security/audit-exemptions.json` are maintained for `chromadb` because it is required transitively by `crewai==1.15.41` (`chromadb~=1.5.9`). AgentOS does not import `chromadb` directly, runs no Chroma server, and agent nodes strictly forbid `memory` and `knowledge_sources`. Remove these exemptions when crewai drops or updates chromadb; Dependabot will surface the crewai update.
 
 ### Phase 3: Governance, Observability & Access Control
+
+Sub-milestones (each is one branch and one PR into `2.0`):
+- **3.1 Audit log**
+- **3.2 Usage, cost and budgets**
+- **3.3 Alerts and notifications** (SMTP, Slack)
+- **3.4 Access** (users, login, roles)
+- **3.5 Sandbox for code tools**
+- **3.6 Review queue, trusted proxy, OTel export**
+
+Scope notes from the original plan:
 - Policy Engine: fine-grained RBAC and attribute-based access control.
 - Admin governance: only administrators can create declassification policies, configure allowlists, or mark tools as trusted. All policy modifications are fully audited in append-only logs.
 - Real-time audit stream and telemetry export (OpenTelemetry / Prometheus).

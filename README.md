@@ -1,9 +1,8 @@
 # AgentOS Framework
 
 [![CI Build Status](https://github.com/MujumdarSahil/Agent-OS-/actions/workflows/ci.yml/badge.svg)](https://github.com/MujumdarSahil/Agent-OS-/actions)
-[![Coverage Status](https://img.shields.io/badge/Coverage-48%25-yellow.svg)](#test-coverage)
 
-AgentOS lets you build AI-agent workflows ("flows") in a visual builder and run them safely. A flow starts from a manual run, a signed webhook or a schedule; it can use CrewAI agents, HTTP calls, conditions, waits, sub-flows and human approvals; and it sends results through actions such as email. Every value carries a security label, so data from webhooks, web pages or tools cannot choose who receives an email, which URL is called or whether a destructive action runs: unsafe flows are refused at publish and blocked again at runtime. LLM calls go through **LiteLLM** with multiple providers, a fallback order and an encrypted key vault. Status of each feature (verified / experimental / planned) is in [What AgentOS can do, in plain English](#what-agentos-can-do-in-plain-english). The v1 Python API (agents, squads, governance, planner) remains available; its older extras (skill graphs, role-merging/composite agents, planning graphs with LLM decomposition, resource monitoring, multi-squad federation, LangGraph hooks) are **v1 experimental**, partly stubs, and not part of the 2.0 flow engine.
+AgentOS is a workflow engine for AI agents that is built to stay safe when the content it reads is hostile. You draw a flow in the browser (a webhook, schedule or manual trigger, agents, HTTP calls, conditions, approvals, and actions such as email) and AgentOS runs it. Every value carries a security label at the workflow level: data from webhooks, web pages, emails and tools is untrusted, so it can never choose who receives an email, which URL is called or whether a destructive action runs. Unsafe flows are refused when you publish them and blocked again at run time. When a person should decide, the flow stops at an approval that shows the exact call it would release. Model calls go through LiteLLM with a fallback order across free providers and an encrypted key vault, so one provider's outage or rate limit does not stop a flow. The status of each feature (verified, experimental or planned) is listed below, and the v1 Python API is documented in [docs/v1/README_v1.md](docs/v1/README_v1.md).
 
 ## Getting started
 
@@ -130,6 +129,7 @@ passwords: keep them out of files you commit), then start the backend as in step
 | `docker` commands fail / `--wait` never finishes | Docker Desktop is not running. Start it and check with `docker ps`. |
 | `npm run dev` fails with "Cannot find native binding" | A broken `node_modules`. Delete `ui/node_modules` and run `npm install` again. |
 
+
 ## What AgentOS can do, in plain English
 
 Status badges: **Works today (verified)** = covered by automated tests that run in CI in MOCK mode
@@ -192,349 +192,78 @@ without losing events. Runs are queued and executed by a worker (in-process in S
 Use cases: [03 queue and worker](examples/usecases/03-flow-queue-worker/README.md),
 [05 visual builder](examples/usecases/05-visual-builder/README.md).
 
+**Overview, runs and approvals** — *Works today (verified in MOCK)*. The home page (**Watch → Overview**)
+shows what needs you now (waiting approvals, attacks blocked today, providers cooling down), counts of runs,
+blocked attacks, waiting approvals and model calls for the last 24 hours or 7 days, recent runs with the
+model that answered, approval cards with the exact call, the last blocked attacks with where their data came
+from, and the provider fallback chain with its health. **Runs**, **Approvals**, **Triggers** and
+**Security log** list the same data across all flows. Flows that would be too small to read left to right
+open top to bottom. It shows only what AgentOS records: there is no cost or alerting yet (planned for 3.2
+and 3.3), and refused publishes are not stored yet (planned for the 3.1 audit log).
+
 **Packs** — *Experimental (v1 agent/tool packaging via `agentos pack`); Planned (2.0 packs carrying
 flows, prompts and policies)*. Packs will let you share a ready-made automation and install it with
 one command.
 
-## Features
+### Model providers and fallback (2.0 defaults)
 
-### Core Components
-
-- **Two-Layer Hierarchical Governance Model** (fast keyword check + optional semantic LLM-judge) for fine-grained safety policy enforcement
-- **Squad Memory Sharing Network** with layered, permissioned memories: Squad, Mission, Private, Episodic, and Autobiographical
-- **Real-Time Collaboration**: WebSocket streaming endpoint (`/ws/runs/{run_id}`) for multi-agent event streaming (untested via automated suites; relies on dashboard connection)
-- **Multi-Agent Planning Graph (MAGP)**: Task graph construction and dependency ordering (rule-based template decomposition; dynamic negotiation and parallel execution runners are un-implemented)
-- **Role-Merging**: `Agent.merge_role()` helper for combining skill lists between agents (standalone composite `HybridAgent` classes are un-implemented)
-- **Distributed MCP Skill Graph (DMSG)**: `MCPRegistry` skill registration and NetworkX shortest-path routing (untested via automated pytest suites)
-- **Unified Memory Bus (UMB)**: Semantic, pluggable memory layer across agents and squads with layered permission scopes
-- **Task Router (DMARP)**: Skill-match, workload-balanced, and hybrid task assignment routing (untested via automated pytest suites)
-- **Multi-Squad Federation**: Sequential multi-squad pipelines with automated context injection and stage-level checkpointing/resume
-- **Pre-built Templates**: Six bundled crew templates (Research, Code Review, Triage, etc.) installable via CLI (`agentos templates`) or React UI
 - **Fallback Chain (2.4c defaults)**: A fresh workspace uses this order: **1) Groq GPT-OSS 20B** (`groq/openai/gpt-oss-20b`, fast, supports tool use), **2) Z.ai GLM-4.7 Flash** (`zai_glm_4_7_flash`), **3) OpenRouter Gemma 4 31B free**, **4) OpenRouter Nemotron 3 Nano Omni free**, **5) Groq Qwen 3.8 27B** (`groq/qwen/qwen3.8-27b`). Every other catalogue entry is disabled by default. That covers Groq GPT-OSS 120B (for heavier tasks), OpenAI, Anthropic, paid OpenRouter models, Gemini 2.0 Flash, DeepSeek Flash (`deepseek/deepseek-flash`, paid), Together, Fireworks, Z.ai GLM-5.3 and Hugging Face. It also covers the deprecated Groq Llama 3.3 70B and 3.1 8B (kept as disabled aliases), Groq Qwen 3 32B, and the OpenRouter free models that are no longer available (**GLM-5.2 free**, Laguna S 2.1 free and Mistral 7B free). Bring-your-own endpoints (`openai_compatible`, OmniRoute and local Ollama) are used only when you configure them. Enable any entry on the **Fallback** page; a saved fallback policy overrides these defaults. Keys come from the vault (or env). **LIVE-verified (owner run, 2.4c):** an agent flow end to end on `zai_glm_4_7_flash`, including fallback after an invalid first key. Other entries are routed by LiteLLM and covered only by the tests listed under Provider Verification Status. A failing provider is skipped for a cooldown (10 min for not-found, auth or no-balance errors; 60 s for transient ones), and each attempt times out after 20 s by default. For **OpenRouter Nemotron 3 Nano Omni free tier**: multimodal vision input is verified via recorded VCR cassette (`test_nemotron_3_nano_omni_vision`), but text-only completion (`openrouter_nemotron_3_nano_omni_free`) is unverified (captured upstream OpenRouter 504 Gateway Timeout / 400 degraded errors during recording; skipped pending clean live recording).
   > **Note on free tiers (OpenRouter, Z.ai):** Free endpoints have daily rate limits, and upstream terms may allow prompts and completions to be logged or used for training. **Do not send data labelled `secret` or sensitive internal payloads.** AgentOS enforces this for `secret`-labelled inputs by allowing only local providers (T-13). The Laguna S 2.1 free and GLM-5.2 free entries are kept in the registry, disabled, because OpenRouter no longer lists them.
   > **Note on Z.ai Models (`zai_glm_4_7_flash`, `zai_glm_5_3`):** International API platform integration (`https://api.z.ai/api/paas/v4`) using LiteLLM `zai/` routing and `ZAI_API_KEY` credentials. Entries remain labeled UNVERIFIED until live recorded cassettes are captured.
   > **Note on Vision-Capable Models:** Models such as `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` support reading and analyzing image inputs (multimodal vision input). They perform image **reading/understanding only** and do NOT support image generation.
   > **Note on Hugging Face Plugin (Experimental / Untested):** Entry pattern provided for LiteLLM HF provider (`HUGGINGFACE_API_KEY` required). Unverified via VCR cassette tests until a user supplies an HF API key. Does NOT perform local model downloads or self-hosted serving.
-- **Framework Extensibility**: Load and discover custom Agents, Tools, and MCP Plugins from project-local directories or third-party package entry points. See [EXTENDING.md](docs/EXTENDING.md) for details.
 
-## 🛡️ AgentOS-SWE Extension
+## Screenshots
 
-AgentOS includes **AgentOS-SWE**, an enterprise autonomous software verification, security intelligence, and automated repair platform built on the AgentOS framework. It provides a complete 13-stage security engineering lifecycle — from AST code graph intake to automated repair proposal generation and release readiness scoring across a single-file 29-page Streamlit dashboard.
+Taken in MOCK mode (simulated model, no keys, nothing sent) at 1440×900 by
+`ui/e2e/builder-2.4e.spec.ts`, against a fresh test server with an empty vault.
 
-For complete documentation, system architecture, dashboard guide, and security lifecycle details, see **[README_SWE.md](README_SWE.md)**.
+![Overview](docs/images/overview.png)
+*Overview: what needs you now, 24 h counts, recent runs and the model fallback chain with health.*
 
-## Installation
+![Flow editor](docs/images/flow-editor.png)
+*Use case 07 (support desk copilot) in the flow editor, opened top to bottom so the text stays readable.*
 
-```bash
-pip install -r requirements.txt
-```
+![Run inspect](docs/images/run-inspect.png)
+*A finished run: Steps with durations, and the selected node's input with its labels (the ticket text is UNTRUSTED).*
 
-## Quick Start
+![Approval](docs/images/approval.png)
+*An approval shows the full call: `to` and `subject` are pinned in the flow; the body from the ticket is UNTRUSTED plain text.*
 
-Activate the virtual environment first before running any `agentos` or `python` commands:
+![Publish refused](docs/images/publish-refused.png)
+*A flow that takes the email recipient from the ticket cannot be published; each refusal names the data path.*
 
-**Windows:**
-```bash
-venv\Scripts\activate
-```
+![Security log](docs/images/security-log.png)
+*Security log: a blocked request to the cloud metadata address, with its reason and provenance.*
 
-**Mac/Linux:**
-```bash
-source venv/bin/activate
-```
+![Models and keys](docs/images/models-and-keys.png)
+*Models & keys: the provider catalogue and the encrypted vault (keys are never shown back).*
 
-Create a new project and launch the dashboard:
-```bash
-# Create a new project
-agentos new-project demo
+## ⚠️ Known Limitations & Claims Audit
 
-# Launch the platform dashboard
-python main.py --project demo
-```
-
-### Basic Agent
-
-```python
-from agentos.core.agent import Agent
-from agentos.core.umb_adapter import UMBAdapter
-
-# Create memory bus
-umb = UMBAdapter(backend="simple")
-
-# Create agent
-agent = Agent(
-    name="Alice",
-    skills=["coding", "testing"],
-    memory_ref=umb,
-)
+AgentOS 2.0 (flows, labels, approvals, providers, UI):
 
-# Plan and execute
-task = {"id": "task1", "description": "Write a function"}
-plan = await agent.plan(task)
-result = await agent.execute(plan["subtasks"][0])
-```
+- **Provider Verification Status**: Recorded VCR cassettes exist for the three Groq entries and for OpenRouter Gemma 4 31B, Laguna S 2.1 free, GLM-5.2 free and Nemotron (vision). The Groq, Laguna and GLM-5.2 cassettes are historical: those model IDs are deprecated or no longer listed, and the entries are disabled by default. OpenAI, Anthropic, Gemini and Ollama have no cassette; they have mock-level tests only. `zai_glm_4_7_flash` is **LIVE-verified** by the owner's 2.4c run. Together AI, Fireworks, DeepSeek (`deepseek-chat` is missing from DeepSeek's live list and awaits the owner's choice of ID), Hugging Face Inference API and `zai_glm_5_3` remain UNVERIFIED. For **OpenRouter Nemotron 3 Nano Omni**: multimodal vision processing is verified (`test_nemotron_3_nano_omni_vision` passes via offline cassette), while text completion (`openrouter_nemotron_3_nano_omni_free`) is unverified due to upstream 504 Gateway Timeout / 400 degraded errors recorded in its cassette, and is skipped pending fresh recording.
+- **Local Ollama Probe Behavior**: Connectivity probe `check_ollama_reachable()` performs non-blocking HTTP probes (`http://localhost:11434/api/tags`) with a 1.0s timeout and non-fatal logging. When Ollama is offline, calls gracefully fall back to alternative providers in the fallback chain.
+- **Screenshots and UI checks are MOCK**: the images above and the Playwright suites use a simulated model. Real-model behaviour (for example whether a model follows an injected instruction) can differ; the security outcome does not depend on it.
+- **Overview data**: provider health comes from the server's in-memory circuit breaker (it resets on restart, and in Platform mode with separate workers it shows only the API process). Counts cover the newest 500 runs. SSRF blocks recorded before 2.4e are not counted as attacks. There is no cost, budget or alert data yet.
+- **Refused publishes** are shown in the editor but not stored, so the Security log lists run-time blocks only (the 3.1 audit log will record refusals).
+- **Vault startup check**: the Standalone vault file is checked at startup (it must parse and decrypt); the Platform (Mongo) vault is not.
+- **Run history**: runs created before 2.4d have no stored trigger, so older webhook runs may show as `manual`.
 
-### Squad
+Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
+[docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).
 
-```python
-from agentos.core.squad import Squad, SquadRole
+## More
 
-# Create squad
-squad = Squad(name="Dev Squad", shared_memory_ref=umb)
+- **v1 API and features** (agents, squads, governance, planner, cybersecurity extensions, ModelHub): [docs/v1/README_v1.md](docs/v1/README_v1.md).
+- **AgentOS-SWE** (software verification and repair platform built on AgentOS): [README_SWE.md](README_SWE.md).
 
-# Add agents
-commander = Agent(name="Commander", skills=["planning"])
-developer = Agent(name="Developer", skills=["coding"])
-
-squad.add_agent(commander, SquadRole.COMMANDER)
-squad.add_agent(developer, SquadRole.WORKER)
-
-# Create and start mission
-mission = squad.create_mission(goal="Build an API")
-await squad.start_mission(mission.id)
-```
-
-### Planning and Routing
-
-```python
-from agentos.core.planner import Planner
-from agentos.core.router import TaskRouter, AssignmentStrategy
-
-# Create task graph
-planner = Planner()
-graph = planner.create_graph("Build a web app")
-
-# Route tasks to agents
-router = TaskRouter(strategy=AssignmentStrategy.HYBRID)
-plan = router.assign(graph, agents)
-```
-
-### Governance
-
-```python
-from agentos.core.governance import GovernanceEngine
-
-governance = GovernanceEngine()
-
-# Create policy
-policy = governance.create_action_policy(
-    name="Safe Actions",
-    denied_actions=["delete", "format"],
-)
-governance.register_policy(policy)
-
-# Check policy
-decision = await governance.check(
-    agent_id=agent.id,
-    action="execute",
-    context={"task": task, "agent": agent}
-)
-```
-
-## Project Structure
-
-```
-agentos/
-├── core/              # Core components
-│   ├── agent.py       # Agent class
-│   ├── squad.py       # Squad class
-│   ├── governance.py  # Policy engine
-│   ├── federation.py  # Multi-squad federation
-│   ├── router.py      # Task router (DMARP)
-│   ├── planner.py     # Planner (MAGP)
-│   └── umb_adapter.py # Unified Memory Bus
-├── templates/         # Pre-built crew templates (.agentpack formats)
-├── dmsg/              # Distributed MCP Skill Graph
-│   ├── registry.py    # MCP registry
-│   └── pathfinder.py  # Skill pathfinder
-├── mcp_connectors/    # MCP connectors
-├── comms/             # Communication layer
-├── tests/             # Tests
-└── demo.py            # Demo script
-```
-
-## Running the Demo
-
-```bash
-python agentos/demo.py
-```
-
-## Running Tests
-
-```bash
-pytest agentos/tests/
-```
-
-## Architecture
-
-AgentOS follows a modular architecture:
-
-1. **Core Layer**: Agents, Squads, Governance, Planning, Routing
-2. **Memory Layer**: UMB adapter with pluggable backends (FAISS, Chroma, PG vector)
-3. **Skill Layer**: DMSG for MCP server and skill management
-4. **Communication Layer**: WebSocket server for real-time collaboration
-5. **Resource Layer**: Monitoring and adaptive behavior
-
-## Research Components
-
-- **DMARP**: Dynamic Multi-Agent Routing Protocol
-- **DMSG**: Distributed MCP Skill Graph
-- **UMB**: Unified Memory Bus with multi-layer memory
-
-## Cybersecurity Extensions
-
-AgentOS includes comprehensive cybersecurity capabilities:
-
-### Security MCP Servers (`mcp/security/`)
-
-- **PAT-MCP**: Password audit tool with hash identification, strength benchmarking, policy evaluation
-- **Network Monitor MCP**: Network monitoring with port scan detection, anomaly detection, incident classification
-- **System Audit MCP**: System configuration auditing, firewall validation, hardening recommendations
-
-### Security Agents (`agents/`)
-
-- **SecurityAgent**: Specialized agent with roles (auditor, monitor, analyst, policy-advisor)
-- **ScriptAuthorAgent**: Generates defensive/educational security scripts only
-
-### Cybersecurity Tools (`mcp/security/tools/`)
-
-- **LogAnalyzer**: Defensive log analysis for security events
-- **FirewallAudit**: Firewall rule auditing
-- **PermissionAudit**: User permission auditing
-- **SystemHardening**: Hardening recommendations
-- **NetworkMetadataInspector**: Network metadata analysis
-- **SIEMScriptBuilder**: SIEM integration script generation
-
-### Security Missions (`missions/security_missions.py`)
-
-- Enterprise Password Audit Mission
-- Network Health Check Mission
-- System Hardening Mission
-- Log Threat Analysis Mission
-- Firewall Config Audit Mission
-- User & Permission Audit Mission
-
-**Safety Features:**
-- ✅ No password cracking - only policy auditing
-- ✅ No exploitation - all operations are defensive
-- ✅ Hash-only inputs - never cleartext passwords
-- ✅ Read-only operations - no system modifications
-- ✅ Governance enforcement - all operations checked
-- ✅ Safety metadata - all outputs include safety_metadata
-
-## ML & Training Capabilities
-
-### ModelHub (`modelhub/`)
-
-- **Multi-backend LLM Support**: OpenAI, Claude, local models
-- **Training Orchestrator**: SFT, LoRA, QLoRA, quantization jobs
-- **Safety Frameworks**: Constitutional AI, model cascades, verifier models
-- **Performance**: Speculative decoding, caching, workload scheduling
-
-### RAG/CAG Integration (`core/`)
-
-- **RAG Manager**: Retrieval-augmented generation with UMB integration
-- **CAG**: Context-augmented generation
-- **Retrieval Adapters**: FAISS, ChromaDB, PGVector
-- **Hybrid Search**: Vector + keyword search
-- **KG Integration**: Knowledge graph RAG hooks
-
-## UI
-
-### FastAPI Backend (`ui/backend/`)
-
-- REST API for models, training, tools
-- Governance enforcement on all endpoints
-- WebSocket support for real-time updates
-
-### React Frontend (`ui/frontend/`)
-
-- Models Dashboard
-- Training Job Monitor
-- Tools & MCPs page
-- Missions page
-- Safety Monitor
-
-## Running Examples
-
-### Running the Full Platform (Backend + Frontend)
-
-AgentOS includes a unified launcher that starts both the FastAPI backend and the React frontend in a single command, auto-installing frontend dependencies.
-
-Run python main.py from inside a project directory, or use python main.py --project <path>. The dashboard requires an open project to display agents, crews, and missions.
-
-```bash
-# Start the platform in development mode
-python main.py --project demo
-
-# Or start in production mode (single process serving both API and static frontend)
-python main.py --project demo --prod
-```
-
-### Manual Execution
-
-If you prefer to run the components in separate terminals:
-
-```bash
-# Start the FastAPI backend
-python -m uvicorn agentos_server.app:create_app --factory --reload --port 8000
-
-# Start the React frontend
-cd ui
-npm install
-npm run dev -- --port 5173
-```
-
-# Run cybersecurity squad example CLI script
-python agentos/examples/sample_cybersecurity_squad_run.py
-
-### MCP Demos (Teaching Examples)
 AgentOS includes two minimal teaching examples to show how agents, tools, and MCP servers connect:
 - [Demo 1: Custom Local notes.json MCP Server](examples/mcp_demos/local_notes_server/) — stdio subprocess transport notes manager.
 - [Demo 2: External Context7 Documentation MCP Server](examples/mcp_demos/context7_docs_lookup/) — remote, read-only documentation lookups.
 
 See [SECURITY.md](docs/SECURITY.md), [ETHICS.md](docs/ETHICS.md), and [PHASE3_LIMITATIONS.md](docs/PHASE3_LIMITATIONS.md) for safety policies, ethics guidelines, and detailed framework specifications.
-
-## ⚠️ Known Limitations & Claims Audit
-
-- **Provider Verification Status**: Recorded VCR cassettes exist for the three Groq entries and for OpenRouter Gemma 4 31B, Laguna S 2.1 free, GLM-5.2 free and Nemotron (vision). The Groq, Laguna and GLM-5.2 cassettes are historical: those model IDs are deprecated or no longer listed, and the entries are disabled by default. OpenAI, Anthropic, Gemini and Ollama have no cassette; they have mock-level tests only. `zai_glm_4_7_flash` is **LIVE-verified** by the owner's 2.4c run. Together AI, Fireworks, DeepSeek (`deepseek-chat` is missing from DeepSeek's live list and awaits the owner's choice of ID), Hugging Face Inference API and `zai_glm_5_3` remain UNVERIFIED. For **OpenRouter Nemotron 3 Nano Omni**: multimodal vision processing is verified (`test_nemotron_3_nano_omni_vision` passes via offline cassette), while text completion (`openrouter_nemotron_3_nano_omni_free`) is unverified due to upstream 504 Gateway Timeout / 400 degraded errors recorded in its cassette, and is skipped pending fresh recording.
-- **UMB Vector Backends**: `UMBAdapter` requested backends `faiss`, `chroma`, and `pgvector` are un-implemented and emit explicit `UserWarning` / `logger.warning` events while safely falling back to the built-in in-memory `SimpleVectorStore`.
-- **LangGraph Integration**: Agent execution is built on CrewAI and LiteLLM; LangGraph node generation (`Agent.to_langgraph_node()`) is an experimental stub raising `NotImplementedError`, scheduled for evaluation in Phase 1.5 flow engine spike.
-- **Model Cascades & Safety Verifiers**: `ModelCascade` (`modelhub/safety/model_cascade.py`) is an un-tested stub returning formatted string drafts without executing real LLM calls. `VerifierModel` implements regex/keyword checks for toxicity/policy violations; hallucination verification is a hardcoded score stub.
-- **Multi-Squad Federation**: `FederatedMission` implements ordered sequential handoffs (Squad A → Squad B) via context string injection with stage-level checkpointing; parallel squad execution, cross-squad shared memory, and dynamic negotiation protocols are un-implemented.
-- **DMSG MCP Registry**: `MCPRegistry` (`agentos/dmsg/registry.py`) maintains an in-memory dictionary of metadata nodes and auto-registers local mock security MCP tools; it does not connect to external servers over STDIO/SSE directly.
-- **Squad Memory Layers**: `Episodic` and `Autobiographical` exist solely as enum values in `MemoryPermission`; there is no episodic consolidation, reflection, or decay engine. `Squad.shared_memory_ref` is stored on the instance but is not accessed by `run_mission()`.
-- **Local Ollama Probe Behavior**: Connectivity probe `check_ollama_reachable()` performs non-blocking HTTP probes (`http://localhost:11434/api/tags`) with a 1.0s timeout and non-fatal logging. When Ollama is offline, calls gracefully fall back to alternative providers in the fallback chain.
-- **WebSocket Streaming**: WebSocket endpoint (`/ws/runs/{run_id}`) and `WebSocketServer` exist for execution event streaming, but lack automated unit/integration test coverage in pytest; operation relies on manual dashboard connection.
-- **MAGP Planning Scope**: `Planner` builds DAG subtask graphs and dependency ordering, but LLM-based task decomposition and dynamic agent negotiation/parallelization protocols are un-implemented (uses rule-based template decomposition and static task graphs).
-- **Role-Merging Scope**: Role-merging is implemented via `Agent.merge_role()` which combines skill lists between agents; standalone composite `HybridAgent` classes and memory merging are un-implemented.
-- **Task Router (DMARP) Test Coverage**: `TaskRouter` implements skill-matching, workload-balanced, and hybrid task assignment routing algorithms, but lacks a dedicated automated pytest test suite.
-
-## Test Coverage
-
-Overall framework test coverage: **49%** (measured across 11,110 statements by `pytest --cov=agentos` offline with mock LLM across `agentos/tests`, `agentos/server/tests`, and `agentos/packaging/tests`). Core orchestration, state, and provider layers maintain high verification:
-
-| Module / File | Statements | Missing | Coverage | Status |
-| :--- | :---: | :---: | :---: | :---: |
-| `agentos/core/checkpoint.py` | 70 | 4 | **94%** | Verified (Unit + Characterization) |
-| `agentos/core/governance.py` | 299 | 27 | **91%** | Verified (Unit + LLM Judge) |
-| `agentos/core/agent.py` | 96 | 10 | **90%** | Verified (Unit + CrewAI Mock) |
-| `agentos/core/squad.py` | 210 | 23 | **89%** | Verified (Sequential Execution) |
-| `agentos/core/federation.py` | 104 | 13 | **88%** | Verified (Sequential Handoff) |
-| `agentos/core/umb_adapter.py` | 158 | 3 | **98%** | Verified (SimpleVectorStore + Fallback Warning) |
-| `agentos/core/config_models.py` | 33 | 0 | **100%** | Verified (Pydantic Validation) |
-| `agentos/llm/llm_client.py` | 184 | 8 | **96%** | Verified (Fallback & Mock Routing) |
-| `agentos/llm/router_factory.py` | 62 | 12 | **81%** | Verified (Priority & Tags Ordering) |
-| `agentos/llm/provider_registry.py` | 33 | 11 | **67%** | Verified (Cassette / Available Checks) |
-| `agentos_server/app.py` | 76 | 9 | **88%** | Verified (FastAPI Routes) |
-| `agentos_server/run_manager.py` | 66 | 6 | **91%** | Verified (Async State Tracking) |
-| `agentos/packaging/signer.py` | 97 | 14 | **86%** | Verified (Ed25519 Signing) |
-| `agentos/packaging/pack_format.py` | 141 | 35 | **75%** | Verified (.agentpack Archive) |
-
-To run the coverage test suite locally, use:
-```bash
-pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=term
-```
 
 ## License
 
@@ -543,4 +272,3 @@ MIT
 ## Contributing
 
 Contributions welcome! Please see CONTRIBUTING.md for guidelines.
-
