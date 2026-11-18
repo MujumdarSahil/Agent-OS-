@@ -531,7 +531,9 @@ class FlowEngine:
                     fail_ev = await self._append_event(
                         run_id=state.run_id,
                         type="node_failed",
-                        data={"node_id": nid, "error": str(res)},
+                        # 2.4e: error_type (class name only) lets read models tell security blocks
+                        # (sink rule, pinned override, SSRF) from ordinary failures.
+                        data={"node_id": nid, "error": str(res), "error_type": type(res).__name__},
                     )
                     state.apply_event(fail_ev)
 

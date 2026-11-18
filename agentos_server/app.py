@@ -116,8 +116,11 @@ def create_app(
         project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
     project_path = os.path.abspath(project_path)
 
-    # Load API keys from .env (repo root first, then project directory overrides)
+    # Load API keys from .env (repo root first, then project directory overrides).
+    # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
     try:
+        if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+            raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
         from dotenv import load_dotenv
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         root_env = os.path.join(repo_root, ".env")
