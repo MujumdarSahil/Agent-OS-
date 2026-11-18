@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
-  LayoutDashboard, Bot, Wrench, Users, Target,
-  Wand2, Shield, Package, Cpu, LayoutGrid, Settings as SettingsIcon,
-  Server, Key, Lock, LogOut, Workflow
+  LayoutDashboard, Bot, Wrench, Users, Target, Wand2, Shield, Package, Cpu, LayoutGrid,
+  Settings as SettingsIcon, Server, Key, Lock, LogOut, Workflow, Gauge, ListChecks, Hand,
+  Zap, ShieldAlert, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { getHealth, getAuthToken, clearAuthToken } from './api/client'
+import { getOverview } from './api/flows'
 import AuthGate from './components/AuthGate'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
@@ -22,25 +24,89 @@ import Templates from './pages/Templates'
 import Settings from './pages/Settings'
 import Flows from './pages/Flows'
 import FlowEditor from './pages/FlowEditor'
+import Overview from './pages/Overview'
+import Runs from './pages/Runs'
+import Approvals from './pages/Approvals'
+import Triggers from './pages/Triggers'
+import SecurityLog from './pages/SecurityLog'
 
-const NAV = [
-  { to: '/', icon: <LayoutDashboard size={16}/>, label: 'Dashboard' },
-  { to: '/agents', icon: <Bot size={16}/>, label: 'Agents' },
-  { to: '/squads', icon: <Users size={16}/>, label: 'Squads' },
-  { to: '/tools', icon: <Wrench size={16}/>, label: 'Tools' },
-  { to: '/mcp-servers', icon: <Server size={16}/>, label: 'MCP Servers' },
-  { to: '/providers', icon: <Key size={16}/>, label: 'Providers & Vault' },
-  { to: '/flows', icon: <Workflow size={16}/>, label: 'Flows' },
-  { to: '/missions', icon: <Target size={16}/>, label: 'Missions' },
-  { to: '/templates', icon: <LayoutGrid size={16}/>, label: 'Templates' },
-  { to: '/builder', icon: <Wand2 size={16}/>, label: 'Builder' },
-  { to: '/governance', icon: <Shield size={16}/>, label: 'Governance' },
-  { to: '/packaging', icon: <Package size={16}/>, label: 'Packaging' },
-  { to: '/settings', icon: <SettingsIcon size={16}/>, label: 'Settings' },
+interface NavItem { to: string; icon: ReactNode; label: string }
+
+// 2.4e: menu by purpose. v1 pages stay reachable under "Classic (v1)", collapsed by default.
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+  { title: 'Watch', items: [{ to: '/', icon: <Gauge size={15}/>, label: 'Overview' }] },
+  { title: 'Work', items: [
+    { to: '/runs', icon: <ListChecks size={15}/>, label: 'Runs' },
+    { to: '/approvals', icon: <Hand size={15}/>, label: 'Approvals' },
+  ] },
+  { title: 'Build', items: [
+    { to: '/flows', icon: <Workflow size={15}/>, label: 'Flows' },
+    { to: '/agents', icon: <Bot size={15}/>, label: 'Agents' },
+    { to: '/squads', icon: <Users size={15}/>, label: 'Squads' },
+    { to: '/triggers', icon: <Zap size={15}/>, label: 'Triggers' },
+  ] },
+  { title: 'Connect', items: [
+    { to: '/providers', icon: <Key size={15}/>, label: 'Models & keys' },
+    { to: '/tools', icon: <Wrench size={15}/>, label: 'Tools' },
+    { to: '/mcp-servers', icon: <Server size={15}/>, label: 'MCP servers' },
+  ] },
+  { title: 'Govern', items: [{ to: '/security', icon: <ShieldAlert size={15}/>, label: 'Security log' }] },
+  { title: 'System', items: [{ to: '/settings', icon: <SettingsIcon size={15}/>, label: 'Settings' }] },
 ]
+
+const CLASSIC: NavItem[] = [
+  { to: '/classic/dashboard', icon: <LayoutDashboard size={15}/>, label: 'Dashboard' },
+  { to: '/missions', icon: <Target size={15}/>, label: 'Missions' },
+  { to: '/templates', icon: <LayoutGrid size={15}/>, label: 'Templates' },
+  { to: '/builder', icon: <Wand2 size={15}/>, label: 'Builder' },
+  { to: '/governance', icon: <Shield size={15}/>, label: 'Governance' },
+  { to: '/packaging', icon: <Package size={15}/>, label: 'Packaging' },
+]
+
+const navTestId = (to: string) => (to === '/' ? 'nav-overview' : `nav-${to.slice(1).split('/').join('-')}`)
+
+function NavItems({ items }: { items: NavItem[] }) {
+  return (
+    <>
+      {items.map(n => (
+        <NavLink
+          key={n.to}
+          to={n.to}
+          end={n.to === '/'}
+          data-testid={navTestId(n.to)}
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+        >
+          {n.icon} {n.label}
+        </NavLink>
+      ))}
+    </>
+  )
+}
+
+/** Footer card: deployment mode and version (from the overview endpoint; fetched once, no polling). */
+function ModeCard({ version }: { version: string }) {
+  const q = useQuery({ queryKey: ['overview', '24h'], queryFn: () => getOverview('24h'), staleTime: 60_000 })
+  const mode = q.data?.mode
+  return (
+    <div data-testid="mode-card" style={{ padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', fontSize: 11, marginBottom: 8 }}>
+      <div data-testid="mode-label" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+        {mode === 'platform' ? 'Platform' : mode === 'standalone' ? 'Standalone · local only' : 'Mode unknown'}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)', marginTop: 4 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }} data-testid="version-label">
+          <Cpu size={12}/> AgentOS · v{q.data?.version ?? version}
+        </span>
+        <span style={{ color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Lock size={10} /> Authenticated
+        </span>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   const [version, setVersion] = useState('2.0.0')
+  const [classicOpen, setClassicOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getAuthToken())
 
   useEffect(() => {
@@ -75,33 +141,28 @@ export default function App() {
       <div className="app-shell">
         <aside className="sidebar">
           <div className="sidebar-logo">
-            <h1>Agent<span style={{ color: '#8b5cf6' }}>OS</span></h1>
+            <h1>Agent<span style={{ color: 'var(--accent-brand)' }}>OS</span></h1>
             <p>Core Resource Management (v2)</p>
           </div>
-          <nav className="sidebar-nav">
-            <span className="nav-section">Navigation</span>
-            {NAV.map(n => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                end={n.to === '/'}
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              >
-                {n.icon} {n.label}
-              </NavLink>
-            ))}
-          </nav>
-          <div style={{ padding: '0 12px', marginTop: 'auto' }}>
-            <div style={{ padding: '12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', fontSize: 11, marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Cpu size={12}/> AgentOS · v{version}
-                </span>
-                <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Lock size={10} /> Authenticated
-                </span>
+          <nav className="sidebar-nav" data-testid="sidebar-nav">
+            {NAV_GROUPS.map(g => (
+              <div key={g.title} data-testid={`nav-group-${g.title.toLowerCase()}`}>
+                <span className="nav-section">{g.title}</span>
+                <NavItems items={g.items} />
               </div>
-            </div>
+            ))}
+            <button
+              className="nav-section nav-section-toggle"
+              data-testid="nav-classic-toggle"
+              aria-expanded={classicOpen}
+              onClick={() => setClassicOpen(o => !o)}
+            >
+              {classicOpen ? <ChevronDown size={11}/> : <ChevronRight size={11}/>} Classic (v1)
+            </button>
+            {classicOpen && <div data-testid="nav-group-classic"><NavItems items={CLASSIC} /></div>}
+          </nav>
+          <div style={{ padding: '0 12px', marginTop: 8 }}>
+            <ModeCard version={version} />
             <button
               id="logout-btn"
               onClick={handleLogout}
@@ -115,7 +176,12 @@ export default function App() {
 
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Overview />} />
+            <Route path="/runs" element={<Runs />} />
+            <Route path="/approvals" element={<Approvals />} />
+            <Route path="/triggers" element={<Triggers />} />
+            <Route path="/security" element={<SecurityLog />} />
+            <Route path="/classic/dashboard" element={<Dashboard />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/squads" element={<Squads />} />
             <Route path="/crews" element={<Squads />} /> {/* Backward compatibility alias */}

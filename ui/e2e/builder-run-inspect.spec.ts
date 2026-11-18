@@ -9,7 +9,9 @@ import { E2E_TOKEN } from '../playwright.builder.config'
 
 const ROOT = path.resolve(process.cwd(), '..', 'examples', 'usecases')
 const AUTH = { Authorization: `Bearer ${E2E_TOKEN}` }
-const SHOTS = path.resolve(process.cwd(), '..', 'docs', 'evidence', 'raw')
+// 2.4e: re-runs write to test-results so the committed 2.4d evidence screenshots are never overwritten.
+const SHOTS = path.resolve(process.cwd(), 'test-results', 'shots-2.4d')
+fs.mkdirSync(SHOTS, { recursive: true })
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
@@ -111,6 +113,9 @@ test('benign run from the Run button: succeeded, output visible, a node input/ou
   await expect(body).toHaveAttribute('data-integrity', 'untrusted')
   await expect(body.getByTestId('untrusted-text')).toContainText('Sample ticket: export button does nothing.')
   await expect(insp.locator('[data-testid="node-io-input-row"][data-key="to"]')).toHaveAttribute('data-integrity', 'trusted')
+  // 2.4e: a pinned input reads "pinned in flow", not "from notify"
+  await expect(insp.locator('[data-testid="node-io-input-row"][data-key="to"]').getByTestId('value-pinned')).toHaveText('pinned in flow')
+  await expect(insp.locator('[data-testid="node-io-input-row"][data-key="to"]').getByTestId('label-badge')).not.toContainText('from ')
   await expect(insp.getByTestId('node-io-output-row').first()).toBeVisible()
   // Logs tab: raw events
   await page.getByTestId('tab-logs').click()
@@ -172,7 +177,10 @@ test('approval card shows the full sink call (pinned to + untrusted body); Histo
   const to = page.getByTestId('approval-arg-to')
   await expect(to).toHaveAttribute('data-pinned', 'true')
   await expect(to).toHaveAttribute('data-integrity', 'trusted')
-  await expect(to.getByTestId('approval-pinned')).toHaveText('pinned')
+  await expect(to.getByTestId('approval-pinned')).toHaveText('pinned in flow')
+  // 2.4e: a pinned value reads "pinned in flow", never "from <sink>"
+  await expect(to.getByTestId('label-badge')).not.toContainText('from ')
+  await expect(to).toContainText('pinned in flow')
   await expect(to.getByTestId('untrusted-text')).toHaveText('oncall@corp.local')
   await expect(page.getByTestId('approval-arg-subject')).toHaveAttribute('data-pinned', 'true')
   const body = page.getByTestId('approval-arg-body')
@@ -224,7 +232,10 @@ test.describe('1440x900', () => {
     await page.goto(`/flows/${f.id}`)
     await page.getByTestId('publish-flow').click()
     await expect(page.getByTestId('editor-message')).toContainText('Publish refused')
-    const oncall = page.locator('[data-testid="violation-explain"][data-node="page_oncall"][data-arg="to"]')
+    // 2.4e: the words "Publish refused" appear once on the page (message), the list only explains why
+    await expect(page.getByText('Publish refused', { exact: false })).toHaveCount(1)
+    await expect(page.getByTestId('violation-heading')).toContainText('3 security violations')
+    const oncall =page.locator('[data-testid="violation-explain"][data-node="page_oncall"][data-arg="to"]')
     await expect(oncall.getByTestId('violation-chain')).toHaveText('ticket.payload → triage → page_oncall.to')
     await expect(oncall).toContainText('must be pinned in the flow')
     await expect(page.locator('[data-testid="violation-explain"][data-node="queue_note"][data-arg="to"]')).toBeVisible()
