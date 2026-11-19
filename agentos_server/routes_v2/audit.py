@@ -45,7 +45,11 @@ async def list_audit(
 
 @router.get("/verify")
 async def verify_audit(request: Request) -> Dict[str, Any]:
-    return await _log(request).verify()
+    result = await _log(request).verify()
+    notify = getattr(request.app.state, "notify", None)  # 3.3: "audit chain broken" alert
+    if notify is not None:
+        await notify.on_audit_verify(result)
+    return result
 
 
 @router.get("/export")

@@ -40,8 +40,35 @@ from agentos.storage.models import EventRecord
 from agentos.storage.ports import FencingTokenError, Storage
 
 
+# 3.3 (0c): fetch_url limits (GET only, through net_guard)
+FETCH_URL_TIMEOUT_S = 10.0
+FETCH_URL_MAX_BYTES = 100_000
+MOCK_FETCH_BODY = "[HTTP 200] (mock fetch_url: no network request was made)"
+
+
+def sink_result_text(tool_name: str, args: dict[str, Any], result: Any) -> str:
+    """What the model is told after an EXTERNAL_SEND tool call (AgentOS-written; never a server response)."""
+    status = (result or {}).get("status") if isinstance(result, dict) else None
+    if status == "simulated":
+        return f"{tool_name}: NOT sent ({(result or {}).get('reason') or 'simulated'})"
+    if tool_name == "send_email":
+        return f"Email successfully dispatched to {args.get('to')}"
+    if tool_name == "send_slack":
+        return f"Slack message sent to channel {args.get('channel')}"
+    return f"{tool_name}: sent"
+
+
+async def transport_send(transport: Any, idempotency_key: str, args: dict[str, Any]) -> Any:
+    """3.3: prefer a transport's async ``asend`` (real channels); fall back to the sync ``send``."""
+    if hasattr(transport, "asend"):
+        return await transport.asend(idempotency_key=idempotency_key, **args)
+    return transport.send(idempotency_key=idempotency_key, **args)
+
+
 class MockTransport:
     """Default in-memory transport recording calls with idempotency keys."""
+
+    retry_safe = True  # in-memory dedup by idempotency key: re-sending a pending intent is harmless
 
     def __init__(self) -> None:
         self.sent_calls: list[dict[str, Any]] = []
@@ -211,7 +238,7 @@ class AgentOSToolProxy:
 
         # 3. Check sink rules using the shared rule engine
         if self.track_labels and tool_spec.sink_rules:
-            to_val = final_args.get("to")
+            to_val = final_args.get(tool_spec.recipient_arg)
             for arg_name, rule in tool_spec.sink_rules.items():
                 canonical_pinned_key = f"{tool_name}.{arg_name}"
                 is_pinned = canonical_pinned_key in self.pinned_args or arg_name in self.pinned_args
@@ -276,7 +303,17 @@ class AgentOSToolProxy:
                 None,
             )
             if existing_commit:
-                return f"Email successfully dispatched to {final_args.get('to')}"
+                return sink_result_text(tool_name, final_args, (existing_commit.data or {}).get("result"))
+
+            transport = self.transport_registry.get(tool_name)
+            # 3.3: argument checks of a real channel (header injection, sizes, From) BEFORE any intent
+            if transport is not None and hasattr(transport, "avalidate"):
+                try:
+                    await transport.avalidate(final_args)
+                except ValueError as err:
+                    await self._append_event(type="tool_call_blocked", data={
+                        "agent_node": agent_node_id, "tool_name": tool_name, "reason": str(err)[:300]})
+                    raise
 
             # Append sink_intent event (if not already appended for this key)
             has_intent = any(
@@ -284,6 +321,13 @@ class AgentOSToolProxy:
                 and (e.data or {}).get("idempotency_key") == idempotency_key
                 for e in events
             )
+            if has_intent and not getattr(transport, "retry_safe", True):
+                # 3.3: a real send may or may not have happened; never re-send automatically
+                reason = (f"{tool_name}: an earlier call with these arguments may or may not have been sent "
+                          f"(uncommitted_sink_needs_review); it is never re-sent automatically")
+                await self._append_event(type="sink_needs_review",
+                                         data={"agent_node": agent_node_id, "tool_name": tool_name, "reason": reason})
+                raise ValueError(reason)
             if not has_intent:
                 await self._append_event(
                     type="sink_intent",
@@ -297,9 +341,8 @@ class AgentOSToolProxy:
 
             # Transport call with fencing check and idempotency key
             self._check_fencing()
-            transport = self.transport_registry.get(tool_name)
-            if transport and hasattr(transport, "send"):
-                result = transport.send(idempotency_key=idempotency_key, **final_args)
+            if transport is not None and (hasattr(transport, "send") or hasattr(transport, "asend")):
+                result = await transport_send(transport, idempotency_key, final_args)
             else:
                 result = {"status": "sent", "idempotency_key": idempotency_key}
 
@@ -313,7 +356,7 @@ class AgentOSToolProxy:
                     "result": result,
                 },
             )
-            ret_val = f"Email successfully dispatched to {final_args.get('to')}"
+            ret_val = sink_result_text(tool_name, final_args, result)
         elif tool_name == "calculator":
             # 3.1: safe arithmetic only; errors go back to the model as text (no side effect, nothing to undo)
             from agentos.flows.calculator import CalculatorError, evaluate
@@ -323,8 +366,7 @@ class AgentOSToolProxy:
             except CalculatorError as err:
                 ret_val = f"Calculator error: {err}"
         elif tool_name == "fetch_url":
-            url = final_args.get("url", "")
-            ret_val = f"Simulated content from {url}: [Status 200 OK, payload: safe payload]"
+            ret_val = await self._fetch_url(agent_node_id, final_args.get("url"))
         else:
             ret_val = f"Executed {tool_name} successfully with args: {final_args}"
 
@@ -333,6 +375,49 @@ class AgentOSToolProxy:
         self.agent_context_label = context_after_tool_output(self.agent_context_label, entry)
 
         return ret_val
+
+    async def _fetch_url(self, agent_node_id: str, url: Any) -> str:
+        """3.3 (0c): a real GET through net_guard (SSRF checks on every hop, connect to the checked IP, redirects
+        re-checked, 100 KB cap, 10 s timeout, no credentials, no cookies). The output stays UNTRUSTED (the caller
+        joins the tool-output label). The event holds metadata only, never the body. MOCK mode (no injected
+        transport): a canned body, event mode "mock"."""
+        import os
+
+        from agentos.flows.net_guard import HttpRequestTransport, SSRFBlockedError, url_host
+
+        base = {"agent_node": agent_node_id, "tool_name": "fetch_url"}
+        transport = self.transport_registry.get("fetch_url")
+        if transport is None and os.environ.get("AGENTOS_MOCK_LLM") == "1":
+            await self._append_event(type="fetch_url", data={**base, "mode": "mock", "status": 200, "bytes": 0,
+                                                             "truncated": False})
+            return MOCK_FETCH_BODY
+        if not isinstance(url, str) or not url.strip():
+            await self._append_event(type="fetch_url", data={**base, "mode": "live", "status": "error",
+                                                             "error": "missing url"})
+            return "fetch_url error: a url is required"
+        transport = transport or HttpRequestTransport(self.policy.http_allowlist)
+        self._check_fencing()
+        try:
+            res = await asyncio.to_thread(transport.request, "GET", url.strip(), None, None, None,
+                                          FETCH_URL_TIMEOUT_S, FETCH_URL_MAX_BYTES, None)
+        except SSRFBlockedError as err:
+            reason = f"fetch_url refused by the network guard: {err}"[:400]
+            await self._append_event(type="tool_call_blocked", data={**base, "reason": reason})
+            raise
+        except Exception as err:  # timeout, connection or TLS error: AgentOS-written text only
+            timed_out = "timeout" in type(err).__name__.lower()
+            msg = (f"the request timed out after {FETCH_URL_TIMEOUT_S:g} s" if timed_out
+                   else f"could not fetch the URL ({type(err).__name__})")
+            await self._append_event(type="fetch_url", data={**base, "mode": "live", "status": "error",
+                                                             "error": msg})
+            return f"fetch_url error: {msg}"
+        body = res.get("body") or ""
+        await self._append_event(type="fetch_url", data={
+            **base, "mode": "live", "status": res.get("status"), "bytes": len(body.encode("utf-8")),
+            "truncated": bool(res.get("truncated")), "host": url_host(res.get("final_url") or ""),
+            "redirects": len(res.get("redirects") or []),
+        })
+        return f"[HTTP {res.get('status')}] {body}" + (" [truncated]" if res.get("truncated") else "")
 
     async def _invoke_mcp(self, agent_node_id: str, entry: ToolEntry, args: dict[str, Any]) -> str:
         """Call an approved MCP tool through the manager. Above read: sink_intent -> call -> sink_committed;

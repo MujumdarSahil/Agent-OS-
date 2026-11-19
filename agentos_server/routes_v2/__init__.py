@@ -11,6 +11,7 @@ from agentos_server.routes_v2.audit import router as audit_router
 from agentos_server.routes_v2.flows import router as flows_router
 from agentos_server.routes_v2.mcp_servers import router as mcp_servers_router
 from agentos_server.routes_v2.node_specs import router as node_specs_router
+from agentos_server.routes_v2.notify import router as notify_router
 from agentos_server.routes_v2.overview import router as overview_router
 from agentos_server.routes_v2.providers import router as providers_router
 from agentos_server.routes_v2.schedules import router as schedules_router
@@ -35,3 +36,4 @@ router.include_router(node_specs_router)
 router.include_router(overview_router)
 router.include_router(audit_router)
 router.include_router(usage_router)
+router.include_router(notify_router)

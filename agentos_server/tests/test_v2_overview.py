@@ -127,7 +127,8 @@ async def test_empty_database(client):
     assert body["kpis"]["runs"]["total"] == 0
     assert body["kpis"]["attacks_blocked"] == 0
     assert body["kpis"]["model_calls"] == {"total": 0, "median_latency_ms": None, "fallbacks": 0}
-    assert body["needs_you"] == {"waiting_approvals": 0, "attacks_blocked_today": 0, "providers_cooling": 0}
+    assert body["needs_you"] == {"waiting_approvals": 0, "attacks_blocked_today": 0, "providers_cooling": 0,
+                                 "unacknowledged_alerts": 0}  # 3.3
     assert body["recent_runs"] == [] and body["waiting"] == [] and body["blocked"] == [] and body["flows"] == []
     assert body["getting_started"]["first_run"] is False
     assert body["getting_started"]["flow_published"] is False

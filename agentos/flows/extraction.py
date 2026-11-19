@@ -29,7 +29,7 @@ DEFAULT_MAX_INPUT_CHARS = 20000
 MAX_INPUT_CHARS_LIMIT = 100000
 MAX_INT_ABS = 10**9
 FIELD_TYPES = ("enum", "bool", "int_range", "pattern", "allowlist")
-RECIPIENT_ARGS = frozenset({"to", "cc", "bcc", "recipient", "recipients"})
+RECIPIENT_ARGS = frozenset({"to", "cc", "bcc", "recipient", "recipients", "channel"})  # 3.3: Slack channel
 
 # Built-in patterns only: there is no user-supplied regex.
 PATTERNS: dict[str, re.Pattern[str]] = {
