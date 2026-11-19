@@ -186,6 +186,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 [04](examples/usecases/04-webhook-trigger/README.md),
 [06](examples/usecases/06-http-and-branching/README.md).
 
+**Quarantined extraction** — *Works today (verified in MOCK, scripted model)*. One model call turns an untrusted email into a few constrained, validated fields (a category from a fixed list, yes/no, a ticket ID), so a flow can route on them and put them in a message without an approval. Use case: [09 phishing triage](examples/usecases/09-phishing-triage/README.md).
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.
@@ -260,6 +262,14 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   are refused, but the host is resolved again when connecting, so DNS rebinding is not fully prevented.
   Server lifecycle is verified with the in-process worker; a separate Platform worker process is not tested.
   Tool calls above `read` are never retried after a crash and need review instead.
+- **Validator and quarantined extraction (2.5b)**: both constrain WHAT can come out, not WHICH allowed value:
+  an attacker can steer the choice (for example make a phishing email come out as `legit`, or send a different
+  allowed enum value through a validator). Destructive actions still need an approval, a validated or extracted
+  value can never choose an email recipient unless its type is an admin `allowlist`, and extraction's model
+  output is verified in MOCK with a scripted model only. Validators accept only the five constrained types
+  (`enum` with values, `bool`, `int_range` with min and max, a built-in `pattern`, an admin `allowlist`);
+  flows published before 2.5b with an unconstrained validator (for example `enum` without values, or
+  `bounded_number` without bounds) fail closed at run time.
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).

@@ -24,6 +24,7 @@ const CATEGORY: Record<string, NodeCategory> = {
   tool: 'action',
   approval: 'human',
   validator: 'security',
+  quarantined_extraction: 'security',
 }
 
 export const categoryOf = (type: string): NodeCategory => CATEGORY[type] ?? 'action'
@@ -139,6 +140,10 @@ export function configSummary(node: CanvasNode): string {
       return `mode: ${String(c.mode ?? 'all')}`
     case 'validator':
       return clip(`${String(c.field ?? '')} as ${String(c.field_type ?? '?')}`)
+    case 'quarantined_extraction': {
+      const fields = Array.isArray(c.fields) ? (c.fields as { name?: string; type?: string }[]) : []
+      return clip(fields.length ? `extracts ${fields.map(f => `${f.name}:${f.type}`).join(', ')}` : 'no fields')
+    }
     case 'approval':
       return clip(`approves ${String((c.approves as { sink_node?: string } | undefined)?.sink_node ?? '?')}`)
     case 'webhook_trigger':

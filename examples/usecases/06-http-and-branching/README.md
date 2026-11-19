@@ -31,5 +31,10 @@ Expected last line: `Use case 06: ALL PASS`.
 - Trusted internal email domains (`corp.local`) and the HTTP allowlist (`internal.corp`) are set
   explicitly in `run.py`; in a server they come from `AGENTOS_INTERNAL_DOMAINS` and
   `AGENTOS_HTTP_ALLOWLIST` (or `security.*` in `agentos.config.yaml`), both empty by default.
-- To use a URL that comes from data, pass it through a `validator` node with
-  `field_type: allowlist_match` and `allowlist_name: http_allowlist`.
+- To use a URL that comes from data, pass it through a `validator` node with `field_type: allowlist` and an
+  admin allowlist of exact URLs (`security.allowlists` in `agentos.config.yaml`); the validator then outputs the
+  admin's canonical URL, never the incoming one.
+- **Changed in 2.5b:** `allowlist_name: http_allowlist` is no longer accepted by a validator. It matches by host,
+  so the path and query would still come from the data; publish now refuses it, and a flow published before
+  2.5b fails closed at run time (no declassification). The flows of this use case don't use a validator, so
+  their behaviour is unchanged.

@@ -10,6 +10,9 @@ from enum import Enum
 from typing import Any
 from pydantic import BaseModel, Field
 
+from agentos.flows.extraction import CONFIG_SCHEMA as _EXTRACTION_CONFIG_SCHEMA
+from agentos.flows.extraction import VALIDATOR_CONFIG_SCHEMA as _VALIDATOR_CONFIG_SCHEMA
+
 
 class SideEffectClass(str, Enum):
     NONE = "none"
@@ -265,16 +268,8 @@ APPROVAL_NODE_SPEC = NodeSpec(
 
 VALIDATOR_NODE_SPEC = NodeSpec(
     type="validator",
-    config_schema={
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "field": {"type": "string"},
-            "field_type": {"type": "string"},
-            "allowlist_name": {"type": "string"},
-        },
-        "required": ["field", "field_type"],
-    },
+    # 2.5b hardening: the same constrained types and limits as quarantined extraction (agentos/flows/extraction.py)
+    config_schema=_VALIDATOR_CONFIG_SCHEMA,
     input_schema={"type": "object"},
     output_schema={
         "type": "object",
@@ -284,6 +279,17 @@ VALIDATOR_NODE_SPEC = NodeSpec(
             "result": {"type": "string"},
         },
     },
+    side_effect=SideEffectClass.NONE,
+)
+
+QUARANTINED_EXTRACTION_SPEC = NodeSpec(
+    # 2.5b: declassifies untrusted text into strictly constrained fields with one direct model call;
+    # outputs only validated values, labelled trusted (agentos/flows/extraction.py).
+    type="quarantined_extraction",
+    config_schema=_EXTRACTION_CONFIG_SCHEMA,
+    # the untrusted text arrives on ONE edge-mapped argument (default "text"; `config.input` renames it)
+    input_schema={"type": "object", "properties": {"text": {"type": "string"}}},
+    output_schema={"type": "object"},
     side_effect=SideEffectClass.NONE,
 )
 
@@ -477,6 +483,7 @@ BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "send_email": SEND_EMAIL_SINK_SPEC,
     "approval": APPROVAL_NODE_SPEC,
     "validator": VALIDATOR_NODE_SPEC,
+    "quarantined_extraction": QUARANTINED_EXTRACTION_SPEC,
     "loop": LOOP_NODE_SPEC,
     "http_request": HTTP_REQUEST_SPEC,
     "condition": CONDITION_NODE_SPEC,

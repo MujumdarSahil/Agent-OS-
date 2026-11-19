@@ -15,6 +15,7 @@ import {
   type BlockedCall, type LabelInfo, type PendingApproval, type RunEvent,
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
+import { declassificationText, declassifiedBy, visibleSources } from './ExtractionConfig'
 
 type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'finished'
 type Tab = 'output' | 'steps' | 'logs' | 'security'
@@ -48,16 +49,20 @@ export function UntrustedText({ value, untrusted = true }: { value: unknown; unt
 export function LabelBadge({ label, pinned = false }: { label?: LabelInfo; pinned?: boolean }) {
   if (!label) return <span className="badge badge-default" data-testid="label-badge" data-integrity="unknown">label unknown</span>
   const untrusted = label.integrity !== 'trusted'
-  const sources = label.sources ?? []
+  // 2.5b: validator and extraction markers read "declassified by <kind> (<node>)", not as sources
+  const declassified = untrusted ? [] : declassifiedBy(label)
+  const sources = visibleSources(label)
   return (
     <span
       className="badge"
       data-testid="label-badge"
       data-integrity={label.integrity}
+      data-declassified={declassified.length ? [...new Set(declassified.map(d => d.kind))].join(' ') : undefined}
       style={{ background: untrusted ? 'rgba(239,68,68,0.15)' : 'rgba(45,212,191,0.15)', color: untrusted ? 'var(--accent-red)' : 'var(--accent-teal, #2dd4bf)' }}
       title={`confidentiality: ${label.confidentiality}; sources: ${pinned ? 'pinned in flow' : sources.join(', ') || '-'}`}
     >
-      {untrusted ? 'UNTRUSTED' : 'trusted'} · {label.confidentiality}
+      {untrusted ? 'UNTRUSTED' : 'trusted'}
+      {declassified.length ? ` · ${declassificationText(label)}` : ''} · {label.confidentiality}
       {!pinned && sources.length ? ` · from ${sources.join(', ')}` : ''}
     </span>
   )

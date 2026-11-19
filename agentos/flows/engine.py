@@ -38,6 +38,7 @@ from agentos.flows.rules import (
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
 from agentos.flows.state import FlowRunState, NodeState, RunStatus
 from agentos.flows import control_nodes as cn
+from agentos.flows import extraction as ex
 from agentos.flows.net_guard import SSRFBlockedError
 from agentos.storage.models import EventRecord, RunRecord
 from agentos.storage.ports import FencingTokenError, Storage
@@ -47,70 +48,21 @@ def execute_validator_runtime(
     node: NodeDefinition,
     raw_inputs: dict[str, Any],
     policy: SecurityPolicy,
+    inbound: Label | None = None,
 ) -> tuple[dict[str, Any], Label]:
-    """Execute validator node at runtime.
+    """Execute a validator node at run time (2.5b hardening: same constraint code as quarantined extraction).
 
-    Requirement 3: Validators at runtime OUTPUT the constrained value itself
-    (bool, enum member, number, or matched entry from admin allowlist),
-    NEVER the original input string.
+    Outputs ONLY the validated value (enum member after trimming whitespace, real bool or the exact strings
+    "true"/"false", integer in [min, max], built-in pattern, or the canonical admin allowlist entry), never the
+    original input. An unconstrained or incomplete config (including flows published before 2.5b) fails closed:
+    ``ExtractionRejected("invalid_config")``, nothing is declassified. The label comes from the shared
+    ``validator_output_labels`` (the analyzer uses the same function): trusted, the INBOUND confidentiality,
+    inbound sources plus a ``declassified:validator:<node>`` marker. ``inbound`` defaults to an untrusted,
+    internal label with no sources for direct callers.
     """
-    field = node.config.get("field", "data")
-    field_type = node.config.get("field_type")
-    raw_val = raw_inputs.get(field, raw_inputs.get("data", raw_inputs))
-
-    if field_type == "bool":
-        if isinstance(raw_val, bool):
-            clean_val = raw_val
-        elif isinstance(raw_val, str):
-            clean = raw_val.strip().lower()
-            if clean in ("true", "1", "yes", "t"):
-                clean_val = True
-            elif clean in ("false", "0", "no", "f"):
-                clean_val = False
-            else:
-                raise ValueError(f"Cannot parse boolean from {raw_val!r}")
-        elif isinstance(raw_val, (int, float)):
-            clean_val = bool(raw_val)
-        else:
-            raise ValueError(f"Cannot parse boolean from {raw_val!r}")
-
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    elif field_type == "bounded_number":
-        try:
-            clean_val = float(raw_val) if "." in str(raw_val) else int(raw_val)
-        except (ValueError, TypeError) as err:
-            raise ValueError(f"Cannot parse number from {raw_val!r}") from err
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    elif field_type == "allowlist_match":
-        allowlist_name = node.config.get("allowlist_name")
-        allowed_entries = policy.allowlists.get(allowlist_name, [])
-        target = str(raw_val).strip().lower()
-        matched_entry = None
-        for entry in allowed_entries:
-            if entry.strip().lower() == target:
-                matched_entry = entry
-                break
-
-        if matched_entry is None:
-            raise ValueError(f"Value {raw_val!r} not found in admin allowlist {allowlist_name!r}")
-
-        # Return the canonical matched entry from allowlist, never the user input string
-        out_label = Label.trusted(sources={node.id})
-        return {field: matched_entry, "data": matched_entry, "to": matched_entry}, out_label
-
-    elif field_type == "enum":
-        clean_val = str(raw_val).strip()
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    else:
-        # Free text or unconstrained field type stays untrusted
-        out_label = Label.untrusted(sources={node.id})
-        return {field: raw_val, "data": raw_val}, out_label
+    inbound = inbound if inbound is not None else Label.untrusted()
+    outputs = ex.run_validator(node.config, raw_inputs, policy.allowlists)
+    return outputs, ex.validator_output_labels(node.id, node.config, inbound, policy.allowlists)["*"]
 
 
 class FlowEngine:
@@ -595,13 +547,91 @@ class FlowEngine:
             entries.append(entry)
         return catalog, entries
 
-    def _router_llm(self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any) -> Any:
+    async def _run_extraction(
+        self, state: FlowRunState, node: NodeDefinition, inputs: dict[str, Any], effective_inbound: Label
+    ) -> tuple[dict[str, Any], dict[str, Label]]:
+        """2.5b quarantined extraction (design: docs/evidence/2.5b.md).
+
+        One direct model call (never CrewAI: no tools, function calling, memory or agent loop); the router
+        makes one attempt per provider and nothing feeds invalid output back. The raw output is never passed
+        on or stored: events carry only its length and sha256. Any failure goes to ``on_invalid``.
+        """
+        cfg = node.config
+        fields = cfg.get("fields") or []
+        allowlists = self.policy.allowlists
+        inbound = ex.shared_inbound(self.flow, node.id, state.node_output_labels, effective_inbound)
+        labels = ex.extraction_output_labels(node.id, fields, inbound)
+
+        value = inputs.get(cfg.get("input") or "text")
+        text = value if isinstance(value, str) else ("" if value is None else json.dumps(value, default=str))
+        messages, truncated, input_chars = ex.build_messages(cfg, text, allowlists)
+        provider: str | None = None
+        model: str | None = None
+        raw: Any = None
+        started = time.perf_counter()
+        try:
+            if value is None:
+                raise ex.ExtractionRejected("missing_input")
+            secret = inbound.confidentiality == Confidentiality.SECRET.value
+            if self.custom_llm is not None:
+                # Test double / injected model: it must declare itself local for SECRET input (T-13).
+                if secret and not getattr(self.custom_llm, "is_local", False):
+                    raise ex.ExtractionRejected("model_refused")
+                provider, model = "custom", str(getattr(self.custom_llm, "model", "custom"))
+                raw = await asyncio.to_thread(self.custom_llm.call, messages)
+            elif os.environ.get("AGENTOS_MOCK_LLM") == "1":
+                provider, model = "mock", "mock-extraction"
+                raw = ex.mock_output(cfg, allowlists)
+            else:
+                records: list[dict[str, Any]] = []
+                router = self._router_llm(state, node, inbound, asyncio.get_running_loop(), extra_on_call=records.append)
+                try:
+                    raw = await asyncio.to_thread(router.call, messages, None)
+                except Exception:
+                    raise ex.ExtractionRejected("model_refused" if secret else "model_failed") from None
+                finally:
+                    ok = next((r for r in reversed(records) if r.get("provider")), {})
+                    provider, model = ok.get("provider"), ok.get("model")
+            values = ex.parse_output(raw, cfg, allowlists)
+        except ex.ExtractionRejected as rej:
+            raw_len, raw_sha = ex.raw_digest(raw)
+            use_defaults = cfg.get("on_invalid", "fail") == "default" and rej.reason not in ("missing_input",)
+            await self._append_event(run_id=state.run_id, type="extraction_rejected", data={
+                "node_id": node.id, "reason": rej.reason, "field": rej.field, "provider": provider, "model": model,
+                "input_chars": input_chars, "truncated": truncated, "raw_len": raw_len, "raw_sha256": raw_sha,
+                "used_defaults": use_defaults,
+            })
+            if not use_defaults:
+                raise ex.ExtractionRejected(rej.reason, rej.field,
+                                            f"Quarantined extraction {node.id!r} rejected the model output "
+                                            f"({rej.reason}{', field ' + rej.field if rej.field else ''})") from None
+            values = ex.defaults_or_raise(cfg, allowlists)
+        else:
+            raw_len, raw_sha = ex.raw_digest(raw)
+            await self._append_event(run_id=state.run_id, type="extraction_completed", data={
+                "node_id": node.id, "fields": values, "input_chars": input_chars, "truncated": truncated,
+                "provider": provider, "model": model,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                "raw_len": raw_len, "raw_sha256": raw_sha,
+            })
+        await self._append_event(run_id=state.run_id, type="declassified", data={
+            "node_id": node.id, "kind": ex.NODE_TYPE, "fields": [f["name"] for f in fields],
+            "source_sources": sorted(inbound.sources),
+        })
+        return values, labels
+
+    def _router_llm(
+        self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any,
+        extra_on_call: Any | None = None,
+    ) -> Any:
         """AgentOSRouterLLM for an agent/llm node. Called from the event loop; used from worker threads."""
         from agentos.llm.router_llm import AgentOSRouterLLM
 
         run_id = state.run_id
 
         def on_call(record: dict[str, Any]) -> None:
+            if extra_on_call is not None:
+                extra_on_call(record)
             fut = asyncio.run_coroutine_threadsafe(
                 self._append_event(run_id=run_id, type="llm_call", data=record), loop
             )
@@ -860,7 +890,10 @@ class FlowEngine:
             return
 
         # 2.3: destructive sinks require a trusted control dependency (shared rule code)
-        cn.check_control(node_id, spec.side_effect, control_label)
+        cn.check_control(
+            node_id, spec.side_effect, control_label,
+            approval_gated=ex.is_approval_gated(self.flow, node_id), policy=self.policy,
+        )
 
         # 1. Trigger nodes (webhook_trigger, manual_trigger)
         if node.type in ("webhook_trigger", "manual_trigger"):
@@ -881,8 +914,43 @@ class FlowEngine:
 
         # 2. Validator node (Requirement 3: outputs constrained value, never original text)
         if node.type == "validator":
-            outputs, out_label = execute_validator_runtime(node, inputs, self.policy)
-            labels = {"*": out_label, "data": out_label, **{k: out_label for k in outputs}}
+            # 2.5b hardening: shared inbound + shared labels (identical to publish); fail closed with an event
+            inbound = ex.shared_inbound(self.flow, node_id, state.node_output_labels, effective_inbound)
+            try:
+                outputs, _ = execute_validator_runtime(node, inputs, self.policy, inbound)
+            except ex.ExtractionRejected as rej:
+                await self._append_event(run_id=state.run_id, type="validator_rejected", data={
+                    "node_id": node_id, "reason": rej.reason, "field": rej.field,
+                    "field_type": node.config.get("field_type"), "declassified": False,
+                })
+                if rej.reason == "invalid_config":
+                    raise ex.ExtractionRejected(rej.reason, rej.field, (
+                        f"Validator {node_id!r} cannot declassify (fail closed, nothing declassified): {rej}"
+                    )) from None
+                raise ex.ExtractionRejected(rej.reason, rej.field, (
+                    f"Validator {node_id!r} rejected its input ({rej.reason}"
+                    f"{', field ' + rej.field if rej.field else ''})"
+                )) from None
+            labels = ex.validator_output_labels(node_id, node.config, inbound, self.policy.allowlists)
+            await self._append_event(run_id=state.run_id, type="declassified", data={
+                "node_id": node_id, "kind": "validator", "fields": [node.config.get("field", "data")],
+                "field_type": ex.validator_type(node.config), "source_sources": sorted(inbound.sources),
+            })
+            ev = await self._append_event(
+                run_id=state.run_id,
+                type="node_succeeded",
+                data={
+                    "node_id": node_id,
+                    "outputs": outputs,
+                    "output_labels": {k: v.model_dump(mode="json") for k, v in labels.items()},
+                },
+            )
+            state.apply_event(ev)
+            return
+
+        # 2b. 2.5b quarantined extraction: one direct model call, strict parse, validated values only
+        if node.type == "quarantined_extraction":
+            outputs, labels = await self._run_extraction(state, node, inputs, effective_inbound)
             ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",
@@ -961,6 +1029,7 @@ class FlowEngine:
                     pinned_to_val=to_val,
                     policy=self.policy,
                     path=[node_id],
+                    approval_gated=ex.is_approval_gated(self.flow, node_id),
                 )
                 if violations:
                     raise SinkRuleViolationError(violations[0])

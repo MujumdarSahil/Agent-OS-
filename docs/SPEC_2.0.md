@@ -91,14 +91,21 @@ A sink is any node whose execution causes external or stateful side effects:
 ### 2.3 Declassification Soundness
 Declassification converts untrusted data into trusted data through deliberate, verifiable nodes:
 1. **Approval Node (`approval`):** Suspends flow execution and requests human reviewer confirmation. The approval UI displays the actual sink argument values (destinations, commands, payloads) to the reviewer to prevent rubber-stamp approvals. If approved, confirmed fields are labeled `trusted`.
-2. **Validator Node (`validator`):** Evaluates untrusted data against strict constraints. Integrity is upgraded **only** for constrained types:
-   - Enums matching closed allowlists.
-   - Booleans.
-   - Bounded numbers within verified ranges.
-   - Strict regex allowlists (e.g., UUIDs, hash digests).
-   - Cryptographic signatures verified against known public keys.
+2. **Validator Node (`validator`):** Evaluates one untrusted value against a strict constraint. Since 2.5b it uses the same constraint code and limits as quarantined extraction (item 3); integrity is upgraded **only** for:
+   - `enum` with `values` (2-50, `[A-Za-z0-9 _.-]`, ≤ 64 chars; exact match after trimming whitespace only);
+   - `bool` (a real boolean or the exact strings `"true"` / `"false"`; no numbers, no `"yes"` or `"1"`);
+   - `int_range` with `min` and `max` (integers only, booleans rejected);
+   - `pattern` from the fixed set (`uuid`, `sha256`, `iso_date`, `ticket_id`);
+   - `allowlist` with `allowlist_name` (an admin allowlist of exact values; the output is the canonical entry; the host-based `http_allowlist` is not accepted).
+   - Old names still work where safe: `allowlist_match` = `allowlist`, `bounded_number` = `int_range` (min and max now required). Any other or incomplete config is refused at publish and fails closed at run time (a `validator_rejected` event; nothing is declassified).
+   - Labels (shared by analyzer and runtime): `trusted`, the input's confidentiality, the input's sources plus a `declassified:validator:<node>:<field>:<type>` marker. The DESTRUCTIVE and recipient rules of item 3 apply to validator outputs too.
+   - Cryptographic signature verification: **Planned**, not implemented.
    *Soundness Rule:* Free-text strings and unstructured markdown/JSON fields **remain untrusted** even if they pass schema validation.
-3. **Quarantined Extraction Node (`quarantined_extraction`):** An isolated parsing node that extracts only strictly typed, constrained fields (enums, booleans, bounded numeric IDs) from untrusted input payloads, shedding all free text.
+3. **Quarantined Extraction Node (`quarantined_extraction`):** An isolated parsing node that extracts only strictly typed, constrained fields from untrusted input payloads, shedding all free text. (2.5b, design in `docs/evidence/2.5b.md`.)
+   - Field types: `enum` (2-50 fixed values), `bool`, `int_range` (inclusive, |value| ≤ 10^9), `pattern` from a fixed set (`uuid`, `sha256`, `iso_date`, `ticket_id`; no user regex), and `allowlist` (an admin allowlist; the output is the canonical entry). There is no free-text type.
+   - One direct model call (no tools, function calling, memory or agent loop). Output over 4 KB, extra or missing keys, nested values and wrong types are rejected and go to `on_invalid` (`fail`, or validated `defaults`). Raw model output is never passed on or stored, only its length and sha256. SECRET input may only reach local providers (T-13).
+   - Labels: each field is `trusted`, keeps the input's confidentiality, and carries the input's sources plus a `declassified:quarantined_extraction:<node>:<field>:<type>` marker. The analyzer and the runtime use the same function.
+   - *Soundness Rule (validator and extraction):* both constrain WHAT can come out, not WHICH allowed value: an attacker can steer the choice. So a DESTRUCTIVE sink must not be enabled solely by a validated or extracted value, as an argument or as the deciding predicate: it still needs an upstream approval, unless the admin-only policy flag `allow_declassified_for_destructive` (default false; the earlier name `allow_extraction_for_destructive` is still read) is set. An EXTERNAL_SEND recipient may come from a validator or extraction only through an `allowlist` type; an enum never becomes a recipient. Both rules are enforced at publish and at run time.
 
 ### 2.4 Agent Tool Call Mediation via AgentOS Proxy
 Agents (including CrewAI squads and individual agent executors) never invoke Python functions, external APIs, or MCP servers directly. All tool definitions provided to the model point to the **AgentOS Tool Proxy**:

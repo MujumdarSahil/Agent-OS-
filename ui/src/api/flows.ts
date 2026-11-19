@@ -28,6 +28,9 @@ export interface NodeSpecInfo {
   output_schema: JSONSchema
   sink_rules: Record<string, SinkRule>
   constrained_fields: string[]
+  /** 2.5b quarantined_extraction only: the node declassifies, and the admin allowlist names (names only). */
+  declassifies?: boolean
+  allowlist_names?: string[]
 }
 
 export interface FlowNodeDef {

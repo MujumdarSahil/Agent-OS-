@@ -132,15 +132,15 @@ def test_requirement_3_validator_runtime_outputs_constrained_types():
     assert type(res_bool["active"]) is bool
     assert lbl_bool.integrity == "trusted"
 
-    # 2. Bounded Number: "42.5" -> 42.5 (float)
+    # 2. Bounded Number (2.5b hardening: = int_range, min/max required, integers only): 42 -> 42 (int)
     node_num = NodeDefinition(
         id="val_num",
         type="validator",
-        config={"field": "amount", "field_type": "bounded_number"},
+        config={"field": "amount", "field_type": "bounded_number", "min": 0, "max": 100},
     )
-    res_num, lbl_num = execute_validator_runtime(node_num, {"amount": "42.5"}, policy)
-    assert res_num["amount"] == 42.5
-    assert type(res_num["amount"]) is float
+    res_num, lbl_num = execute_validator_runtime(node_num, {"amount": 42}, policy)
+    assert res_num["amount"] == 42
+    assert type(res_num["amount"]) is int
     assert lbl_num.integrity == "trusted"
 
     # 3. Allowlist match: " TRUSTED@CORP.LOCAL " -> exact admin allowlist entry "trusted@corp.local"

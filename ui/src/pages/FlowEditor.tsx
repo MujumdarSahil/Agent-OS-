@@ -29,6 +29,10 @@ import {
   NODE_H, NODE_W, READABLE_ZOOM, fitZoom, type GraphState, type LayoutDir,
 } from '../flow/builderModel'
 import ResultsPanel, { RunDialog } from '../flow/RunPanel'
+import {
+  ExtractionConfigForm, ValidatorConfigForm, defaultExtractionConfig, defaultValidatorConfig,
+  type ExtractionConfig, type ValidatorConfig,
+} from '../flow/ExtractionConfig'
 
 type Drawer = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
 const DND_TYPE = 'application/agentos-node'
@@ -329,7 +333,8 @@ function Editor() {
         id,
         type: 'flowNode',
         position: pos,
-        data: { def: { id, type: spec.type, config: {}, pinned_args: {} }, spec, isEntrypoint: g.nodes.length === 0, violated: false },
+        data: { def: { id, type: spec.type, config: spec.type === 'quarantined_extraction' ? { ...defaultExtractionConfig() }
+          : spec.type === 'validator' ? { ...defaultValidatorConfig() } : {}, pinned_args: {} }, spec, isEntrypoint: g.nodes.length === 0, violated: false },
       }
       commit(cur => {
         const withNode: GraphState = { ...cur, nodes: [...cur.nodes, node], entrypoint: cur.nodes.length === 0 ? id : cur.entrypoint }
@@ -873,6 +878,20 @@ function NodeDrawer(props: {
       <div>
         <div className="form-label">Config</div>
         <div data-testid="config-form">
+          {def.type === 'quarantined_extraction' ? (
+            <ExtractionConfigForm
+              config={(def.config ?? {}) as Partial<ExtractionConfig>}
+              allowlistNames={spec?.allowlist_names ?? []}
+              models={((schema.properties?.model as JSONSchema | undefined)?.enum as string[] | undefined) ?? []}
+              onChange={c => props.onChange({ config: c as unknown as Record<string, unknown> })}
+            />
+          ) : def.type === 'validator' ? (
+            <ValidatorConfigForm
+              config={(def.config ?? {}) as Partial<ValidatorConfig>}
+              allowlistNames={spec?.allowlist_names ?? []}
+              onChange={c => props.onChange({ config: c as unknown as Record<string, unknown> })}
+            />
+          ) : (
           <Form
             schema={schema as RJSFSchema}
             uiSchema={uiSchemaFor(schema)}
@@ -885,6 +904,7 @@ function NodeDrawer(props: {
               if (JSON.stringify(formData ?? {}) !== JSON.stringify(def.config ?? {})) props.onChange({ config: formData ?? {} })
             }}
           />
+          )}
         </div>
       </div>
       <PinnedArgsEditor pinned={def.pinned_args} suggestions={pinnableArgs(def, specs)} onChange={p => props.onChange({ pinned_args: p })} />
