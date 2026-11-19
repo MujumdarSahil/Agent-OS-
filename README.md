@@ -262,10 +262,14 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   are refused, but the host is resolved again when connecting, so DNS rebinding is not fully prevented.
   Server lifecycle is verified with the in-process worker; a separate Platform worker process is not tested.
   Tool calls above `read` are never retried after a crash and need review instead.
-- **Quarantined extraction (2.5b)**: extraction constrains WHAT can come out, not WHICH allowed value: an
-  attacker can steer the choice (for example make a phishing email come out as `legit`). Destructive actions
-  still need an approval, an extracted value can never choose an email recipient unless the field is an admin
-  `allowlist`, and the model output is verified in MOCK with a scripted model only.
+- **Validator and quarantined extraction (2.5b)**: both constrain WHAT can come out, not WHICH allowed value:
+  an attacker can steer the choice (for example make a phishing email come out as `legit`, or send a different
+  allowed enum value through a validator). Destructive actions still need an approval, a validated or extracted
+  value can never choose an email recipient unless its type is an admin `allowlist`, and extraction's model
+  output is verified in MOCK with a scripted model only. Validators accept only the five constrained types
+  (`enum` with values, `bool`, `int_range` with min and max, a built-in `pattern`, an admin `allowlist`);
+  flows published before 2.5b with an unconstrained validator (for example `enum` without values, or
+  `bounded_number` without bounds) fail closed at run time.
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).

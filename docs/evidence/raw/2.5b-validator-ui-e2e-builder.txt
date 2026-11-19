@@ -1,0 +1,382 @@
+﻿node.exe : [WebServer] INFO:     Started server process [7352]
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] INF... process [7352]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[WebServer] INFO:     Waiting for application startup.
+
+[WebServer] 2026-11-19 13:55:46,154 [WARNING] agentos_server.inprocess_worker: In-process flow worker: no transport 
+registry configured; using MockTransport for send_email (MOCK: nothing is delivered).
+
+[WebServer] INFO:     Application startup complete.
+
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+
+[WebServer] (node:19096) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 33 tests using 1 worker
+
+(node:19068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/33] [chromium] › e2e\builder-2.4e.spec.ts:77:1 › use case 07 opens top to bottom, readable with the results panel open (before/after)
+[2/33] [chromium] › e2e\builder-2.4e.spec.ts:104:1 › a small flow keeps the left-to-right layout
+[3/33] [chromium] › e2e\builder-2.4e.spec.ts:111:1 › Overview on real data: waiting approval with the full call, approve from Overview, open the run by link
+[WebServer] INFO:     127.0.0.1:25124 - "WebSocket 
+/api/v2/flows/page_oncall_demo/runs/run_bd0b53ef8945/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25126 - "WebSocket 
+/api/v2/flows/page_oncall_demo/runs/run_bd0b53ef8945/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:55:59 pm [vite] ws proxy error:
+[WebServer] Error: read ECONNRESET
+[WebServer]     at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+
+[WebServer] 1:55:59 pm [vite] ws proxy socket error:
+[WebServer] Error: read ECONNRESET
+[WebServer]     at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+
+
+[WebServer] INFO:     connection closed
+[4/33] [chromium] › e2e\builder-2.4e.spec.ts:144:1 › README screenshots (MOCK): overview, run inspect, approval, publish refused, security log, models & keys
+[WebServer] INFO:     127.0.0.1:25209 - "WebSocket /api/v2/flows/notify_demo/runs/run_98a5642879f2/events?after_seq=0" 
+[accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25211 - "WebSocket /api/v2/flows/notify_demo/runs/run_98a5642879f2/events?after_seq=0" 
+[accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:56:06 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] INFO:     connection closed
+
+[5/33] [chromium] › e2e\builder-2.5a.spec.ts:19:1 › MCP server: enable shows the command, discover, review and approve, then the agent picker offers it
+[6/33] [chromium] › e2e\builder-2.5b.spec.ts:40:1 › palette entry and field builder: fixed types, enum chips, pattern dropdown, declassifies badge
+[WebServer] 1:56:19 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[7/33] [chromium] › e2e\builder-2.5b.spec.ts:70:1 › run panel: extracted values are "trusted · declassified by extraction", the input stays untrusted plain text
+[WebServer] INFO:     127.0.0.1:25371 - "WebSocket 
+/api/v2/flows/qx_triage_e2e/runs/run_0094b304d016/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25373 - "WebSocket 
+/api/v2/flows/qx_triage_e2e/runs/run_0094b304d016/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:56:22 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] INFO:     connection closed
+
+[8/33] [chromium] › e2e\builder-2.5b.spec.ts:93:1 › validator: same field builder (legacy names shown as the new type), output labelled declassified by validator
+[WebServer] 1:56:23 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[9/33] [chromium] › e2e\builder-2.5b.spec.ts:116:1 › validator run: the value is "trusted · declassified by validator", the bypass flow is refused at publish
+[WebServer] INFO:     127.0.0.1:25419 - "WebSocket /api/v2/flows/val_run_e2e/runs/run_68648fe2d667/events?after_seq=0" 
+[accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25421 - "WebSocket /api/v2/flows/val_run_e2e/runs/run_68648fe2d667/events?after_seq=0" 
+[accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:56:26 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] INFO:     connection closed
+
+[10/33] [chromium] › e2e\builder-run-inspect.spec.ts:47:1 › opening a flow does not mark it dirty and fits all nodes in view
+[11/33] [chromium] › e2e\builder-run-inspect.spec.ts:65:1 › a flow saved with node positions opens clean (no unsaved changes, Publish enabled)
+[WebServer] 1:56:30 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[12/33] [chromium] › e2e\builder-run-inspect.spec.ts:78:1 › Run is disabled with a tooltip until the flow is published
+[13/33] [chromium] › e2e\builder-run-inspect.spec.ts:85:1 › benign run from the Run button: succeeded, output visible, a node input/output visible
+[WebServer] INFO:     127.0.0.1:25507 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_b64296a3e6b3/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25509 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_b64296a3e6b3/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+
+[WebServer] 1:56:34 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] INFO:     connection closed
+
+[14/33] [chromium] › e2e\builder-run-inspect.spec.ts:126:1 › inline approval in the results panel -> approve -> succeeded
+[WebServer] INFO:     127.0.0.1:25538 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_ce5776c7b58b/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25542 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_ce5776c7b58b/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[15/33] [chromium] › e2e\builder-run-inspect.spec.ts:140:1 › attack run (SSRF to the cloud metadata address): blocked, shown in the Security tab
+
+[WebServer] INFO:     127.0.0.1:25575 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_80b1076f4754/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+
+[WebServer] 1:56:40 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+
+
+[WebServer] 1:56:40 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:25579 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_80b1076f4754/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:56:40 pm [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered 
+notifications.
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+
+[WebServer] INFO:     connection closed
+
+[16/33] [chromium] › e2e\builder-run-inspect.spec.ts:170:1 › approval card shows the full sink call (pinned to + untrusted body); History says waiting; wait time shown
+[WebServer] INFO:     127.0.0.1:25606 - "WebSocket 
+/api/v2/flows/fix_pinned_approval/runs/run_9023d6fb66a0/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25608 - "WebSocket 
+/api/v2/flows/fix_pinned_approval/runs/run_9023d6fb66a0/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[17/33] [chromium] › e2e\builder-run-inspect.spec.ts:210:3 › 1440x900 › use case 07 fits the visible canvas with the results panel open and closed
+[18/33] [chromium] › e2e\builder-run-inspect.spec.ts:229:3 › 1440x900 › unsafe use case 07 (recipient from the ticket): publish refused with a readable explanation
+[19/33] [chromium] › e2e\builder-run-inspect.spec.ts:248:1 › a webhook-triggered run appears in the run history and opens in the panel
+[WebServer] INFO:     127.0.0.1:25686 - "WebSocket 
+/api/v2/flows/uc05_history/runs/run_2417d0a0896f4d6eabb78ab0cda834a7/events?after_seq=0" [accepted]
+
+
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+
+[20/33] [chromium] › e2e\builder-run.spec.ts:46:1 › benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 send
+[WebServer] INFO:     127.0.0.1:25713 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_db4c33909efc/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25715 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_db4c33909efc/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] 1:56:57 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 1:56:57 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[21/33] [chromium] › e2e\builder-run.spec.ts:79:1 › approval: exact sink args shown with untrusted marking -> approve -> succeeded
+[WebServer] INFO:     127.0.0.1:25744 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_b047eff58cb6/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25746 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_b047eff58cb6/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] 1:57:00 pm [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered 
+notifications.
+
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+[WebServer] INFO:     connection closed
+
+[22/33] [chromium] › e2e\builder-run.spec.ts:110:1 › approval: reject -> failed with 0 sends
+[WebServer] INFO:     127.0.0.1:25779 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_da3b58d777c0/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     127.0.0.1:25781 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_da3b58d777c0/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[23/33] [chromium] › e2e\builder-run.spec.ts:126:1 › WebSocket reconnect replays missed events with after_seq (no gaps, no duplicates)
+[WebServer] INFO:     127.0.0.1:6498 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_96d5e3b8d715/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] 1:57:05 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+
+[WebServer] 1:57:05 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:6502 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_96d5e3b8d715/events?after_seq=0" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     connection closed
+
+[WebServer] INFO:     127.0.0.1:6510 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_96d5e3b8d715/events?after_seq=8" [accepted]
+
+[WebServer] INFO:     connection open
+
+[WebServer] INFO:     connection closed
+
+[24/33] [chromium] › e2e\builder-run.spec.ts:154:1 › MOCK-UI: blocked call shows reason and provenance chain (synthetic stream)
+[25/33] [chromium] › e2e\builder-ux.spec.ts:20:1 › drop on canvas places the node under the cursor
+[26/33] [chromium] › e2e\builder-ux.spec.ts:30:1 › automatic ids, palette click, rename validation
+[27/33] [chromium] › e2e\builder-ux.spec.ts:48:1 › "+" picker adds and connects the next node with an auto-suggested mapping
+[28/33] [chromium] › e2e\builder-ux.spec.ts:62:1 › condition true/false outputs create branch edges
+[29/33] [chromium] › e2e\builder-ux.spec.ts:72:1 › undo/redo (keyboard and buttons) and the Delete key
+
+[WebServer] 1:57:19 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[30/33] [chromium] › e2e\builder-ux.spec.ts:93:1 › keyboard connect from the drawer and auto-layout orders nodes left to right
+[WebServer] 1:57:22 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] 1:57:22 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[WebServer] 1:57:22 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+[31/33] [chromium] › e2e\builder-ux.spec.ts:114:1 › unsaved-changes warning when leaving the editor
+[32/33] [chromium] › e2e\builder.spec.ts:90:1 › use case 01 benign flow: build -> save -> publish OK
+[33/33] [chromium] › e2e\builder.spec.ts:107:1 › use case 01 exfiltration variant: publish refused, agent node highlighted
+  33 passed (2.2m)
