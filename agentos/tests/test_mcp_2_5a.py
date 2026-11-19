@@ -505,6 +505,66 @@ async def test_T6_no_orphans_including_grandchildren(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_T6_posix_group_kill_works_after_the_server_was_reaped(monkeypatch):
+    """Regression (found on Linux CI): the SDK's POSIX kill calls os.getpgid(pid) first, which raises once the
+    server has exited and been reaped, so the group (and a grandchild in it) was never signalled. The launcher
+    signals the pgid recorded at spawn instead. Simulated here so it runs on every platform."""
+    import signal as signal_mod
+
+    from agentos.mcp import launcher
+
+    class Proc:
+        pid = 4242
+
+    calls: list[tuple[int, int]] = []
+    alive_checks = {"n": 0}
+
+    def fake_killpg(pgid, sig):
+        calls.append((pgid, sig))
+        if sig == 0:
+            alive_checks["n"] += 1
+            if alive_checks["n"] > 2:  # the group empties after a couple of checks
+                raise ProcessLookupError
+
+    def no_getpgid(_pid):
+        raise ProcessLookupError("reaped")  # what getpgid does after the server was reaped
+
+    monkeypatch.setattr(launcher.sys, "platform", "linux")
+    monkeypatch.setattr(launcher.os, "killpg", fake_killpg, raising=False)
+    sigkill = getattr(signal_mod, "SIGKILL", 9)
+    monkeypatch.setattr(launcher.signal, "SIGKILL", sigkill, raising=False)
+
+    proc = Proc()
+    monkeypatch.setattr(launcher.os, "getpgid", lambda pid: pid, raising=False)
+    launcher._record_pgid(proc)  # at spawn: group leader of its own session
+    monkeypatch.setattr(launcher.os, "getpgid", no_getpgid, raising=False)  # the server has since been reaped
+
+    await launcher.kill_process_tree(proc, timeout_seconds=2.0)
+    assert calls[0] == (4242, launcher.signal.SIGTERM)  # the recorded group, signalled directly
+    assert (4242, 0) in calls and all(sig != sigkill for _, sig in calls)  # emptied: no SIGKILL needed
+
+    # a group that never empties gets SIGKILL after the timeout; an already-empty group is fine
+    calls.clear()
+    monkeypatch.setattr(launcher.os, "killpg", lambda pgid, sig: calls.append((pgid, sig)), raising=False)
+    await launcher._kill_posix_group(4242, timeout_seconds=0.2)
+    assert calls[0] == (4242, launcher.signal.SIGTERM) and calls[-1] == (4242, sigkill)
+
+    def gone(pgid, sig):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(launcher.os, "killpg", gone, raising=False)
+    await launcher._kill_posix_group(4242, timeout_seconds=0.2)  # no error
+
+    # a server that is not the leader of its own group: fail closed (and kill it)
+    killed: list[int] = []
+    monkeypatch.setattr(launcher.os, "getpgid", lambda pid: 1, raising=False)
+    monkeypatch.setattr(launcher.os, "kill", lambda pid, sig: killed.append(pid))
+    with pytest.raises(RuntimeError, match="own session"):
+        launcher._record_pgid(Proc())
+    assert killed == [4242]
+
+
+@pytest.mark.asyncio
 async def test_idle_timeout_stops_the_server(tmp_path):
     m = MCPManager(project_path=str(tmp_path), idle_timeout_s=1)
     try:
