@@ -151,7 +151,11 @@ Sub-milestones (each is one branch and one PR into `2.0`):
   chain (key derived from the master key with HKDF) with a head checkpoint, audit-before-apply (503 when the entry
   cannot be written), the Govern > Audit log page, `GET /api/v2/audit{,/verify,/export}` and
   `agentos audit verify|export`. Design and gaps: `docs/evidence/3.1.md`.
-- **3.2 Usage, cost and budgets**
+- **3.2 Usage, cost and budgets**: **done** (MOCK-verified; Mongo ledger untested locally). Cost per model call
+  (`cost_usd`, `price_source`; unknown prices are never guessed), a usage ledger rebuildable from events
+  (`agentos usage rebuild`), run limits on by default (50 calls / 300k tokens), USD budgets checked before every
+  provider attempt (no paid fallback around a budget), `GET /api/v2/usage`, `GET|PUT /api/v2/budgets` (audited),
+  Watch > Metrics and the Overview Spend card. Design and gaps: `docs/evidence/3.2.md`.
 - **3.3 Alerts and notifications** (SMTP, Slack)
 - **3.4 Access** (users, login, roles)
 - **3.5 Sandbox for code tools**
