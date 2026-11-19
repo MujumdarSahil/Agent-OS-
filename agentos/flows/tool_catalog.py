@@ -148,6 +148,14 @@ class ToolCatalog:
     def approved_mcp(self) -> list[ToolEntry]:
         return [e for e in self._mcp.values() if isinstance(e, ToolEntry)]
 
+    def agent_tool_options(self) -> list[ToolEntry]:
+        """3.1: what the agent tool picker may offer: the built-in agent tools that resolve here plus the
+        approved MCP tools of enabled servers. Every entry passes ``resolve`` (the check used on save)."""
+        from agentos.flows.specs import AGENT_TOOL_TYPES
+
+        builtins = [e for e in (self.try_resolve(n) for n in AGENT_TOOL_TYPES) if e is not None]
+        return builtins + sorted(self.approved_mcp(), key=lambda e: e.name)
+
 
 BUILTIN_CATALOG = ToolCatalog()
 

@@ -314,6 +314,14 @@ class AgentOSToolProxy:
                 },
             )
             ret_val = f"Email successfully dispatched to {final_args.get('to')}"
+        elif tool_name == "calculator":
+            # 3.1: safe arithmetic only; errors go back to the model as text (no side effect, nothing to undo)
+            from agentos.flows.calculator import CalculatorError, evaluate
+
+            try:
+                ret_val = str(evaluate(final_args.get("expression")))
+            except CalculatorError as err:
+                ret_val = f"Calculator error: {err}"
         elif tool_name == "fetch_url":
             url = final_args.get("url", "")
             ret_val = f"Simulated content from {url}: [Status 200 OK, payload: safe payload]"

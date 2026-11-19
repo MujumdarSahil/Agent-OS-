@@ -39,6 +39,7 @@ from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
 from agentos.flows.state import FlowRunState, NodeState, RunStatus
 from agentos.flows import control_nodes as cn
 from agentos.flows import extraction as ex
+from agentos.flows.calculator import calculator_output_labels
 from agentos.flows.net_guard import SSRFBlockedError
 from agentos.storage.models import EventRecord, RunRecord
 from agentos.storage.ports import FencingTokenError, Storage
@@ -936,6 +937,26 @@ class FlowEngine:
                 "node_id": node_id, "kind": "validator", "fields": [node.config.get("field", "data")],
                 "field_type": ex.validator_type(node.config), "source_sources": sorted(inbound.sources),
             })
+            ev = await self._append_event(
+                run_id=state.run_id,
+                type="node_succeeded",
+                data={
+                    "node_id": node_id,
+                    "outputs": outputs,
+                    "output_labels": {k: v.model_dump(mode="json") for k, v in labels.items()},
+                },
+            )
+            state.apply_event(ev)
+            return
+
+        # 2a. 3.1 calculator: safe arithmetic; the result is untrusted (tool output) with the input's
+        #     confidentiality (same label rule as the analyzer: calculator_output_labels)
+        if node.type == "calculator":
+            from agentos.flows.calculator import evaluate
+
+            inbound = ex.shared_inbound(self.flow, node_id, state.node_output_labels, effective_inbound)
+            outputs = {"result": evaluate(inputs.get("expression"))}
+            labels = calculator_output_labels(node_id, inbound)
             ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",

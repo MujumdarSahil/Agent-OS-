@@ -177,6 +177,23 @@ TOOL_NODE_SPEC = NodeSpec(
     side_effect=SideEffectClass.READ,
 )
 
+CALCULATOR_TOOL_SPEC = NodeSpec(
+    # 3.1: safe arithmetic (agentos/flows/calculator.py). No side effect; the output is UNTRUSTED like every
+    # tool output (the expression may come from untrusted text) and keeps the input's confidentiality.
+    type="calculator",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={
+        "type": "object",
+        "properties": {"expression": {"type": "string", "maxLength": 2000}},
+        "required": ["expression"],
+    },
+    output_schema={"type": "object", "properties": {"result": {"type": "number"}}},
+    side_effect=SideEffectClass.NONE,
+)
+
+# Built-in tools an agent can be given (bare names). Other node types are flow steps, not agent tools.
+AGENT_TOOL_TYPES = ("calculator", "fetch_url", "send_email")
+
 FETCH_URL_TOOL_SPEC = NodeSpec(
     type="fetch_url",
     config_schema={
@@ -480,6 +497,7 @@ BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "agent": AGENT_NODE_SPEC,
     "tool": TOOL_NODE_SPEC,
     "fetch_url": FETCH_URL_TOOL_SPEC,
+    "calculator": CALCULATOR_TOOL_SPEC,
     "send_email": SEND_EMAIL_SINK_SPEC,
     "approval": APPROVAL_NODE_SPEC,
     "validator": VALIDATOR_NODE_SPEC,

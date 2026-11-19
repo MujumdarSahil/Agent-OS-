@@ -147,6 +147,19 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
         })
       }
 
+      // 3.1: the agent tool picker loads the server's tool catalog (same list the real server returns)
+      if (url.includes('/api/v2/agents/tool-options')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { name: 'calculator', kind: 'builtin', side_effect: 'none', server: null, description: '' },
+            { name: 'fetch_url', kind: 'builtin', side_effect: 'read', server: null, description: '' },
+            { name: 'send_email', kind: 'builtin', side_effect: 'external_send', server: null, description: '' },
+          ]),
+        })
+      }
+
       if (url.includes('/api/v2/agents')) {
         if (method === 'POST') {
           const postData = request.postDataJSON()
