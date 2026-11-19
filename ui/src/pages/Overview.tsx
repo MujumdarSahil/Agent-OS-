@@ -3,6 +3,7 @@
 // No spend, cost or alerts here: those arrive with 3.2 / 3.3. Fetched on open and on the window
 // toggle; no polling. Untrusted values only appear inside the approval card, as plain text.
 
+import { AuditChainStatus } from './AuditLog'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -232,6 +233,9 @@ export default function Overview() {
           </div>
         </>
       )}
+      <div className="mt-3" data-testid="overview-footer" style={{ textAlign: 'right' }}>
+        <Link to="/audit" style={{ textDecoration: 'none' }}><AuditChainStatus /></Link>
+      </div>
     </div>
   )
 }

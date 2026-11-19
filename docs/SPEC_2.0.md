@@ -147,7 +147,10 @@ All workflow executions are modeled as append-only event streams. Every node sta
 ### Phase 3: Governance, Observability & Access Control
 
 Sub-milestones (each is one branch and one PR into `2.0`):
-- **3.1 Audit log**
+- **3.1 Audit log**: **done** (MOCK-verified; the Mongo store runs in the mongo-live CI job). A tamper-evident HMAC
+  chain (key derived from the master key with HKDF) with a head checkpoint, audit-before-apply (503 when the entry
+  cannot be written), the Govern > Audit log page, `GET /api/v2/audit{,/verify,/export}` and
+  `agentos audit verify|export`. Design and gaps: `docs/evidence/3.1.md`.
 - **3.2 Usage, cost and budgets**
 - **3.3 Alerts and notifications** (SMTP, Slack)
 - **3.4 Access** (users, login, roles)

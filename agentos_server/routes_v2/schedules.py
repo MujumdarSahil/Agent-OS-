@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from agentos.storage.models import ScheduleRecord, utcnow
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,10 @@ async def create_schedule(req: CreateScheduleRequest, request: Request) -> Sched
             raise HTTPException(status_code=404, detail=f"Flow {req.flow_id!r} not found")
 
     schedule_id = f"sched_{uuid.uuid4().hex[:12]}"
+    # 3.1: inputs are run data: not audited
+    await audit(request, "schedule.create", "schedule", schedule_id, details={
+        "name": req.name[:100], "flow_id": req.flow_id, "cron": req.cron_expression[:100], "timezone": req.timezone,
+    })
     record = ScheduleRecord(
         schedule_id=schedule_id,
         name=req.name,
@@ -199,6 +204,11 @@ async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, request:
         sched.enabled = req.enabled
     sched.updated_at = utcnow()
 
+    await audit(request, "schedule.update", "schedule", schedule_id, details={
+        "changed": sorted(k for k in ("name", "flow_id", "cron_expression", "timezone", "inputs", "misfire_policy",
+                                      "enabled") if getattr(req, k) is not None),
+        "enabled": sched.enabled, "flow_id": sched.flow_id, "cron": sched.cron_expression[:100],
+    })
     await storage.schedules.put(sched)
     return ScheduleResponse(
         schedule_id=sched.schedule_id,
@@ -221,6 +231,9 @@ async def delete_schedule(schedule_id: str, request: Request) -> None:
     storage = request.app.state.storage
     if not storage.schedules:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    if await storage.schedules.get(schedule_id) is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    await audit(request, "schedule.delete", "schedule", schedule_id)
     deleted = await storage.schedules.delete(schedule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Schedule not found")

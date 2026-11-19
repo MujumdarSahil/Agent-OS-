@@ -15,6 +15,7 @@ from agentos.flows.models import FlowDefinition, NodeDefinition
 from agentos.flows.policy import SecurityPolicy
 from typing import Any
 
+from agentos.flows.calculator import calculator_output_labels
 from agentos.flows.expressions import label_of, references
 from agentos.flows.extraction import config_errors as extraction_config_errors
 from agentos.flows.extraction import (
@@ -517,6 +518,10 @@ class StaticFlowAnalyzer:
             return {"payload": lbl, "headers": lbl, "*": lbl}
 
         # 2. Tool nodes produce untrusted output explicitly
+        # 3.1 calculator: untrusted tool output, keeps the inbound confidentiality (engine uses the same function)
+        if node.type == "calculator":
+            return calculator_output_labels(node_id, effective_inbound)
+
         if node.type in ("tool", "fetch_url"):
             lbl = Label.untrusted(sources={node_id})
             return {"result": lbl, "content": lbl, "*": lbl}

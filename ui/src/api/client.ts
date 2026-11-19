@@ -46,7 +46,8 @@ export function clearAuthToken(): void {
 
 export const api = axios.create({
   baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
+  // 3.1: tells the audit log that the action came from the UI (source "ui"; scripts are "api")
+  headers: { 'Content-Type': 'application/json', 'X-AgentOS-Client': 'ui' },
 })
 
 // Attach token to every outgoing request
@@ -382,6 +383,18 @@ export const deleteV2Squad = (name: string) => api.delete(`/v2/squads/${name}`).
 
 // Tools v2
 export const getV2Tools = () => api.get<V2Tool[]>('/v2/tools').then(r => r.data)
+
+/** 3.1: tools an agent may be given: exactly what the server's tool catalog resolves (built-in agent tools and
+ *  admin-approved MCP tools). The picker offers nothing else. */
+export interface AgentToolOption {
+  name: string
+  kind: 'builtin' | 'mcp'
+  side_effect: string
+  server: string | null
+  description: string
+}
+export const getAgentToolOptions = () =>
+  api.get<AgentToolOption[]>('/v2/agents/tool-options').then(r => r.data)
 export const getV2Tool = (name: string) => api.get<V2Tool>(`/v2/tools/${name}`).then(r => r.data)
 export const createV2Tool = (tool: { name: string; description?: string; code?: string; language?: 'python' }) =>
   api.post<V2Tool>('/v2/tools', tool).then(r => r.data)

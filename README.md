@@ -188,6 +188,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 
 **Quarantined extraction** — *Works today (verified in MOCK, scripted model)*. One model call turns an untrusted email into a few constrained, validated fields (a category from a fixed list, yes/no, a ticket ID), so a flow can route on them and put them in a message without an approval. Use case: [09 phishing triage](examples/usecases/09-phishing-triage/README.md).
 
+**Audit log** — *Works today (verified in MOCK; Mongo store in the mongo-live CI job)*. Every security-relevant admin action (flow save and publish, approvals, webhooks, schedules, vault names, providers, MCP servers and tools, config changes, sign-in failures) is written first to a tamper-evident hash chain; if it can't be written, the action isn't applied. See **Govern → Audit log**, `agentos audit verify` and [the 3.1 evidence](docs/evidence/3.1.md).
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.

@@ -59,6 +59,10 @@ V1_API_ROUTES = sorted([
 V2_API_ROUTES = sorted([
     ("/api/v2/agents", "GET"),
     ("/api/v2/agents", "POST"),
+    ("/api/v2/agents/tool-options", "GET"),  # 3.1: tools the agent picker may offer
+    ("/api/v2/audit", "GET"),  # 3.1: audit log (read-only)
+    ("/api/v2/audit/export", "GET"),
+    ("/api/v2/audit/verify", "GET"),
     ("/api/v2/agents/{name}", "DELETE"),
     ("/api/v2/agents/{name}", "GET"),
     ("/api/v2/flows", "GET"),

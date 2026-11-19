@@ -50,6 +50,27 @@ async def list_agents(request: Request) -> List[AgentYAMLConfig]:
     return await storage.agents.list()
 
 
+@router.get("/tool-options")
+async def agent_tool_options(request: Request) -> List[Dict[str, Any]]:
+    """3.1: tools the agent picker may offer. Same ToolCatalog the save path resolves against (built-in agent
+    tools + approved MCP tools of enabled servers), so the UI never offers a tool the server would refuse."""
+    from agentos.flows.tool_catalog import ToolCatalog
+
+    storage = request.app.state.storage
+    records = await storage.mcp_servers.list() if getattr(storage, "mcp_servers", None) is not None else []
+    out = []
+    for e in ToolCatalog(records).agent_tool_options():
+        out.append({
+            "name": e.name,
+            "kind": "mcp" if e.is_mcp else "builtin",
+            "side_effect": e.spec.side_effect.value,
+            "server": e.server,
+            # admin-written text only: an MCP tool's own (untrusted) description is never shown as a label here
+            "description": e.admin_description or "",
+        })
+    return out
+
+
 @router.get("/{name}", response_model=AgentYAMLConfig)
 async def get_agent(name: str, request: Request) -> AgentYAMLConfig:
     storage = request.app.state.storage

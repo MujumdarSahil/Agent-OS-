@@ -1,16 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getV2Agents, createV2Agent, deleteV2Agent, getV2Tools, getMCPServersView, type V2AgentConfig } from '../api/client'
+import { getV2Agents, createV2Agent, deleteV2Agent, getAgentToolOptions, type V2AgentConfig } from '../api/client'
 import { Plus, Trash2, Bot, X, ShieldAlert, Check } from 'lucide-react'
-
-// Known safe built-in tools that match NodeSpec declarations
-const BUILTIN_TOOLS = [
-  { name: 'fetch_url', desc: 'Safely fetch web documents' },
-  { name: 'send_email', desc: 'Outbound email notification' },
-  { name: 'calculator', desc: 'Deterministic math evaluation' },
-  { name: 'file_read', desc: 'Read files within workspace' },
-  { name: 'file_write', desc: 'Write files within workspace' },
-]
 
 const EMPTY: V2AgentConfig = {
   name: '',
@@ -196,11 +187,6 @@ export default function Agents() {
     queryFn: getV2Agents,
   })
 
-  const { data: toolsData = [] } = useQuery({
-    queryKey: ['v2-tools'],
-    queryFn: getV2Tools,
-  })
-
   const create = useMutation({
     mutationFn: createV2Agent,
     onSuccess: () => {
@@ -220,19 +206,9 @@ export default function Agents() {
     },
   })
 
-  // 2.5a: approved MCP tools (namespaced mcp.<server>.<tool>); unreviewed or changed ones are not offered
-  const { data: mcpServers = [] } = useQuery({ queryKey: ['v2-mcp-servers'], queryFn: getMCPServersView })
-  const approvedMcpTools = mcpServers.flatMap(s =>
-    Object.values(s.tools || {}).filter(t => t.status === 'approved').map(t => t.canonical_name))
-
-  // Combine built-in declared tools, custom stored tools and approved MCP tools
-  const knownToolsList = Array.from(
-    new Set([
-      ...BUILTIN_TOOLS.map(t => t.name),
-      ...toolsData.map(t => t.name),
-      ...approvedMcpTools,
-    ])
-  )
+  // 3.1: the picker offers exactly what the server resolves (same tool catalog as the save check)
+  const { data: toolOptions = [] } = useQuery({ queryKey: ['v2-agent-tool-options'], queryFn: getAgentToolOptions })
+  const knownToolsList = toolOptions.map(t => t.name)
 
   return (
     <div>

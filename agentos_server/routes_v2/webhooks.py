@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from agentos.storage.models import WebhookRecord, utcnow
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,9 @@ async def create_webhook(req: CreateWebhookRequest, request: Request) -> Webhook
             raise HTTPException(status_code=404, detail=f"Flow {req.flow_id!r} not found")
 
     webhook_id = f"wh_{uuid.uuid4().hex[:12]}"
+    # 3.1: audited before the secret is created (ids and names only; never the secret path or key)
+    await audit(request, "webhook.create", "webhook", webhook_id,
+                details={"name": req.name[:100], "flow_id": req.flow_id})
     # Secret path: random >= 128 bits (token_urlsafe(24) = 192 bits of entropy)
     secret_path = secrets.token_urlsafe(24)
     secret_path_hash = hashlib.sha256(secret_path.encode("utf-8")).hexdigest()
@@ -156,6 +160,11 @@ async def update_webhook(webhook_id: str, req: UpdateWebhookRequest, request: Re
         hook.enabled = req.enabled
     hook.updated_at = utcnow()
 
+    await audit(request, "webhook.update", "webhook", webhook_id, details={
+        "changed": sorted(k for k in ("name", "flow_id", "rate_limit_per_minute", "enabled")
+                          if getattr(req, k) is not None),
+        "enabled": hook.enabled, "flow_id": hook.flow_id,
+    })
     await storage.webhooks.put(hook)
     return WebhookResponse(
         webhook_id=hook.webhook_id,
@@ -179,6 +188,7 @@ async def rotate_webhook(webhook_id: str, request: Request) -> WebhookResponse:
     if not hook:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
+    await audit(request, "webhook.rotate", "webhook", webhook_id, details={"flow_id": hook.flow_id})
     new_secret_path = secrets.token_urlsafe(24)
     new_secret_path_hash = hashlib.sha256(new_secret_path.encode("utf-8")).hexdigest()
     new_secret_key = secrets.token_hex(32)
@@ -212,6 +222,7 @@ async def delete_webhook(webhook_id: str, request: Request) -> None:
     if not hook:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
+    await audit(request, "webhook.delete", "webhook", webhook_id, details={"flow_id": hook.flow_id})
     try:
         await vault.delete(hook.secret_key_ref)
     except Exception:

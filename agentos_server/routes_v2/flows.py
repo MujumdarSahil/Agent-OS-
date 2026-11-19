@@ -21,6 +21,8 @@ from agentos.flows.policy import SecurityPolicy
 from agentos.flows.state import RunStatus
 from agentos.flows.static_analyzer import StaticFlowAnalyzer
 from agentos.storage.models import EventRecord, FlowRecord, RunRecord
+from agentos.storage.ports import FencingTokenError
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/flows", tags=["v2-flows"])
@@ -52,12 +54,39 @@ async def create_flow(flow: FlowRecord, request: Request) -> FlowRecord:
     existing = await storage.flows.get_draft(flow.id)
     if existing is not None:
         raise HTTPException(status_code=400, detail=f"Flow {flow.id!r} draft already exists; use PUT to update")
+    await _save_draft_audited(request, flow, created=True)
+    return (await storage.flows.get_draft(flow.id)) or flow
+
+
+def _flow_digest(flow: FlowRecord) -> str:
+    body = {"entrypoint": flow.entrypoint, "nodes": flow.nodes, "edges": flow.edges, "loops": flow.loops}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool) -> None:
+    """3.1: validate (no side effect) -> audit flow.save (refused or ok; 503 if the entry cannot be written)
+    -> apply. Details: counts and the content sha256 only (never node configs or prompts)."""
+    storage = request.app.state.storage
+    details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
+               "content_sha256": _flow_digest(flow)}
     try:
         _check_node_models(flow.nodes)
+        FlowDefinition(id=flow.id, name=flow.name, entrypoint=flow.entrypoint, nodes=flow.nodes, edges=flow.edges,
+                       loops=flow.loops)
+    except HTTPException as err:
+        await audit(request, "flow.save", "flow", flow.id, outcome="refused", details={**details, "reason": "model"})
+        raise err
+    except (InvalidFlowConfigError, ValueError) as err:
+        await audit(request, "flow.save", "flow", flow.id, outcome="refused",
+                    details={**details, "reason": "invalid_definition"})
+        raise HTTPException(status_code=400, detail=str(err))
+    await audit(request, "flow.save", "flow", flow.id, details=details)
+    try:
         await storage.flows.put_draft(flow)
     except (InvalidFlowConfigError, ValueError) as err:
+        await audit_best_effort(request.app, "flow.save", "flow", flow.id, outcome="failed", details=details,
+                                actor="local-admin", source=source_of(request))
         raise HTTPException(status_code=400, detail=str(err))
-    return (await storage.flows.get_draft(flow.id)) or flow
 
 
 @router.get("/{flow_id}", response_model=FlowRecord)
@@ -77,11 +106,7 @@ async def put_flow(flow_id: str, flow: FlowRecord, request: Request) -> FlowReco
     storage = request.app.state.storage
     if flow.id != flow_id:
         raise HTTPException(status_code=400, detail=f"Path flow_id {flow_id!r} does not match body id {flow.id!r}")
-    try:
-        _check_node_models(flow.nodes)
-        await storage.flows.put_draft(flow)
-    except (InvalidFlowConfigError, ValueError) as err:
-        raise HTTPException(status_code=400, detail=str(err))
+    await _save_draft_audited(request, flow, created=False)
     saved = await storage.flows.get_draft(flow_id)
     if saved is None:
         raise HTTPException(status_code=500, detail="Failed to save flow draft")
@@ -94,10 +119,15 @@ async def delete_flow(flow_id: str, request: Request) -> Dict[str, bool]:
     storage = request.app.state.storage
     versions = await storage.flows.list_versions(flow_id)
     if versions:
+        await audit(request, "flow.delete", "flow", flow_id, outcome="refused",
+                    details={"reason": "published_versions_exist", "versions": len(versions)})
         raise HTTPException(
             status_code=409,
             detail="Cannot delete flow with published versions; use archive instead",
         )
+    if await storage.flows.get_draft(flow_id) is None:
+        raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} not found")
+    await audit(request, "flow.delete", "flow", flow_id)
     try:
         deleted = await storage.flows.delete_flow(flow_id)
         if not deleted:
@@ -111,9 +141,14 @@ async def delete_flow(flow_id: str, request: Request) -> Dict[str, bool]:
 async def archive_flow(flow_id: str, request: Request) -> FlowRecord:
     """Explicit archive endpoint."""
     storage = request.app.state.storage
+    if not await storage.flows.list_versions(flow_id) and await storage.flows.get_draft(flow_id) is None:
+        raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} not found")
+    await audit(request, "flow.archive", "flow", flow_id)
     try:
         return await storage.flows.archive_flow(flow_id)
     except ValueError as err:
+        await audit_best_effort(request.app, "flow.archive", "flow", flow_id, outcome="failed",
+                                actor="local-admin", source=source_of(request))
         raise HTTPException(status_code=404, detail=str(err))
 
 
@@ -138,10 +173,16 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
             loops=draft.loops,
         )
     except Exception as err:
+        await audit(request, "flow.publish", "flow", flow_id, outcome="refused",
+                    details={"reason": "structural_validation_failed"})
         raise HTTPException(status_code=400, detail=f"Flow structural validation failed: {err}")
 
     # 2.3: per-node model choice limited to enabled providers
-    _check_node_models(draft.nodes)
+    try:
+        _check_node_models(draft.nodes)
+    except HTTPException:
+        await audit(request, "flow.publish", "flow", flow_id, outcome="refused", details={"reason": "model"})
+        raise
 
     # 2.3: resolve subflow summaries (exact published versions), with cycle and depth checks
     summaries = await _resolve_subflow_summaries(storage, flow_def)
@@ -157,6 +198,10 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy, subflow_summaries=summaries, tool_catalog=catalog)
     res = analyzer.verify()
     if not res.is_valid:
+        # 3.1: the refusal is audited with the violated rule names (node.argument), not the payload
+        rules = sorted({f"{v.node_id}.{v.target_arg}" for v in res.violations})
+        await audit(request, "flow.publish", "flow", flow_id, outcome="refused",
+                    details={"violated_rules": rules[:50], "violations": len(res.violations)})
         violations_payload = [
             {
                 "node_id": v.node_id,
@@ -180,6 +225,11 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     policy_bytes = json.dumps(policy.model_dump(mode="json"), sort_keys=True).encode("utf-8")
     policy_hash = hashlib.sha256(policy_bytes).hexdigest()
 
+    # 3.1: audit before applying (fail closed: 503 and no new version if the entry cannot be written)
+    await audit(request, "flow.publish", "flow", flow_id, details={
+        "content_sha256": content_sha256, "policy_hash": policy_hash,
+        "expected_version": len(await storage.flows.list_versions(flow_id)) + 1,
+    })
     # Atomically assign version and persist published flow
     published = await storage.flows.publish(
         flow_id=flow_id,
@@ -283,6 +333,9 @@ async def enqueue_run(flow_id: str, body: RunFlowRequest, request: Request) -> D
             raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} version {target_version} not found")
 
     run_id = f"run_{uuid.uuid4().hex[:12]}"
+    # 3.1: inputs are run data (untrusted payload): never audited, only ids and the version
+    await audit(request, "run.start", "run", run_id,
+                details={"flow_id": flow_id, "version": target_version, "trigger": "manual"})
     run_record = RunRecord(
         run_id=run_id,
         mission_name=flow_id,
@@ -391,6 +444,24 @@ async def stream_flow_run_events(
         logger.error("Error streaming run %s: %s", run_id, e)
 
 
+PARK_WAIT_S = 3.0
+PARK_POLL_S = 0.05
+
+
+async def _wait_until_parked(queue: Any, run_id: str) -> bool:
+    """True once the run's queue job no longer holds a worker lease (or there is no job). A bounded wait
+    inside the request (at most PARK_WAIT_S), not a background watcher."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + PARK_WAIT_S
+    while True:
+        job = await queue.get_job_by_run_id(run_id) if queue is not None else None
+        if job is None or job.status != "leased":
+            return True
+        if loop.time() >= deadline:
+            return False
+        await asyncio.sleep(PARK_POLL_S)
+
+
 @router.post("/{flow_id}/runs/{run_id}/approve")
 async def approve_flow_run(
     flow_id: str,
@@ -437,12 +508,40 @@ async def approve_flow_run(
         transport_registry=getattr(request.app.state, "transport_registry", None),
     )
 
-    try:
-        state = await engine.approve(run_id=run_id, node_id=body.node_id, decision=body.decision)
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
-
     queue = request.app.state.queue
+    # 3.1 (approval race): the worker makes the run visible as waiting while it still holds the lease and
+    # releases it right after. A decision in that window must not be lost: wait briefly for the release,
+    # else 409 "retry". One decision per run is applied at a time (exactly once with the idempotency check
+    # in engine.approve). See docs/evidence/3.1.md.
+    locks: Optional[Dict[str, asyncio.Lock]] = getattr(request.app.state, "approval_locks", None)
+    if locks is None:
+        locks = {}
+        request.app.state.approval_locks = locks
+    lock = locks.setdefault(run_id, asyncio.Lock())
+    async with lock:
+        if not await _wait_until_parked(queue, run_id):
+            raise HTTPException(status_code=409, detail={
+                "detail": f"Run {run_id} is still being parked by the worker; retry the decision in a moment",
+                "retry": True,
+            })
+        approve = body.decision is True or str(body.decision).lower() in ("true", "approve", "approved")
+        prior = [e for e in await storage.events.list(run_id, after_seq=0)
+                 if e.type == "approval_decision" and (e.data or {}).get("node_id") == body.node_id]
+        # 3.1: audited before it is applied (503 and no decision if the entry cannot be written)
+        await audit(request, "approval.decide", "run", run_id, details={
+            "flow_id": flow_id, "node_id": body.node_id, "decision": "approve" if approve else "reject",
+            "already_decided": bool(prior),
+        })
+        try:
+            state = await engine.approve(run_id=run_id, node_id=body.node_id, decision=body.decision)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
+        except FencingTokenError:
+            raise HTTPException(status_code=409, detail={
+                "detail": f"Run {run_id} is still being parked by the worker; retry the decision in a moment",
+                "retry": True,
+            })
+
     job = await queue.get_job_by_run_id(run_id)
     if job and hasattr(queue, "_lock") and hasattr(queue, "_jobs"):
         async with queue._lock:

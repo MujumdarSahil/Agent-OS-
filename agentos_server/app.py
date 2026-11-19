@@ -202,6 +202,8 @@ def create_app(
                 if getattr(app.state, "mcp_manager", None) is not None:
                     app.state.mcp_manager.storage = app.state.storage
                 app.state.queue.set_storage(app.state.storage)
+                from agentos.audit import audit_store_for
+                app.state.audit.store = audit_store_for(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
                 # Use Mongo server-time leader lock in Platform mode
@@ -278,7 +280,14 @@ def create_app(
         server_port = int(os.environ.get("AGENTOS_PORT", 8000))
         print_startup_auth_banner(app.state.api_token, server_port=server_port)
 
+        # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+        # but every audited admin action then fails closed with 503)
+        from agentos_server.audit_support import audit_shutdown, audit_startup
+        mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+        await audit_startup(app, project_path, mode, __version__)
+
         yield
+        await audit_shutdown(app, mode, __version__)
         # Stop the in-process worker before storage is closed
         if getattr(app.state, "inprocess_worker", None) is not None:
             await app.state.inprocess_worker.stop()
@@ -400,6 +409,13 @@ def create_app(
             raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
     app.state.vault = Vault(app.state.storage.credentials, master_key)
 
+    # 3.1: tamper-evident audit log (HMAC chain keyed from the master key; the key never leaves AuditLog).
+    # The store follows the storage backend (rebound in the lifespan if Mongo replaces the file store).
+    from agentos.audit import AuditLog, audit_store_for
+    from agentos_server.audit_support import AuthFailureAggregator, mcp_event_sink
+    app.state.audit = AuditLog(audit_store_for(app.state.storage), master_key.key)
+    app.state.auth_failures = AuthFailureAggregator()
+
     # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
     # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.
     from agentos.mcp.manager import MCPManager
@@ -409,6 +425,8 @@ def create_app(
         storage=app.state.storage,
         secret_resolver=lambda name: app.state.vault.reveal(name),
         url_allowlist=list(getattr(app.state.security_policy, "http_allowlist", []) or []),
+        # 3.1: server lifecycle events go to the audit log (not the old mcp-server-<name> pseudo-run events)
+        event_sink=mcp_event_sink(app),
     )
 
     # Local API token
