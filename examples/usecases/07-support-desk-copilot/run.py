@@ -17,6 +17,12 @@ Scenarios
   unpinned   -> a variant where the on-call recipient comes from the agent output: publish is refused.
 
 Run:  python examples/usecases/07-support-desk-copilot/run.py
+
+3.3 demo option (real SMTP to a LOCAL test server, nothing leaves the machine):
+      python -m aiosmtpd -n -l 127.0.0.1:1025          # terminal 1: prints every message it receives
+      UC07_SMTP=127.0.0.1:1025 python examples/usecases/07-support-desk-copilot/run.py
+  The emails then go through an AgentOS email channel (plaintext only because the host is 127.0.0.1 and the
+  channel sets allow_insecure_local) instead of MockTransport.
 """
 
 from __future__ import annotations
@@ -44,6 +50,9 @@ from agentos.flows.proxy import MockTransport  # noqa: E402
 from agentos.flows.state import RunStatus  # noqa: E402
 from agentos.flows.static_analyzer import StaticFlowAnalyzer  # noqa: E402
 from agentos.storage import open_storage  # noqa: E402
+from agentos.notify.channels import EmailChannel  # noqa: E402
+from agentos.notify.service import ChannelEmailTransport, NotifyService  # noqa: E402
+from agentos.notify.store import notify_store_for  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 POLICY = SecurityPolicy(internal_domains={"corp.local"})
@@ -99,6 +108,33 @@ def engine(storage, fd, scenario, net, outbox) -> FlowEngine:
                       transport_registry={"send_email": outbox, "http_request": net.transport})
 
 
+class SmtpOutbox(ChannelEmailTransport):
+    """3.3 demo: send_email through a real (local) SMTP channel; records what was sent like MockTransport."""
+
+    def __init__(self, service: NotifyService) -> None:
+        super().__init__(service)
+        self.sent_calls: list[dict[str, Any]] = []
+
+    async def asend(self, idempotency_key: str, **args: Any) -> dict[str, Any]:
+        res = await super().asend(idempotency_key, **args)
+        self.sent_calls.append({"idempotency_key": idempotency_key, **args, "result": res["status"]})
+        return res
+
+
+async def outbox_factory(storage):
+    """MockTransport by default; a real local SMTP channel when UC07_SMTP=host:port is set (127.0.0.1 only)."""
+    target = os.environ.get("UC07_SMTP")
+    if not target:
+        return MockTransport
+    host, _, port = target.rpartition(":")
+    service = NotifyService(notify_store_for(storage), vault=None, storage=storage)
+    await service.save_channel(EmailChannel(name="uc07-local", host=host, port=int(port), security="none",
+                                            allow_insecure_local=True, from_address="agentos@corp.local",
+                                            use_for_flows=True))
+    print(f"[INFO] UC07_SMTP set: emails go to the local SMTP server {host}:{port} (plaintext, local only)")
+    return lambda: SmtpOutbox(service)
+
+
 async def approval_body_label(storage, run_id) -> str:
     for e in await storage.events.list(run_id, after_seq=0):
         if e.type == "node_started" and e.data.get("node_id") == "oncall_approval":
@@ -113,13 +149,14 @@ async def _run_usecase_async() -> bool:
         (Path(tmp) / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
         storage = await open_storage(tmp, backend="file", vault_path=str(Path(tmp) / "vault.json"))
         try:
+            new_outbox = await outbox_factory(storage)
             fd = load_flow()
             violations = StaticFlowAnalyzer(fd, POLICY).verify().violations
             print(f"[{'PASS' if not violations else 'FAIL'}] publish check: violations={len(violations)}")
             ok &= not violations
 
             # normal: queue note, no approval
-            net, outbox = FakeNetwork(), MockTransport()
+            net, outbox = FakeNetwork(), new_outbox()
             st = await engine(storage, fd, "normal", net, outbox).run(run_id="uc07_normal", inputs=t["normal"])
             passed = (st.status == RunStatus.SUCCEEDED and [c["to"] for c in outbox.sent_calls] == ["support-queue@corp.local"]
                       and st.node_states["oncall_approval"].value == "skipped" and len(net.calls) == 1)
@@ -128,7 +165,7 @@ async def _run_usecase_async() -> bool:
             ok &= passed
 
             # urgent: waits for approval, approved -> on-call email
-            net, outbox = FakeNetwork(), MockTransport()
+            net, outbox = FakeNetwork(), new_outbox()
             eng = engine(storage, fd, "urgent", net, outbox)
             st = await eng.run(run_id="uc07_urgent", inputs=t["urgent"])
             waited = st.status == RunStatus.WAITING and not outbox.sent_calls
@@ -139,7 +176,7 @@ async def _run_usecase_async() -> bool:
             ok &= passed
 
             # injection: model fooled into URGENT; recipient pinned, body untrusted, operator rejects
-            net, outbox = FakeNetwork(), MockTransport()
+            net, outbox = FakeNetwork(), new_outbox()
             eng = engine(storage, fd, "injection", net, outbox)
             st = await eng.run(run_id="uc07_injection", inputs=t["injection"])
             waited = st.status == RunStatus.WAITING
@@ -153,7 +190,7 @@ async def _run_usecase_async() -> bool:
 
             # 2.4d-fix: same fooled model, but the operator approves anyway: the only email still goes to the
             # pinned recipient; the approval card already showed `to` as pinned + trusted.
-            net, outbox = FakeNetwork(), MockTransport()
+            net, outbox = FakeNetwork(), new_outbox()
             eng = engine(storage, fd, "injection", net, outbox)
             st = await eng.run(run_id="uc07_injection_approved", inputs=t["injection"])
             events = await storage.events.list("uc07_injection_approved", after_seq=0)

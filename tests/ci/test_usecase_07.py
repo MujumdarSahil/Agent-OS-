@@ -27,6 +27,36 @@ def test_usecase_07_support_desk_copilot():
     assert asyncio.run(_load("usecase_07_run", "run.py")._run_usecase_async()) is True
 
 
+def test_usecase_07_with_a_local_smtp_server(monkeypatch):
+    """3.3 demo path: UC07_SMTP=127.0.0.1:<port> sends the same scenarios through a real (local) SMTP channel.
+    normal -> queue, urgent (approved) -> on-call, injection approved anyway -> on-call; never the attacker."""
+    import socket
+
+    from aiosmtpd.controller import Controller
+
+    class Box:
+        def __init__(self):
+            self.rcpts = []
+
+        async def handle_DATA(self, server, session, envelope):  # noqa: N802
+            self.rcpts.extend(envelope.rcpt_tos)
+            return "250 OK"
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    box = Box()
+    ctl = Controller(box, hostname="127.0.0.1", port=port)
+    ctl.start()
+    try:
+        monkeypatch.setenv("UC07_SMTP", f"127.0.0.1:{port}")
+        assert asyncio.run(_load("usecase_07_run_smtp", "run.py")._run_usecase_async()) is True
+    finally:
+        ctl.stop()
+    assert box.rcpts == ["support-queue@corp.local", "oncall@corp.local", "oncall@corp.local"]
+    assert not any("attacker" in r for r in box.rcpts)
+
+
 def test_usecase_07_daily_schedule_is_valid():
     from croniter import croniter
 
