@@ -105,9 +105,14 @@ async def test_preview_enable_discover_approve_and_save_keeps_approvals(client, 
     mv = moved.json()
     assert mv["enabled"] is False and mv["tools"]["save_draft"]["status"] == "changed"
 
-    events = [e.type for e in await app.state.storage.events.list("mcp-server-good")]
-    for ev in ("mcp_server_enabled", "mcp_server_started", "mcp_discovery", "mcp_tool_approved"):
-        assert ev in events
+    assert (await client.post("/api/v2/mcp-servers/good/tools/save_draft/revoke")).status_code == 200
+    # 3.1: server events are audit entries now (the mcp-server-<name> pseudo-run stream is no longer written)
+    actions = [e["action"] for e in await app.state.audit.entries()]
+    for a in ("mcp.server.enable", "mcp.server.started", "mcp.server.discover", "mcp.server.discovered",
+              "mcp.tool.approve", "mcp.tool.revoke", "mcp.server.create", "mcp.server.update"):
+        assert a in actions, a
+    assert await app.state.storage.events.list("mcp-server-good") == []
+    assert (await app.state.audit.verify())["status"] == "ok"
 
 
 @pytest.mark.asyncio

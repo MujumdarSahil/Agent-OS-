@@ -11,6 +11,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Request
 
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 from agentos.llm.router_factory import set_fallback_policy_cache
 from agentos.storage.models import ProviderConfigRecord
 from agentos_server.routes_v2.models import (
@@ -175,6 +176,11 @@ async def update_fallback_policy(
     Updates the fallback policy: persists to storage and updates in-memory router cache.
     """
     storage = request.app.state.storage
+    # 3.1: enabled/disabled providers and their order; no keys or values
+    await audit(request, "provider.fallback.update", "provider_policy", "fallback", details={
+        "enabled": [i.name for i in sorted(req.items, key=lambda x: x.order) if i.enabled][:50],
+        "disabled": sorted(i.name for i in req.items if not i.enabled)[:50],
+    })
 
     # 1. Persist each provider config record to storage
     for item in req.items:

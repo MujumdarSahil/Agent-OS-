@@ -8,6 +8,7 @@ import logging
 from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException, Request
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 
 from agentos_server.routes_v2.models import SecretInfoResponse, VaultPutRequest
 
@@ -39,6 +40,10 @@ async def put_vault_key(req: VaultPutRequest, request: Request) -> SecretInfoRes
     if not req.secret.strip():
         raise HTTPException(status_code=400, detail="Secret must not be empty")
 
+    existing = {i.name for i in await vault.list()} if hasattr(vault, "list") else set()
+    # 3.1: names only, never the value or any fragment of it
+    await audit(request, "vault.secret.set", "secret", req.name,
+                details={"provider": req.provider or "", "replaced": req.name in existing})
     info = await vault.put(req.name, req.secret.strip(), req.provider)
     return SecretInfoResponse(
         name=info.name,
@@ -53,6 +58,10 @@ async def put_vault_key(req: VaultPutRequest, request: Request) -> SecretInfoRes
 @router.delete("/keys/{name}")
 async def delete_vault_key(name: str, request: Request) -> Dict[str, bool]:
     vault = request.app.state.vault
+    names = {i.name for i in await vault.list()} if hasattr(vault, "list") else {name}
+    if name not in names:
+        raise HTTPException(status_code=404, detail=f"Secret '{name}' not found")
+    await audit(request, "vault.secret.delete", "secret", name)
     deleted = await vault.delete(name)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Secret '{name}' not found")

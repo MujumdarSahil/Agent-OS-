@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from agentos_server.routes_v2.agents import router as agents_router
+from agentos_server.routes_v2.audit import router as audit_router
 from agentos_server.routes_v2.flows import router as flows_router
 from agentos_server.routes_v2.mcp_servers import router as mcp_servers_router
 from agentos_server.routes_v2.node_specs import router as node_specs_router
@@ -31,3 +32,4 @@ router.include_router(webhooks_router)
 router.include_router(schedules_router)
 router.include_router(node_specs_router)
 router.include_router(overview_router)
+router.include_router(audit_router)

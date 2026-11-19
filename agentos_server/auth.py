@@ -254,6 +254,7 @@ class SecurityMiddleware:
             await self.app(scope, receive, send)
             return
 
+        await _note_auth_failure(app_obj, "ui" if headers.get("x-agentos-client", "").lower() == "ui" else "api")
         body = b'{"detail":"Unauthorized: valid local API token required"}'
         await send({
             "type": "http.response.start",
@@ -298,6 +299,7 @@ class SecurityMiddleware:
         )
 
         if not verify_api_token(provided_token, expected_token):
+            await _note_auth_failure(app_obj, "ui")
             await self._reject_ws(receive, send, code=4401)
             return
 
@@ -308,6 +310,17 @@ class SecurityMiddleware:
         event = await receive()
         if event["type"] == "websocket.connect":
             await send({"type": "websocket.close", "code": code})
+
+
+async def _note_auth_failure(app_obj, source: str) -> None:
+    """3.1: count a failed authentication for the aggregated audit entry (never raises, never blocks the 401)."""
+    agg = getattr(getattr(app_obj, "state", None), "auth_failures", None)
+    if agg is None:
+        return
+    try:
+        await agg.note(app_obj, source)
+    except Exception:  # auditing must not change the auth response
+        pass
 
 
 def get_ui_port(server_port: int = 8000) -> int:

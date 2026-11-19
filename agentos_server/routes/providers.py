@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 import litellm
 
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 from agentos.llm.router_factory import build_router
 from agentos_server.models import (
     ProviderStatusResponse,
@@ -117,6 +118,10 @@ async def save_provider_keys(req: ProviderKeysRequest, request: Request):
     if not provider:
         raise HTTPException(status_code=400, detail=f"Provider '{req.provider_name}' not found in registry")
 
+    # 3.1: which settings were set, never their values
+    await audit(request, "provider.key.set", "provider", req.provider_name, details={
+        "api_key": bool(req.api_key), "api_base_url": bool(req.api_base_url), "model_name": bool(req.model_name),
+    })
     from dotenv import set_key
 
     # Save key
@@ -163,6 +168,7 @@ async def delete_provider_keys(provider_name: str, request: Request):
     if not provider:
         raise HTTPException(status_code=400, detail=f"Provider '{provider_name}' not found")
 
+    await audit(request, "provider.key.delete", "provider", provider_name)
     from dotenv import unset_key
 
     # Remove key

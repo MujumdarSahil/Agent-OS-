@@ -29,6 +29,7 @@ from agentos.flows.specs import BUILTIN_NODE_SPECS
 from agentos.mcp.catalog import canonical_name, target_fingerprint, tool_status, wire_name
 from agentos.mcp.env import FIXED, POSIX_COPIED, WINDOWS_COPIED, MCPEnvError, server_dir, validate_env_names
 from agentos.storage.models import MCPServerRecord, MCPToolApproval
+from agentos_server.audit_support import audit, audit_best_effort, source_of
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/mcp-servers", tags=["v2-mcp-servers"])
@@ -111,6 +112,14 @@ async def put_mcp_server(payload: Dict[str, Any], request: Request) -> Dict[str,
         raise HTTPException(status_code=400, detail=str(e))
 
     existing = await storage.mcp_servers.get(record.name)
+    target_changed = existing is not None and target_fingerprint(existing) != target_fingerprint(record)
+    # 3.1: names, transport, env NAMES and the target fingerprint only (never env values or URLs with tokens)
+    await audit(request, "mcp.server.update" if existing is not None else "mcp.server.create", "mcp_server",
+                record.name, details={
+                    "transport": record.transport, "target_fingerprint": target_fingerprint(record),
+                    "env_names": sorted(record.env)[:50], "secret_env_names": sorted(record.secret_env)[:50],
+                    "target_changed": target_changed,
+                })
     if existing is not None:
         update: Dict[str, Any] = {"tools": existing.tools, "last_discovery": existing.last_discovery}
         if target_fingerprint(existing) != target_fingerprint(record):
@@ -125,6 +134,8 @@ async def put_mcp_server(payload: Dict[str, Any], request: Request) -> Dict[str,
 
 @router.delete("/{name}")
 async def delete_mcp_server(name: str, request: Request) -> Dict[str, bool]:
+    await _get(request, name)
+    await audit(request, "mcp.server.delete", "mcp_server", name)
     if _manager(request) is not None:
         await _manager(request).stop(name, "deleted")
     deleted = await request.app.state.storage.mcp_servers.delete(name)
@@ -141,13 +152,12 @@ async def launch_preview(name: str, request: Request) -> Dict[str, Any]:
 @router.post("/{name}/enable")
 async def enable_mcp_server(name: str, body: EnableBody, request: Request) -> Dict[str, Any]:
     rec = (await _get(request, name)).model_copy(update={"enabled": body.enabled})
+    await audit(request, "mcp.server.enable" if body.enabled else "mcp.server.disable", "mcp_server", name,
+                details={"target_fingerprint": target_fingerprint(rec), "transport": rec.transport})
     await request.app.state.storage.mcp_servers.put(rec)
     manager = _manager(request)
-    if manager is not None:
-        if not body.enabled:
-            await manager.stop(name, "disabled")
-        await manager.event(name, "mcp_server_enabled" if body.enabled else "mcp_server_disabled",
-                            {"target_fingerprint": target_fingerprint(rec)})
+    if manager is not None and not body.enabled:
+        await manager.stop(name, "disabled")
     return {"server": _view(rec), "launch_preview": _preview(rec, request)}
 
 
@@ -161,6 +171,7 @@ async def discover_mcp_server(name: str, request: Request) -> Dict[str, Any]:
     if rec.transport == "sse":
         raise HTTPException(status_code=400, detail="sse is not supported (deprecated in the MCP spec); use http")
     manager = _manager(request)
+    await audit(request, "mcp.server.discover", "mcp_server", name, details={"transport": rec.transport})
     try:
         discovered = await manager.discover(rec, builtin_names=BUILTIN_NODE_SPECS.keys())
     except SSRFBlockedError as e:
@@ -200,12 +211,13 @@ async def approve_tool(name: str, tool: str, body: ApproveBody, request: Request
     tools = dict(rec.tools)
     tools[tool] = state.model_copy(update={"approval": approval})
     rec = rec.model_copy(update={"tools": tools})
+    await audit(request, "mcp.tool.approve", "mcp_tool", canonical_name(name, tool), details={
+        "server": name, "tool": tool, "snapshot_sha256": approval.approved_sha256,
+        "side_effect": approval.side_effect, "output_confidentiality": approval.output_confidentiality,
+        "untrusted_ok_args": sorted(approval.untrusted_ok_args)[:50],
+        "admin_description": approval.replacement_description is not None,
+    })
     await request.app.state.storage.mcp_servers.put(rec)
-    if _manager(request) is not None:
-        await _manager(request).event(name, "mcp_tool_approved", {
-            "tool": tool, "sha256": approval.approved_sha256, "side_effect": approval.side_effect,
-            "admin_description": approval.replacement_description is not None,
-        })
     return _view(rec)
 
 
@@ -218,7 +230,6 @@ async def revoke_tool(name: str, tool: str, request: Request) -> Dict[str, Any]:
     tools = dict(rec.tools)
     tools[tool] = state.model_copy(update={"approval": None})
     rec = rec.model_copy(update={"tools": tools})
+    await audit(request, "mcp.tool.revoke", "mcp_tool", canonical_name(name, tool), details={"server": name, "tool": tool})
     await request.app.state.storage.mcp_servers.put(rec)
-    if _manager(request) is not None:
-        await _manager(request).event(name, "mcp_tool_revoked", {"tool": tool})
     return _view(rec)
