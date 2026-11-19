@@ -68,6 +68,37 @@ def make_head(key: bytes, entry: dict[str, Any]) -> dict[str, Any]:
     return {"seq": entry["seq"], "hash": entry["hash"], "mac": head_mac(key, entry["seq"], entry["hash"])}
 
 
+def anchor_mac(key: bytes, seq: int, h: str) -> str:
+    """3.2 (0a): MAC of the independent anchor (a different prefix: a head cannot be replayed as an anchor)."""
+    return hmac.new(key, f"anchor|{seq}|{h}".encode("ascii"), hashlib.sha256).hexdigest()
+
+
+def make_anchor(key: bytes, entry: dict[str, Any]) -> dict[str, Any]:
+    return {"seq": entry["seq"], "hash": entry["hash"], "mac": anchor_mac(key, entry["seq"], entry["hash"])}
+
+
+def check_anchor(result: dict[str, Any], entries: list[Any], head: dict[str, Any] | None,
+                 anchor: dict[str, Any] | None, key: bytes) -> dict[str, Any]:
+    """3.2 (0a): the independent anchor (kept in the main storage, not the audit folder) catches a deleted or
+    rolled-back log that would otherwise verify as "empty" or as a shorter valid chain."""
+    log_present = bool(entries) or head is not None
+    if anchor is None:
+        if log_present:
+            return _broken(1, result.get("entries_checked", 0), "audit anchor missing")
+        return result  # nothing anywhere: a fresh install
+    if not (isinstance(anchor.get("seq"), int) and isinstance(anchor.get("hash"), str)
+            and isinstance(anchor.get("mac"), str)
+            and hmac.compare_digest(anchor_mac(key, anchor["seq"], anchor["hash"]), anchor["mac"])):
+        return _broken(1, result.get("entries_checked", 0), "audit anchor is invalid")
+    n = anchor["seq"]
+    if result["status"] == "broken" and entries:
+        return result  # the chain itself breaks earlier: keep that more specific seq and reason
+    good = [e for e in entries if isinstance(e, dict)]
+    if len(good) < n or good[n - 1].get("hash") != anchor["hash"]:
+        return _broken(n, result.get("entries_checked", 0), f"audit log deleted or rolled back (anchor at seq {n})")
+    return result
+
+
 def _check_str(key: str, value: str) -> None:
     if len(value) > MAX_STR:
         raise AuditDetailsError(f"details[{key!r}] is longer than {MAX_STR} characters")

@@ -1,0 +1,3171 @@
+﻿................s...........EEEEFs.........                              [100%]
+=================================== ERRORS ====================================
+_________ ERROR at setup of test_publish_gate_refusal_with_violations _________
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-851b1bd0b24c8963')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+>               decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+
+agentos\security\vault.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+master = MasterKey(key_id='kek-851b1bd0b24c8963')
+record = EncryptedSecretRecord(name='wh_key_ec32ce868d7f423c', provider=None, algorithm='AES-256-GCM', key_id='kek-c893fb4027b4...o=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 19, 12, 40, 18, 705000, tzinfo=datetime.timezone.utc))
+
+    def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
+        if record.key_id != master.key_id:
+>           raise VaultKeyMismatch(
+                f"secret '{record.name}' was encrypted with {record.key_id}, current master key is {master.key_id}"
+            )
+E           agentos.security.vault.VaultKeyMismatch: secret 'wh_key_ec32ce868d7f423c' was encrypted with kek-c893fb4027b4ae1c, current master key is kek-851b1bd0b24c8963
+
+agentos\security\vault.py:164: VaultKeyMismatch
+
+The above exception was the direct cause of the following exception:
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_publish_gate_refusal_with0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+>               verify_vault_file(creds.path, master_key)
+
+agentos_server\app.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-851b1bd0b24c8963')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+                decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+            except VaultKeyMismatch as e:
+>               raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+E               agentos.security.vault.VaultFileError: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-851b1bd0b24c8963. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos\security\vault.py:206: VaultFileError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-508/test_publish_gate_refusal_with0')
+
+    @pytest.fixture
+    def test_app(tmp_path):
+        project_dir = tmp_path / "api_test_project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+        (project_dir / "agentos.config.yaml").write_text(
+            "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+        )
+>       app = create_app(str(project_dir))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_flow_api_and_approval_2_1.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_publish_gate_refusal_with0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+                verify_vault_file(creds.path, master_key)
+            except VaultFileError as e:
+>               raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
+E               RuntimeError: Vault check failed, AgentOS will not start: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-851b1bd0b24c8963. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos_server\app.py:409: RuntimeError
+_________ ERROR at setup of test_deletion_guard_and_archive_endpoints _________
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-f7c40d8a7b2c470b')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+>               decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+
+agentos\security\vault.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+master = MasterKey(key_id='kek-f7c40d8a7b2c470b')
+record = EncryptedSecretRecord(name='wh_key_ec32ce868d7f423c', provider=None, algorithm='AES-256-GCM', key_id='kek-c893fb4027b4...o=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 19, 12, 40, 18, 705000, tzinfo=datetime.timezone.utc))
+
+    def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
+        if record.key_id != master.key_id:
+>           raise VaultKeyMismatch(
+                f"secret '{record.name}' was encrypted with {record.key_id}, current master key is {master.key_id}"
+            )
+E           agentos.security.vault.VaultKeyMismatch: secret 'wh_key_ec32ce868d7f423c' was encrypted with kek-c893fb4027b4ae1c, current master key is kek-f7c40d8a7b2c470b
+
+agentos\security\vault.py:164: VaultKeyMismatch
+
+The above exception was the direct cause of the following exception:
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_deletion_guard_and_archiv0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+>               verify_vault_file(creds.path, master_key)
+
+agentos_server\app.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-f7c40d8a7b2c470b')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+                decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+            except VaultKeyMismatch as e:
+>               raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+E               agentos.security.vault.VaultFileError: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-f7c40d8a7b2c470b. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos\security\vault.py:206: VaultFileError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-508/test_deletion_guard_and_archiv0')
+
+    @pytest.fixture
+    def test_app(tmp_path):
+        project_dir = tmp_path / "api_test_project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+        (project_dir / "agentos.config.yaml").write_text(
+            "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+        )
+>       app = create_app(str(project_dir))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_flow_api_and_approval_2_1.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_deletion_guard_and_archiv0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+                verify_vault_file(creds.path, master_key)
+            except VaultFileError as e:
+>               raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
+E               RuntimeError: Vault check failed, AgentOS will not start: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-f7c40d8a7b2c470b. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos_server\app.py:409: RuntimeError
+______ ERROR at setup of test_manual_trigger_inputs_untrusted_by_default ______
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-fbf8c65bf6613b21')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+>               decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+
+agentos\security\vault.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+master = MasterKey(key_id='kek-fbf8c65bf6613b21')
+record = EncryptedSecretRecord(name='wh_key_ec32ce868d7f423c', provider=None, algorithm='AES-256-GCM', key_id='kek-c893fb4027b4...o=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 19, 12, 40, 18, 705000, tzinfo=datetime.timezone.utc))
+
+    def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
+        if record.key_id != master.key_id:
+>           raise VaultKeyMismatch(
+                f"secret '{record.name}' was encrypted with {record.key_id}, current master key is {master.key_id}"
+            )
+E           agentos.security.vault.VaultKeyMismatch: secret 'wh_key_ec32ce868d7f423c' was encrypted with kek-c893fb4027b4ae1c, current master key is kek-fbf8c65bf6613b21
+
+agentos\security\vault.py:164: VaultKeyMismatch
+
+The above exception was the direct cause of the following exception:
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_manual_trigger_inputs_unt0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+>               verify_vault_file(creds.path, master_key)
+
+agentos_server\app.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-fbf8c65bf6613b21')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+                decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+            except VaultKeyMismatch as e:
+>               raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+E               agentos.security.vault.VaultFileError: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-fbf8c65bf6613b21. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos\security\vault.py:206: VaultFileError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-508/test_manual_trigger_inputs_unt0')
+
+    @pytest.fixture
+    def test_app(tmp_path):
+        project_dir = tmp_path / "api_test_project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+        (project_dir / "agentos.config.yaml").write_text(
+            "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+        )
+>       app = create_app(str(project_dir))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_flow_api_and_approval_2_1.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_manual_trigger_inputs_unt0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+                verify_vault_file(creds.path, master_key)
+            except VaultFileError as e:
+>               raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
+E               RuntimeError: Vault check failed, AgentOS will not start: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-fbf8c65bf6613b21. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos_server\app.py:409: RuntimeError
+__________ ERROR at setup of test_approval_idempotency_and_rejection __________
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-292c4484639d05bc')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+>               decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+
+agentos\security\vault.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+master = MasterKey(key_id='kek-292c4484639d05bc')
+record = EncryptedSecretRecord(name='wh_key_ec32ce868d7f423c', provider=None, algorithm='AES-256-GCM', key_id='kek-c893fb4027b4...o=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 19, 12, 40, 18, 705000, tzinfo=datetime.timezone.utc))
+
+    def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
+        if record.key_id != master.key_id:
+>           raise VaultKeyMismatch(
+                f"secret '{record.name}' was encrypted with {record.key_id}, current master key is {master.key_id}"
+            )
+E           agentos.security.vault.VaultKeyMismatch: secret 'wh_key_ec32ce868d7f423c' was encrypted with kek-c893fb4027b4ae1c, current master key is kek-292c4484639d05bc
+
+agentos\security\vault.py:164: VaultKeyMismatch
+
+The above exception was the direct cause of the following exception:
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_approval_idempotency_and_0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+>               verify_vault_file(creds.path, master_key)
+
+agentos_server\app.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-292c4484639d05bc')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+                decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+            except VaultKeyMismatch as e:
+>               raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+E               agentos.security.vault.VaultFileError: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-292c4484639d05bc. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos\security\vault.py:206: VaultFileError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-508/test_approval_idempotency_and_0')
+
+    @pytest.fixture
+    def test_app(tmp_path):
+        project_dir = tmp_path / "api_test_project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+        (project_dir / "agentos.config.yaml").write_text(
+            "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+        )
+>       app = create_app(str(project_dir))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_flow_api_and_approval_2_1.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_approval_idempotency_and_0\\api_test_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+                verify_vault_file(creds.path, master_key)
+            except VaultFileError as e:
+>               raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
+E               RuntimeError: Vault check failed, AgentOS will not start: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-292c4484639d05bc. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos_server\app.py:409: RuntimeError
+================================== FAILURES ===================================
+____________________________ test_startup_recovery ____________________________
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-a71542a716c85837')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+>               decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+
+agentos\security\vault.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+master = MasterKey(key_id='kek-a71542a716c85837')
+record = EncryptedSecretRecord(name='wh_key_ec32ce868d7f423c', provider=None, algorithm='AES-256-GCM', key_id='kek-c893fb4027b4...o=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 19, 12, 40, 18, 705000, tzinfo=datetime.timezone.utc))
+
+    def decrypt_secret(master: MasterKey, record: EncryptedSecretRecord) -> str:
+        if record.key_id != master.key_id:
+>           raise VaultKeyMismatch(
+                f"secret '{record.name}' was encrypted with {record.key_id}, current master key is {master.key_id}"
+            )
+E           agentos.security.vault.VaultKeyMismatch: secret 'wh_key_ec32ce868d7f423c' was encrypted with kek-c893fb4027b4ae1c, current master key is kek-a71542a716c85837
+
+agentos\security\vault.py:164: VaultKeyMismatch
+
+The above exception was the direct cause of the following exception:
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_startup_recovery0\\recovery_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+>               verify_vault_file(creds.path, master_key)
+
+agentos_server\app.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/agentos-test-home-d8w5r56m/.agentos/vault.json')
+master = MasterKey(key_id='kek-a71542a716c85837')
+
+    def verify_vault_file(path: Path, master: MasterKey) -> int:
+        """Startup check for the Standalone vault file; returns the number of entries.
+    
+        Fails closed (VaultFileError) when the file exists but is not a JSON object (empty, zero-filled,
+        truncated) or any entry does not decrypt with ``master`` (wrong key, tampered). Decrypted values
+        are discarded immediately and never logged. A missing file is fine (a new vault starts empty).
+        Messages name the file and the backup, never entry contents.
+        """
+        import json
+    
+        path = Path(path)
+        if not path.exists():
+            return 0
+        bak = path.with_name(path.name + ".bak")
+        hint = f"A previous good copy may exist at {bak}. AgentOS will not overwrite {path}; restore it or move it aside."
+        raw = path.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("top level is not a JSON object")
+        except (ValueError, UnicodeDecodeError) as e:
+            raise VaultFileError(f"vault file {path} cannot be parsed ({len(raw)} bytes; it may be truncated or zero-filled). {hint}") from e
+        for value in data.values():
+            try:
+                decrypt_secret(master, EncryptedSecretRecord.model_validate(value))
+            except VaultKeyMismatch as e:
+>               raise VaultFileError(f"vault file {path} was encrypted with a different master key than {master.key_id}. {hint}") from e
+E               agentos.security.vault.VaultFileError: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-a71542a716c85837. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos\security\vault.py:206: VaultFileError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-508/test_startup_recovery0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B5177048D0>
+
+    @pytest.mark.asyncio
+    async def test_startup_recovery(tmp_path, monkeypatch):
+        """
+        Requirement 2: Startup recovery (MOCK):
+        On start, find runs whose last state is queued/running (from event log) and re-enqueue them.
+        """
+        monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
+        project_dir = tmp_path / "recovery_project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        # Trusted internal domains are explicit admin config (no built-in default since the 2.0 cleanup).
+        (project_dir / "agentos.config.yaml").write_text(
+            "preferred_tags: []\nsecurity:\n  internal_domains: [corp.local, internal.local]\n", encoding="utf-8"
+        )
+    
+        # 1. First server session: setup storage and simulate an interrupted running run
+        s = await open_storage(str(project_dir), backend="file", vault_path=str(tmp_path / "vault.json"))
+        flow_rec = FlowRecord(
+            id="flow_recover",
+            name="Recover Flow",
+            entrypoint="trig",
+            nodes={
+                "trig": {"id": "trig", "type": "webhook_trigger", "config": {"path": "/in"}},
+                "sink": {"id": "sink", "type": "send_email", "config": {}, "pinned_args": {"to": "ops@local"}},
+            },
+            edges=[{"source": "trig", "target": "sink", "arg_mapping": {"body": "payload"}}],
+        )
+        await s.flows.put_draft(flow_rec)
+        await s.flows.publish("flow_recover", "h1", "p1")
+    
+        # Create run and event
+        from agentos.storage.models import RunRecord
+        run_id = "run_interrupted_42"
+        await s.runs.put(RunRecord(run_id=run_id, mission_name="flow_recover", flow_id="flow_recover", flow_version=1, status="running"))
+        await s.events.append(run_id, "run_started", {"inputs": {"data": "recover me"}})
+        await s.close()
+    
+        # 2. Second session (simulated server restart): create app and trigger lifespan
+>       app = create_app(str(project_dir))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_flow_api_and_approval_2_1.py:346: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project_path = 'C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-508\\test_startup_recovery0\\recovery_project'
+storage = None
+
+    def create_app(
+        project_path: Optional[str] = None,
+        storage: Optional[Any] = None,
+    ) -> FastAPI:
+        """
+        Create and configure the AgentOS FastAPI application.
+    
+        Args:
+            project_path: Optional absolute path to the AgentOS project directory.
+            storage: Optional pre-configured Storage instance (File or Mongo).
+        """
+        from agentos.core.logging_config import setup_logging
+        from agentos.__version__ import __version__
+        setup_logging()
+    
+        if project_path is None:
+            project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
+        project_path = os.path.abspath(project_path)
+    
+        # Load API keys from .env (repo root first, then project directory overrides).
+        # AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
+        try:
+            if os.environ.get("AGENTOS_SKIP_DOTENV") == "1":
+                raise ImportError("dotenv loading disabled by AGENTOS_SKIP_DOTENV")
+            from dotenv import load_dotenv
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            root_env = os.path.join(repo_root, ".env")
+            if os.path.exists(root_env):
+                load_dotenv(root_env)
+            project_env = os.path.join(project_path, ".env")
+            if os.path.exists(project_env):
+                load_dotenv(project_env, override=True)
+        except ImportError:
+            pass
+    
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            from agentos.core.bootstrap import register_builtin_components
+            register_builtin_components()
+            logger.info(f"AgentOS API starting for project: {project_path}")
+    
+            # If Mongo URI is configured and storage was not explicitly provided, open Mongo storage
+            mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
+            if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
+                try:
+                    from agentos.storage.mongo import open_mongo_storage
+                    app.state.storage = await open_mongo_storage(mongo_uri)
+                    from agentos.security.vault import Vault
+                    app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
+                    if getattr(app.state, "mcp_manager", None) is not None:
+                        app.state.mcp_manager.storage = app.state.storage
+                    app.state.queue.set_storage(app.state.storage)
+                    from agentos.audit import audit_store_for
+                    app.state.audit.store = audit_store_for(app.state.storage)
+                    if hasattr(app.state.storage.events, "_fencing_checker"):
+                        app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+                    # Use Mongo server-time leader lock in Platform mode
+                    from agentos.triggers.scheduler import MongoLeaderLock
+                    db = app.state.storage.runs._c.database
+                    if hasattr(app.state, "scheduler") and app.state.scheduler:
+                        app.state.scheduler.leader_lock = MongoLeaderLock(db.leader_locks)
+                except Exception as e:
+                    logger.error(f"Failed to connect to Mongo at {mongo_uri}: {e}")
+                    raise RuntimeError(
+                        f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
+                    ) from e
+    
+            # Pre-load fallback policy cache into in-memory router cache
+            try:
+                configs = await app.state.storage.provider_configs.list()
+                from agentos.llm.router_factory import set_fallback_policy_cache
+                set_fallback_policy_cache([c.model_dump() for c in configs])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load fallback policy cache: {e}")
+    
+            # Requirement 2: Startup recovery: find runs whose last state is queued/running (from event log)
+            # and re-enqueue them.
+            try:
+                if app.state.storage.flows:
+                    runs = await app.state.storage.runs.list(limit=1000)
+                    terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                    for r in runs:
+                        if not r.flow_id:
+                            continue
+                        evs = await app.state.storage.events.list(r.run_id, after_seq=0)
+                        ev_types = [e.type for e in evs]
+                        is_terminal = any(t in terminal_events for t in ev_types)
+                        is_waiting = any(t == "run_waiting" for t in ev_types)
+                        if not is_terminal and not is_waiting:
+                            start_ev = next((e for e in evs if e.type == "run_started"), None)
+                            inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
+                            ver = r.flow_version or 1
+                            await app.state.queue.reenqueue(
+                                run_id=r.run_id,
+                                flow_id=r.flow_id,
+                                version=ver,
+                                inputs=inputs,
+                            )
+                            logger.info("Startup recovery re-enqueued flow run %s", r.run_id)
+            except Exception as e:
+                logger.warning(f"Startup recovery failed: {e}")
+    
+            # Start cron trigger scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                # Fails startup with a clear error if schedules exist but croniter is missing.
+                await app.state.scheduler.ensure_cron_support()
+                app.state.scheduler.start()
+    
+            # 2.4c: provider keys stored in the vault (named like GROQ_API_KEY) are used first.
+            if getattr(app.state, "vault", None) is not None:
+                try:
+                    from agentos.llm.provider_registry import export_vault_provider_keys
+    
+                    loaded = await export_vault_provider_keys(app.state.vault)
+                    if loaded:
+                        logger.info("Loaded provider keys from the vault: %s", ", ".join(loaded))
+                except Exception as e:
+                    logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
+    
+            # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
+            from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
+            app.state.inprocess_worker = None
+            if inprocess_worker_enabled():
+                app.state.inprocess_worker = InProcessFlowWorker(app)
+                app.state.inprocess_worker.start()
+    
+            # Print one-time token access link with actual served UI port
+            server_port = int(os.environ.get("AGENTOS_PORT", 8000))
+            print_startup_auth_banner(app.state.api_token, server_port=server_port)
+    
+            # 3.1: startup + config entries (best effort: the server still starts if the audit store is down,
+            # but every audited admin action then fails closed with 503)
+            from agentos_server.audit_support import audit_shutdown, audit_startup
+            mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
+            await audit_startup(app, project_path, mode, __version__)
+    
+            yield
+            await audit_shutdown(app, mode, __version__)
+            # Stop the in-process worker before storage is closed
+            if getattr(app.state, "inprocess_worker", None) is not None:
+                await app.state.inprocess_worker.stop()
+                app.state.inprocess_worker = None
+            # 2.5a: stop every MCP server child process (no orphans)
+            if getattr(app.state, "mcp_manager", None) is not None:
+                try:
+                    await app.state.mcp_manager.stop_all("shutdown")
+                except Exception:
+                    logger.exception("Stopping MCP servers failed")
+            # Stop scheduler
+            if hasattr(app.state, "scheduler") and app.state.scheduler:
+                try:
+                    await app.state.scheduler.stop()
+                except Exception:
+                    pass
+            # Close mongo client if present
+            closer = getattr(app.state.storage, "_closer", None)
+            if closer:
+                try:
+                    await closer()
+                except Exception:
+                    pass
+            logger.info("AgentOS API shutting down.")
+    
+        app = FastAPI(
+            title="AgentOS API",
+            description="REST API for the AgentOS multi-agent framework",
+            version=__version__,
+            lifespan=lifespan,
+        )
+    
+        # -----------------------------------------------------------------------
+        # CORS — allow the Vite dev server (port 5173) and any localhost origin
+        # -----------------------------------------------------------------------
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+        # -----------------------------------------------------------------------
+        # App state — shared between all requests
+        # -----------------------------------------------------------------------
+        app.state.project_path = project_path
+        gov = GovernanceEngine()
+        gov.initialize_security_policies()
+        app.state.governance = gov
+        app.state.run_manager = RunManager(governance=gov)
+        app.state.failed_providers = set()
+        from agentos.flows.policy import SecurityPolicy
+        # Trusted internal email domains are admin configuration (secure default: none trusted).
+        app.state.security_policy = SecurityPolicy(
+            internal_domains=load_internal_domains(project_path),
+            http_allowlist=load_http_allowlist(project_path),
+            allowlists=load_allowlists(project_path),
+            allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
+        )
+    
+        # Initialize 1.2 Storage port (File or Mongo)
+        if storage is not None:
+            app.state.storage = storage
+            app.state._storage_explicit = True
+        else:
+            from agentos.storage.file import open_file_storage
+            app.state.storage = open_file_storage(project_path)
+            app.state._storage_explicit = False
+    
+        # Initialize QueueBackend & NonceCache (Redis for Platform mode, InProcess for Standalone)
+        redis_uri = os.environ.get("AGENTOS_REDIS_URI") or os.environ.get("AGENTOS_REDIS_URL")
+        if redis_uri:
+            import redis.asyncio as aioredis
+            from agentos.queue.redis import RedisQueueBackend
+            from agentos.triggers.nonce_cache import RedisNonceCache
+            redis_client = aioredis.from_url(redis_uri)
+            app.state.redis = redis_client
+            app.state.queue = RedisQueueBackend(redis_client, storage=app.state.storage)
+            app.state.nonce_cache = RedisNonceCache(redis_client)
+        else:
+            from agentos.queue.in_process import InProcessQueueBackend
+            from agentos.triggers.nonce_cache import InMemoryNonceCache
+            app.state.queue = InProcessQueueBackend(storage=app.state.storage)
+            app.state.nonce_cache = InMemoryNonceCache()
+    
+        if hasattr(app.state.storage.events, "_fencing_checker"):
+            app.state.storage.events._fencing_checker = app.state.queue.validate_lease
+    
+        # Initialize Cron FlowScheduler
+        from agentos.triggers.scheduler import FlowScheduler, InProcessLeaderLock
+        app.state.scheduler = FlowScheduler(
+            storage=app.state.storage,
+            queue=app.state.queue,
+            leader_lock=InProcessLeaderLock(),
+        )
+    
+        # Initialize Credentials Vault
+        from agentos.security.vault import Vault, MasterKey
+        try:
+            master_key = MasterKey.load(create=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load vault master key: {e}") from e
+        app.state.master_key = master_key
+        # Fail closed on a damaged Standalone vault file (zero-filled, truncated, wrong master key):
+        # never start, and never write a new empty vault over it. (vault incident 2026-11-18)
+        from agentos.security.vault import VaultFileError, verify_vault_file
+        from agentos.storage.file import JsonFileMapRepository
+        creds = app.state.storage.credentials
+        if isinstance(creds, JsonFileMapRepository):
+            try:
+                verify_vault_file(creds.path, master_key)
+            except VaultFileError as e:
+>               raise RuntimeError(f"Vault check failed, AgentOS will not start: {e}") from e
+E               RuntimeError: Vault check failed, AgentOS will not start: vault file C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json was encrypted with a different master key than kek-a71542a716c85837. A previous good copy may exist at C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json.bak. AgentOS will not overwrite C:\Users\mujum\AppData\Local\Temp\agentos-test-home-d8w5r56m\.agentos\vault.json; restore it or move it aside.
+
+agentos_server\app.py:409: RuntimeError
+============================== warnings summary ===============================
+agentos_server\tests\test_v2_api.py:39
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\agentos_server\tests\test_v2_api.py:39: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED agentos/tests/test_flow_api_and_approval_2_1.py::test_startup_recovery
+ERROR agentos/tests/test_flow_api_and_approval_2_1.py::test_publish_gate_refusal_with_violations
+ERROR agentos/tests/test_flow_api_and_approval_2_1.py::test_deletion_guard_and_archive_endpoints
+ERROR agentos/tests/test_flow_api_and_approval_2_1.py::test_manual_trigger_inputs_untrusted_by_default
+ERROR agentos/tests/test_flow_api_and_approval_2_1.py::test_approval_idempotency_and_rejection
+1 failed, 36 passed, 2 skipped, 1 warning, 4 errors in 26.72s

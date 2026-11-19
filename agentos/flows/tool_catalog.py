@@ -129,6 +129,13 @@ class ToolCatalog:
         spec = BUILTIN_NODE_SPECS.get(name)
         if spec is None:
             raise ToolLookupError(name, "unknown", f"Tool {name!r} has no declared NodeSpec (fail closed)")
+        # 3.2 (0b): only real agent tools; a flow step type (approval, subflow, llm, agent, condition, ...)
+        # is never an agent tool. The picker offers exactly this set (agent_tool_options).
+        from agentos.flows.specs import AGENT_TOOL_TYPES
+
+        if name not in AGENT_TOOL_TYPES:
+            raise ToolLookupError(name, "not_an_agent_tool",
+                                  f"{name!r} is a flow step, not an agent tool (fail closed)")
         return ToolEntry(name=name, spec=spec, input_schema=spec.input_schema or {})
 
     def try_resolve(self, name: str) -> ToolEntry | None:

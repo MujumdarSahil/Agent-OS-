@@ -115,6 +115,24 @@ def agentos_isolated_home():
     yield _TEST_HOME
 
 
+@pytest.fixture(autouse=True)
+def agentos_per_test_vault(tmp_path_factory, monkeypatch):
+    """3.2 (0c): every test gets its OWN vault file and master key file, as a pair.
+
+    Before, the whole session shared one vault (AGENTOS_VAULT_PATH in the temp home) while some tests gave
+    each test a fresh master key: a secret stored earlier with another key made create_app's startup vault
+    check fail (VaultKeyMismatch), depending on test order. Tests that set their own key or vault still
+    override these (their fixtures run after this one); session-scoped apps keep the vault they captured.
+    """
+    # inside the session temp test home, so every AgentOS path still points into it (checked by
+    # test_session_isolation_points_every_path_into_the_temp_home)
+    (_TEST_HOME / "per-test").mkdir(parents=True, exist_ok=True)
+    d = Path(tempfile.mkdtemp(prefix="vault-", dir=_TEST_HOME / "per-test"))
+    monkeypatch.setenv("AGENTOS_VAULT_PATH", str(d / "vault.json"))
+    monkeypatch.setenv("AGENTOS_MASTER_KEY_FILE", str(d / "master.key"))
+    yield
+
+
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     changes = diff_snapshots(_BEFORE, snapshot_home(_REAL_HOME))
     if changes:

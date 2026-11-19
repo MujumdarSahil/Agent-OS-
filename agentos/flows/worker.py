@@ -37,7 +37,9 @@ class FlowWorker:
         track_labels: bool = True,
         secret_resolver: Any | None = None,
         mcp_manager: Any | None = None,
+        usage: Any | None = None,
     ) -> None:
+        self.usage = usage  # 3.2: ledger, budgets, run limits (shared by every engine of this server)
         self.mcp_manager = mcp_manager  # 2.5a: runs approved MCP tools for agent nodes
         # 2.3: resolves {"vault": name} credential headers for http_request (e.g. Vault.reveal)
         self.secret_resolver = secret_resolver
@@ -133,6 +135,7 @@ class FlowWorker:
                 mcp_manager=self.mcp_manager,
                 # hashes of the MCP tools approved when this version was published (re-checked per run)
                 expected_mcp_hashes=(flow_record.analysis or {}).get("mcp_tools") or {},
+                usage=self.usage,
             )
 
             # 3. Requirement 3: Decide run vs resume strictly from event log

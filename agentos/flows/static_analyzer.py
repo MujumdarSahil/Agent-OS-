@@ -172,15 +172,15 @@ class StaticFlowAnalyzer:
     # ------------------------------------------------------------------ 2.5a agent tools
 
     def _agent_tools(self, node: NodeDefinition) -> tuple[list[ToolEntry], list[ToolLookupError]]:
-        """Resolved tools of an agent node; unresolved MCP tools are returned as errors (unknown bare
-        names are skipped here as before; the runtime proxy rejects them)."""
+        """Resolved tools of an agent node; unresolved MCP tools and flow-step types used as tools are returned
+        as errors (3.2: publish refuses them; unknown bare names are already refused by FlowDefinition)."""
         entries: list[ToolEntry] = []
         errors: list[ToolLookupError] = []
         for name in node.config.get("tools", []) or []:
             try:
                 entries.append(self.tool_catalog.resolve(name))
             except ToolLookupError as e:
-                if is_mcp_name(name):
+                if is_mcp_name(name) or e.reason == "not_an_agent_tool":
                     errors.append(e)
         return entries, errors
 

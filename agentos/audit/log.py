@@ -14,7 +14,9 @@ from agentos.audit.chain import (
     AuditDetailsError,
     AuditUnavailable,
     build_entry,
+    check_anchor,
     derive_key,
+    make_anchor,
     make_head,
     verify_chain,
 )
@@ -25,8 +27,10 @@ def _now() -> str:
 
 
 class AuditLog:
-    def __init__(self, store: Any, master_key: bytes, clock: Callable[[], str] = _now) -> None:
+    def __init__(self, store: Any, master_key: bytes, clock: Callable[[], str] = _now, anchor: Any = None) -> None:
         self.store = store
+        # 3.2 (0a): an independent anchor in the main storage (not the audit folder); None = not checked
+        self.anchor = anchor
         self._key = derive_key(master_key)
         self._clock = clock
 
@@ -45,12 +49,21 @@ class AuditLog:
                 raise AuditUnavailable(f"audit entry rejected: {e}") from None
             return entry, make_head(self._key, entry)
 
-        return await self.store.append(build)
+        entry = await self.store.append(build)
+        if self.anchor is not None:  # written after the entry and head: a lagging anchor is fine, a missing one not
+            try:
+                await self.anchor.write(make_anchor(self._key, entry))
+            except Exception as e:
+                raise AuditUnavailable(f"audit anchor not writable ({type(e).__name__})") from None
+        return entry
 
     async def verify(self) -> dict[str, Any]:
         entries, partial = await self.store.read_all()
         head = await self.store.read_head()
-        return verify_chain(entries, head, self._key, partial_tail_ignored=partial)
+        result = verify_chain(entries, head, self._key, partial_tail_ignored=partial)
+        if self.anchor is None:
+            return result
+        return check_anchor(result, entries, head, await self.anchor.read(), self._key)
 
     async def entries(self) -> list[dict[str, Any]]:
         entries, _ = await self.store.read_all()
@@ -94,6 +107,17 @@ class AuditLog:
             if e["action"] == action:
                 return e
         return None
+
+
+def audit_anchor_for(storage: Any) -> Any:
+    """3.2 (0a): the independent anchor store of a Storage backend (file: .agentos/state; mongo: audit_anchor)."""
+    from agentos.audit.store import FileAnchorStore
+
+    if getattr(storage, "backend", "file") == "mongo":
+        from agentos.storage.mongo.audit import MongoAnchorStore
+
+        return MongoAnchorStore(storage.runs._c.database.audit_anchor)
+    return FileAnchorStore(storage.location)
 
 
 def audit_store_for(storage: Any) -> Any:

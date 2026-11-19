@@ -147,6 +147,28 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
         })
       }
 
+      // 3.2: usage, cost and budgets (no spend, no budgets: the Overview Spend card stays hidden)
+      if (url.includes('/api/v2/budgets')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            settings: { run_limits: { max_model_calls: 50, max_total_tokens: 300000, flows: {} },
+                        budgets: { global_daily: null, global_monthly: null, flow_daily: {}, provider_monthly: {} } },
+            budgets: [], spend: { today_usd: 0, month_usd: 0 },
+          }),
+        })
+      }
+      if (url.includes('/api/v2/usage')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ group_by: ['day'], since: '2026-11-01', until: '2026-11-19', rows: [], latency: [],
+                                 totals: { calls: 0, errors: 0, fallbacks: 0, prompt_tokens: 0, completion_tokens: 0,
+                                           cost_usd: 0, cost_unknown_calls: 0, latency_ms_sum: 0, latency_count: 0 } }),
+        })
+      }
+
       // 3.1: the agent tool picker loads the server's tool catalog (same list the real server returns)
       if (url.includes('/api/v2/agents/tool-options')) {
         return route.fulfill({

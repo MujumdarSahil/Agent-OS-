@@ -63,6 +63,10 @@ V2_API_ROUTES = sorted([
     ("/api/v2/audit", "GET"),  # 3.1: audit log (read-only)
     ("/api/v2/audit/export", "GET"),
     ("/api/v2/audit/verify", "GET"),
+    ("/api/v2/budgets", "GET"),  # 3.2: usage, cost and budgets
+    ("/api/v2/budgets", "PUT"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/usage", "GET"),
+    ("/api/v2/usage", "GET"),
     ("/api/v2/agents/{name}", "DELETE"),
     ("/api/v2/agents/{name}", "GET"),
     ("/api/v2/flows", "GET"),

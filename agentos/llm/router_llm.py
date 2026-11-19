@@ -198,10 +198,12 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
         local_only: bool = False,
         node_id: Optional[str] = None,
         chain: Optional[list[dict[str, Any]]] = None,
+        guard: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         kwargs.setdefault("model", preferred_model or "agentos-router")
         super().__init__(**kwargs)
+        self._guard = guard  # 3.2: agentos.usage.guard.RunGuard (run limits + budgets), or None
         self._preferred = preferred_model
         self._key_lookup = key_lookup
         self._on_call = on_call
@@ -282,12 +284,28 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
         use_tools = bool(tools) and self.supports_function_calling()
         tool_ran = False
         default_timeout = _env_float("AGENTOS_LLM_ATTEMPT_TIMEOUT_S", DEFAULT_ATTEMPT_TIMEOUT_S)
+        budget_block: Optional[Exception] = None  # 3.2: after a budget refusal only $0 providers may be tried
         for entry in chain:
             left = _cooldown_left(entry["provider"])
             if left > 0:
                 attempts.append({"provider": entry["provider"], "model": entry["model"], "error_class": SKIPPED_COOLDOWN,
                                  "error_message": f"circuit open for another {int(left)} s"})
                 continue
+            if self._guard is not None:  # 3.2: run limits and budgets, before every provider attempt
+                from agentos.usage.guard import BudgetExceeded, RunLimitExceeded
+
+                try:
+                    self._guard.before_attempt(entry, after_budget_block=budget_block is not None)
+                except BudgetExceeded as be:
+                    budget_block = budget_block or be
+                    attempts.append({"provider": entry["provider"], "model": entry["model"],
+                                     "error_class": "BudgetExceeded", "error_message": str(be)})
+                    continue
+                except RunLimitExceeded as rl:
+                    self._emit({"status": "refused", "provider": None, "model": None, "attempts": attempts,
+                                "reason": str(rl), "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+                                "mock": False})
+                    raise
             kwargs: dict[str, Any] = {"model": entry["model"], "messages": list(msgs),
                                       "timeout": float(entry.get("timeout") or default_timeout)}
             if entry.get("api_base"):
@@ -340,7 +358,10 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
             return content
 
         self._emit({"status": "failed", "provider": None, "model": None, "attempts": attempts,
+                    **({"reason": str(budget_block)} if budget_block is not None else {}),
                     "latency_ms": round((time.perf_counter() - started) * 1000, 1), "mock": False})
+        if budget_block is not None:  # fail closed with the budget reason (no paid provider got around it)
+            raise budget_block
         hops = ", ".join(f"{a['provider']}: {a['error_class']}" for a in attempts)
         raise AllProvidersFailedError(f"all LLM providers failed ({hops})")
 

@@ -190,6 +190,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 
 **Audit log** — *Works today (verified in MOCK; Mongo store in the mongo-live CI job)*. Every security-relevant admin action (flow save and publish, approvals, webhooks, schedules, vault names, providers, MCP servers and tools, config changes, sign-in failures) is written first to a tamper-evident hash chain; if it can't be written, the action isn't applied. See **Govern → Audit log**, `agentos audit verify` and [the 3.1 evidence](docs/evidence/3.1.md).
 
+**Usage, cost and budgets** — *Works today (verified in MOCK, scripted token counts)*. Every model call records tokens and an estimated cost; per-run limits stop runaway runs (also on free models), and USD budgets (global, per flow, per provider) block a call before it is made, without silently falling back to another paid provider. See **Watch → Metrics** and [the 3.2 evidence](docs/evidence/3.2.md).
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.
@@ -272,6 +274,11 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   (`enum` with values, `bool`, `int_range` with min and max, a built-in `pattern`, an admin `allowlist`);
   flows published before 2.5b with an unconstrained validator (for example `enum` without values, or
   `bounded_number` without bounds) fail closed at run time.
+
+- **Costs are estimates (3.2)**: prices come from the admin override, the provider registry ($0 for free-tier and
+  local models), or LiteLLM's bundled price map; an unknown price is shown as unknown, never guessed. The provider's
+  bill is the truth. Budgets are checked before each call without a reservation, so parallel calls in flight can
+  overshoot a budget by at most their own cost.
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).

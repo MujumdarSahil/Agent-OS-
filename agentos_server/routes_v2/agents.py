@@ -36,11 +36,14 @@ def validate_agent_config(config_dict: Dict[str, Any], catalog: Any = None) -> N
         try:
             (catalog or BUILTIN_CATALOG).resolve(tool_name)
         except ToolLookupError as err:
-            detail = (
-                f"Tool '{tool_name}' has no declared NodeSpec (fail closed)"
-                if tool_name in BUILTIN_NODE_SPECS or not tool_name.startswith("mcp")
-                else f"{err} (fail closed)"
-            )
+            if err.reason == "not_an_agent_tool":
+                detail = str(err)  # 3.2: a flow step type is not an agent tool
+            else:
+                detail = (
+                    f"Tool '{tool_name}' has no declared NodeSpec (fail closed)"
+                    if tool_name in BUILTIN_NODE_SPECS or not tool_name.startswith("mcp")
+                    else f"{err} (fail closed)"
+                )
             raise HTTPException(status_code=400, detail=detail)
 
 

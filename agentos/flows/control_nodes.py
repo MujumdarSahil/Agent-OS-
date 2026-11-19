@@ -196,6 +196,7 @@ async def run_subflow(engine: FlowEngine, state: FlowRunState, node: NodeDefinit
         flow=child_def, storage=engine.storage, policy=engine.policy, transport_registry=engine.transport_registry,
         custom_llm=engine.custom_llm, track_labels=engine.track_labels, subflow_depth=depth,
         max_subflow_depth=engine.max_subflow_depth, secret_resolver=engine.secret_resolver, clock=engine.clock,
+        usage=engine.usage,  # 3.2: same ledger, budgets and run limits
     )
     child_run_id = f"{state.run_id}--{node.id}"
     cstate = await child.run(

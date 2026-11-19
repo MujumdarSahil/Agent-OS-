@@ -761,15 +761,43 @@ app.add_typer(pack_app, name="pack")
 audit_app = typer.Typer(help="Verify or export the tamper-evident audit log")
 app.add_typer(audit_app, name="audit")
 
+usage_app = typer.Typer(help="Usage ledger (3.2)")
+app.add_typer(usage_app, name="usage")
+
+
+@usage_app.command("rebuild")
+def usage_rebuild(project: Optional[str] = typer.Option(None, help="Project directory (default: current)")):
+    """Recompute the usage ledger from every run's llm_call events (the events are the source of truth)."""
+    import asyncio
+
+    from agentos.storage import open_storage
+    from agentos.usage import rebuild_rows, usage_stores_for
+
+    async def _run():
+        storage = await open_storage(project_path=project)
+        try:
+            rows = await rebuild_rows(storage)
+            ledger, _ = usage_stores_for(storage)
+            await ledger.replace(rows)
+            return rows
+        finally:
+            await storage.close()
+
+    rows = asyncio.run(_run())
+    cost = round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
+    console.print(f"[green]OK[/green] ledger rebuilt: {len(rows)} rows, {sum(r['calls'] for r in rows)} calls, "
+                  f"{cost} USD (estimate)")
+
 
 async def _open_audit_log(project: Optional[str]):
     """Same store and key as the server: the configured storage backend and the vault master key."""
-    from agentos.audit import AuditLog, audit_store_for
+    from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
     from agentos.security.vault import MasterKey
     from agentos.storage import open_storage
 
     storage = await open_storage(project_path=project)
-    return storage, AuditLog(audit_store_for(storage), MasterKey.load(create=False).key)
+    return storage, AuditLog(audit_store_for(storage), MasterKey.load(create=False).key,
+                             anchor=audit_anchor_for(storage))
 
 
 @audit_app.command("verify")
