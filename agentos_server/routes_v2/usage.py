@@ -121,6 +121,8 @@ def _flat(s: UsageSettings) -> Dict[str, Any]:
         out[f"flow_daily.{f}"[:64]] = v
     for p, v in sorted(s.budgets.provider_monthly.items()):
         out[f"provider_monthly.{p}"[:64]] = v
+    for p, plan in sorted(s.billing_plans.items()):
+        out[f"billing_plan.{p}"[:64]] = plan
     for f, lim in sorted(s.run_limits.flows.items()):
         out[f"run_limits.{f}"[:64]] = f"{lim.max_model_calls or '-'} calls / {lim.max_total_tokens or '-'} tokens"
     return out
@@ -136,10 +138,12 @@ async def put_budgets(payload: Dict[str, Any], request: Request) -> Dict[str, An
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid budgets or run limits: {e.errors()[0]['msg']}")
     old = await ctx.get_settings()
+    if "billing_plans" not in payload:  # 3.3: the budgets editor does not manage billing plans; keep them
+        new = new.model_copy(update={"billing_plans": dict(old.billing_plans)})
     # 3.2: admin change, audited before it applies (fail closed: 503 and nothing changes)
     await audit(request, "usage.settings.update", "usage_settings", "budgets",
                 details={"old": _flat(old), "new": _flat(new)})
-    await ctx.settings.put(new)
+    await ctx.put_settings(new)
     return {"settings": new.model_dump(), "budgets": await _budget_status(ctx, new)}
 
 

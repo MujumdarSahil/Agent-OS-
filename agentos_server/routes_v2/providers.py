@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from agentos.llm.provider_registry import PROVIDER_REGISTRY
 from agentos_server.audit_support import audit, audit_best_effort, source_of
@@ -34,6 +35,13 @@ async def list_providers(request: Request) -> List[V2ProviderStatusResponse]:
     """
     vault = request.app.state.vault
     vault_keys = {item.name: item for item in await vault.list()}
+    usage = getattr(request.app.state, "usage", None)
+    plans = dict(getattr(usage, "billing_plans", {}) or {})
+    if usage is not None and getattr(usage, "settings", None) is not None:
+        try:
+            plans = dict((await usage.get_settings()).billing_plans)
+        except Exception:
+            pass
 
     result: List[V2ProviderStatusResponse] = []
     for prov in PROVIDER_REGISTRY:
@@ -58,9 +66,36 @@ async def list_providers(request: Request) -> List[V2ProviderStatusResponse]:
                 api_key_env=api_key_env,
                 api_base_env=prov.get("api_base_env"),
                 is_local=is_local,
+                billing_plan=plans.get(name),
             )
         )
     return result
+
+
+class BillingPlanRequest(BaseModel):
+    plan: Literal["free", "paid", "default"]
+
+
+@router.put("/{name}/billing-plan")
+async def put_billing_plan(name: str, req: BillingPlanRequest, request: Request) -> Dict[str, Any]:
+    """3.3 (0a): admin billing plan of a provider. "free" -> its calls cost $0 (price source plan_free), so a USD
+    budget never blocks it; "paid" -> the registry free-tier tag is ignored; "default" -> as the registry says.
+    Audited before it applies (503 and nothing changes if the entry cannot be written)."""
+    if not any(p["name"] == name for p in PROVIDER_REGISTRY):
+        raise HTTPException(status_code=404, detail=f"Provider {name!r} is not in the provider registry")
+    usage = getattr(request.app.state, "usage", None)
+    if usage is None or getattr(usage, "settings", None) is None:
+        raise HTTPException(status_code=503, detail="Usage settings store is not configured")
+    settings = await usage.get_settings()
+    old = settings.billing_plans.get(name, "default")
+    await audit(request, "provider.billing_plan.update", "provider", name, details={"old": old, "new": req.plan})
+    plans = dict(settings.billing_plans)
+    if req.plan == "default":
+        plans.pop(name, None)
+    else:
+        plans[name] = req.plan
+    await usage.put_settings(settings.model_copy(update={"billing_plans": plans}))
+    return {"name": name, "billing_plan": plans.get(name)}
 
 
 @router.post("/test-connection", response_model=ProviderTestResult)

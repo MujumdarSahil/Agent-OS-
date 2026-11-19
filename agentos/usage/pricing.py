@@ -17,7 +17,7 @@ LOCAL_TAGS = {"local"}
 class Price:
     input_per_1m: Optional[float]
     output_per_1m: Optional[float]
-    source: str  # override | registry | free_tier | local | litellm | unknown
+    source: str  # plan_free | override | registry | free_tier | local | litellm | unknown
 
     @property
     def known(self) -> bool:
@@ -70,7 +70,11 @@ def _litellm(model: Optional[str]) -> Optional[Price]:
 
 
 def price_for(provider: Optional[str], model: Optional[str], overrides: Optional[dict[str, Any]] = None,
-              local: bool = False) -> Price:
+              local: bool = False, plan: Optional[str] = None) -> Price:
+    """``plan`` (3.3, admin billing plan of the provider): "free" -> $0 before everything else; "paid" -> the
+    registry's free-tier tag is ignored; None -> as before."""
+    if plan == "free":
+        return Price(0.0, 0.0, "plan_free")
     o = _override(overrides or {}, provider, model)
     if o is not None:
         return o
@@ -82,7 +86,7 @@ def price_for(provider: Optional[str], model: Optional[str], overrides: Optional
         tags = set(entry.get("tags") or [])
         if tags & LOCAL_TAGS:
             return Price(0.0, 0.0, "local")
-        if tags & FREE_TAGS:
+        if tags & FREE_TAGS and plan != "paid":
             return Price(0.0, 0.0, "free_tier")
     if local:
         return Price(0.0, 0.0, "local")

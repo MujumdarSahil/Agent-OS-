@@ -33,6 +33,8 @@ class V2ProviderStatusResponse(BaseModel):
     api_key_env: Optional[str] = None
     api_base_env: Optional[str] = None
     is_local: bool
+    # 3.3: admin billing plan ("free" | "paid"; None = default: registry tags / price table)
+    billing_plan: Optional[str] = None
 
 
 class ProviderTestRequest(BaseModel):
