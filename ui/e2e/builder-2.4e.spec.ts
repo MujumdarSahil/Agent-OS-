@@ -123,6 +123,9 @@ test('Overview on real data: waiting approval with the full call, approve from O
   await expect(page.getByTestId('kpi-waiting-value')).not.toHaveText('0')
   await card.getByTestId('approve').click()
   await expect(page.getByTestId('approval-decided')).toContainText('Approved')
+  // the card leaves the refreshed list, but the page-level confirmation stays (it used to vanish with it)
+  await expect(card).toHaveCount(0)
+  await expect(page.getByTestId('approval-decided')).toContainText('Approved')
   await waitStatus(request, PAGE_ONCALL.id, runId, 'succeeded')
 
   // a run link opens the existing results view with that run selected

@@ -10,7 +10,7 @@ import { CheckCircle2, Circle, Hand, ShieldAlert, Snowflake } from 'lucide-react
 import { getOverview, type OverviewData, type OverviewWindow } from '../api/flows'
 import { formatMs } from '../flow/runModel'
 import { runHref } from '../flow/allRuns'
-import { RunApproval, RunBlocked } from '../flow/RunWidgets'
+import { DecisionNotice, RunApproval, RunBlocked, useDecisionNotice } from '../flow/RunWidgets'
 
 const STATUS_COLOR: Record<string, string> = {
   succeeded: 'var(--accent-teal)', failed: 'var(--accent-red)', waiting: 'var(--accent-amber)',
@@ -73,6 +73,7 @@ const STEPS: { key: keyof OverviewData['getting_started']; text: string; to: str
 
 export default function Overview() {
   const [win, setWin] = useState<OverviewWindow>('24h')
+  const [decisionNotice, showDecision] = useDecisionNotice()
   const q = useQuery({ queryKey: ['overview', win], queryFn: () => getOverview(win) })
   const d = q.data
 
@@ -100,6 +101,7 @@ export default function Overview() {
 
       {d && (
         <>
+          <DecisionNotice notice={decisionNotice} />
           <NeedsYou d={d} />
           {d.truncated && (
             <div className="text-muted" style={{ fontSize: 12, marginBottom: 8 }} data-testid="overview-truncated">
@@ -174,7 +176,7 @@ export default function Overview() {
                 <div className="text-muted" style={{ fontSize: 12 }} data-testid="waiting-empty">Nothing is waiting for an approval.</div>
               ) : (
                 d.waiting.slice(0, 3).map(w => (
-                  <RunApproval key={w.run_id} flowId={w.flow_id} runId={w.run_id} refresh={[['overview']]} />
+                  <RunApproval key={w.run_id} flowId={w.flow_id} runId={w.run_id} refresh={[['overview']]} onDecided={showDecision} />
                 ))
               )}
             </div>
