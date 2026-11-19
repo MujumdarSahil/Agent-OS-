@@ -29,6 +29,7 @@ import Runs from './pages/Runs'
 import Approvals from './pages/Approvals'
 import Triggers from './pages/Triggers'
 import SecurityLog from './pages/SecurityLog'
+import AuditLog from './pages/AuditLog'
 
 interface NavItem { to: string; icon: ReactNode; label: string }
 
@@ -50,7 +51,10 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     { to: '/tools', icon: <Wrench size={15}/>, label: 'Tools' },
     { to: '/mcp-servers', icon: <Server size={15}/>, label: 'MCP servers' },
   ] },
-  { title: 'Govern', items: [{ to: '/security', icon: <ShieldAlert size={15}/>, label: 'Security log' }] },
+  { title: 'Govern', items: [
+    { to: '/security', icon: <ShieldAlert size={15}/>, label: 'Security log' },
+    { to: '/audit', icon: <Shield size={15}/>, label: 'Audit log' },
+  ] },
   { title: 'System', items: [{ to: '/settings', icon: <SettingsIcon size={15}/>, label: 'Settings' }] },
 ]
 
@@ -181,6 +185,7 @@ export default function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/triggers" element={<Triggers />} />
             <Route path="/security" element={<SecurityLog />} />
+            <Route path="/audit" element={<AuditLog />} />
             <Route path="/classic/dashboard" element={<Dashboard />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/squads" element={<Squads />} />
