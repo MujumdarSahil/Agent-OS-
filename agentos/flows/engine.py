@@ -18,6 +18,7 @@ Features:
 from __future__ import annotations
 
 import asyncio
+import logging
 import json
 import os
 import time
@@ -40,6 +41,7 @@ from agentos.flows.state import FlowRunState, NodeState, RunStatus
 from agentos.flows import control_nodes as cn
 from agentos.flows import extraction as ex
 from agentos.flows.calculator import calculator_output_labels
+from agentos.usage.guard import BudgetExceeded, RunLimitExceeded
 from agentos.flows.net_guard import SSRFBlockedError
 from agentos.storage.models import EventRecord, RunRecord
 from agentos.storage.ports import FencingTokenError, Storage
@@ -85,7 +87,13 @@ class FlowEngine:
         clock: Any | None = None,
         mcp_manager: Any | None = None,
         expected_mcp_hashes: dict[str, str] | None = None,
+        usage: Any | None = None,
     ) -> None:
+        # 3.2: usage ledger, budgets and run limits (default: built-in run limits, no budgets, no ledger)
+        from agentos.usage.guard import UsageContext
+
+        self.usage = usage or UsageContext.default()
+        self._guards: dict[str, Any] = {}
         # 2.5a: MCP tools run through this manager; hashes recorded at publish are re-checked per run
         self.mcp_manager = mcp_manager
         self.expected_mcp_hashes = expected_mcp_hashes
@@ -585,9 +593,13 @@ class FlowEngine:
                 raw = ex.mock_output(cfg, allowlists)
             else:
                 records: list[dict[str, Any]] = []
-                router = self._router_llm(state, node, inbound, asyncio.get_running_loop(), extra_on_call=records.append)
+                guard = await self._usage_guard(state)
+                router = self._router_llm(state, node, inbound, asyncio.get_running_loop(), extra_on_call=records.append,
+                                          guard=guard)
                 try:
                     raw = await asyncio.to_thread(router.call, messages, None)
+                except (RunLimitExceeded, BudgetExceeded):
+                    raise  # 3.2: the run stops with that reason (never turned into defaults)
                 except Exception:
                     raise ex.ExtractionRejected("model_refused" if secret else "model_failed") from None
                 finally:
@@ -621,9 +633,60 @@ class FlowEngine:
         })
         return values, labels
 
+    async def _usage_guard(self, state: FlowRunState) -> Any:
+        """3.2: one RunGuard per run (run limits + budgets), seeded from the run's existing llm_call events."""
+        guard = self._guards.get(state.run_id)
+        if guard is None:
+            from agentos.usage.guard import RunGuard
+
+            settings = await self.usage.get_settings()
+            loop = asyncio.get_running_loop()
+            run_id = state.run_id
+
+            def emit(type_: str, data: dict[str, Any]) -> None:
+                asyncio.run_coroutine_threadsafe(self._append_event(run_id=run_id, type=type_, data=data),
+                                                 loop).result(timeout=10)
+
+            guard = RunGuard(self.usage, run_id, self.flow.id, settings, loop=loop, emit=emit)
+            guard.seed([e.get("data") or {} for e in state.event_history if e.get("type") == "llm_call"])
+            self._guards[run_id] = guard
+        return guard
+
+    def _with_cost(self, record: dict[str, Any]) -> dict[str, Any]:
+        """3.2: cost_usd + price_source on every llm_call record (unknown price -> null, never guessed)."""
+        from agentos.usage.ledger import today_utc
+        from agentos.usage.pricing import cost_usd
+
+        out = dict(record)
+        out["day"] = today_utc()
+        if record.get("status") == "ok":
+            price = self.usage.price(record.get("provider"), record.get("model"))
+            out["cost_usd"] = cost_usd(price, int(record.get("prompt_tokens") or 0),
+                                       int(record.get("completion_tokens") or 0))
+            out["price_source"] = price.source
+        else:
+            out["cost_usd"] = 0.0  # no tokens were used: nothing to pay
+            out["price_source"] = "no_tokens"
+        return out
+
+    async def _record_llm_call(self, run_id: str, record: dict[str, Any], guard: Any) -> None:
+        """llm_call event, then the ledger (events are the source of truth; `agentos usage rebuild`), then the
+        run guard's token count."""
+        await self._append_event(run_id=run_id, type="llm_call", data=record)
+        ledger = getattr(self.usage, "ledger", None)
+        if ledger is not None:
+            from agentos.usage.ledger import increments
+
+            try:
+                await ledger.add(increments(record, self.flow.id, record.get("day")))
+            except Exception as e:  # the event is written; a lagging ledger is rebuilt from events
+                logging.getLogger(__name__).warning("usage ledger update failed: %s", type(e).__name__)
+        if guard is not None:
+            guard.after_record(record)
+
     def _router_llm(
         self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any,
-        extra_on_call: Any | None = None,
+        extra_on_call: Any | None = None, guard: Any | None = None,
     ) -> Any:
         """AgentOSRouterLLM for an agent/llm node. Called from the event loop; used from worker threads."""
         from agentos.llm.router_llm import AgentOSRouterLLM
@@ -634,7 +697,7 @@ class FlowEngine:
             if extra_on_call is not None:
                 extra_on_call(record)
             fut = asyncio.run_coroutine_threadsafe(
-                self._append_event(run_id=run_id, type="llm_call", data=record), loop
+                self._record_llm_call(run_id, self._with_cost(record), guard), loop
             )
             fut.result(timeout=10)
 
@@ -656,6 +719,7 @@ class FlowEngine:
             # THREAT_MODEL T-13: secret-labelled input may only reach local providers.
             local_only=inbound.confidentiality == Confidentiality.SECRET.value,
             node_id=node.id,
+            guard=guard,
         )
 
     _STARTED = (
@@ -1146,7 +1210,8 @@ class FlowEngine:
             if self.custom_llm is not None or os.environ.get("AGENTOS_MOCK_LLM") == "1":
                 llm_to_use = self.custom_llm or node.config.get("model") or node.config.get("llm")
             else:
-                llm_to_use = self._router_llm(state, node, effective_inbound, loop)
+                agent_guard = await self._usage_guard(state)
+                llm_to_use = self._router_llm(state, node, effective_inbound, loop, guard=agent_guard)
 
             def _run_crewai() -> str:
                 from crewai.agent.core import Agent
@@ -1165,6 +1230,9 @@ class FlowEngine:
                 return str(agent.execute_task(task))
 
             agent_result = await asyncio.to_thread(_run_crewai)
+            guard_now = self._guards.get(state.run_id)
+            if guard_now is not None and guard_now.tripped is not None:
+                raise guard_now.tripped  # 3.2: even if the agent framework swallowed the refusal
 
             out_lbl = proxy.agent_context_label
             succ_ev = await self._append_event(
@@ -1190,7 +1258,8 @@ class FlowEngine:
                 completion = str(self.custom_llm.call([{"role": "user", "content": prompt}]))
             elif os.environ.get("AGENTOS_MOCK_LLM") != "1":
                 # 2.4c: real call through the provider chain (runs in a thread; events via the loop).
-                router_llm = self._router_llm(state, node, effective_inbound, asyncio.get_running_loop())
+                router_llm = self._router_llm(state, node, effective_inbound, asyncio.get_running_loop(),
+                                              guard=await self._usage_guard(state))
                 messages = [{"role": "user", "content": prompt if isinstance(prompt, str) else json.dumps(prompt)}]
                 if node.config.get("system_prompt"):
                     messages.insert(0, {"role": "system", "content": str(node.config["system_prompt"])})

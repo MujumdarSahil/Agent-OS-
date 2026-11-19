@@ -150,6 +150,28 @@ def load_allow_declassified_for_destructive(project_path: str) -> bool:
 load_allow_extraction_for_destructive = load_allow_declassified_for_destructive
 
 
+def load_price_overrides(project_path: str) -> dict[str, Any]:
+    """3.2: admin price overrides, ``usage.prices`` in agentos.config.yaml:
+    {provider_or_model: {input_per_1m: float, output_per_1m: float}} (USD per 1M tokens)."""
+    cfg_path = os.path.join(project_path, "agentos.config.yaml")
+    if not os.path.isfile(cfg_path):
+        return {}
+    import yaml
+
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    prices = ((cfg.get("usage") or {}) if isinstance(cfg, dict) else {}).get("prices") or {}
+    out: dict[str, Any] = {}
+    if not isinstance(prices, dict):
+        raise ValueError("agentos.config.yaml: usage.prices must map provider or model names to prices")
+    for name, p in prices.items():
+        if not (isinstance(p, dict) and all(isinstance(p.get(k), (int, float)) and p.get(k) >= 0
+                                            for k in ("input_per_1m", "output_per_1m"))):
+            raise ValueError(f"agentos.config.yaml: usage.prices[{name!r}] needs input_per_1m and output_per_1m >= 0")
+        out[str(name)] = {"input_per_1m": float(p["input_per_1m"]), "output_per_1m": float(p["output_per_1m"])}
+    return out
+
+
 def create_app(
     project_path: Optional[str] = None,
     storage: Optional[Any] = None,
@@ -202,8 +224,11 @@ def create_app(
                 if getattr(app.state, "mcp_manager", None) is not None:
                     app.state.mcp_manager.storage = app.state.storage
                 app.state.queue.set_storage(app.state.storage)
-                from agentos.audit import audit_store_for
+                from agentos.audit import audit_anchor_for, audit_store_for
                 app.state.audit.store = audit_store_for(app.state.storage)
+                app.state.audit.anchor = audit_anchor_for(app.state.storage)
+                from agentos.usage import usage_stores_for
+                app.state.usage.ledger, app.state.usage.settings = usage_stores_for(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
                 # Use Mongo server-time leader lock in Platform mode
@@ -411,10 +436,16 @@ def create_app(
 
     # 3.1: tamper-evident audit log (HMAC chain keyed from the master key; the key never leaves AuditLog).
     # The store follows the storage backend (rebound in the lifespan if Mongo replaces the file store).
-    from agentos.audit import AuditLog, audit_store_for
+    from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
     from agentos_server.audit_support import AuthFailureAggregator, mcp_event_sink
-    app.state.audit = AuditLog(audit_store_for(app.state.storage), master_key.key)
+    app.state.audit = AuditLog(audit_store_for(app.state.storage), master_key.key,
+                               anchor=audit_anchor_for(app.state.storage))
     app.state.auth_failures = AuthFailureAggregator()
+
+    # 3.2: usage ledger, budgets and run limits (admin settings) + admin price overrides
+    from agentos.usage import UsageContext, usage_stores_for
+    _ledger, _usage_settings = usage_stores_for(app.state.storage)
+    app.state.usage = UsageContext(_ledger, _usage_settings, load_price_overrides(project_path))
 
     # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
     # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.

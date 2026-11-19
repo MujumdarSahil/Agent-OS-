@@ -62,3 +62,25 @@ class MongoAuditStore:
         except Exception as e:
             raise AuditUnavailable(f"audit log not writable ({type(e).__name__})") from None
         raise AuditUnavailable("audit log append kept conflicting; retry")
+
+
+class MongoAnchorStore:
+    """3.2 (0a): the independent audit anchor in its own collection (``audit_anchor``, _id "anchor"); a
+    conditional update so it only moves forward."""
+
+    def __init__(self, coll: Any) -> None:
+        self._c = coll
+
+    async def read(self) -> dict[str, Any] | None:
+        doc = await self._c.find_one({"_id": "anchor"})
+        if doc is None:
+            return None
+        doc = dict(doc)
+        doc.pop("_id", None)
+        return doc
+
+    async def write(self, anchor: dict[str, Any]) -> None:
+        try:
+            await self._c.update_one({"_id": "anchor", "seq": {"$lt": anchor["seq"]}}, {"$set": anchor}, upsert=True)
+        except DuplicateKeyError:
+            pass  # already ahead

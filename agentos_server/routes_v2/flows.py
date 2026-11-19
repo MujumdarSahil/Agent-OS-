@@ -506,6 +506,7 @@ async def approve_flow_run(
         storage=storage,
         policy=policy,
         transport_registry=getattr(request.app.state, "transport_registry", None),
+        usage=getattr(request.app.state, "usage", None),  # 3.2: the run continues in this request
     )
 
     queue = request.app.state.queue

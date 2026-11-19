@@ -228,7 +228,11 @@ def test_cli_verify_and_export(tmp_path, monkeypatch):
     master = bytes(range(32))
     monkeypatch.setenv("AGENTOS_MASTER_KEY", base64.b64encode(master).decode())
     monkeypatch.setenv("AGENTOS_STORAGE", "file")
-    log = AuditLog(FileAuditStore(str(tmp_path)), master)
+    from agentos.audit import audit_anchor_for
+    from agentos.storage.file import open_file_storage
+
+    # like the server: with the independent anchor (3.2), which the CLI checks too
+    log = AuditLog(FileAuditStore(str(tmp_path)), master, anchor=audit_anchor_for(open_file_storage(str(tmp_path))))
     asyncio.run(_fill(log, 4))
     runner = CliRunner()
     ok = runner.invoke(cli_app, ["audit", "verify", "--project", str(tmp_path)])

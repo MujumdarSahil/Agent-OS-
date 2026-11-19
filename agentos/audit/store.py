@@ -106,5 +106,30 @@ class FileAuditStore:
             return entry
 
 
+class FileAnchorStore:
+    """3.2 (0a): the independent audit anchor, in the project's state store (NOT the audit folder):
+    ``<project>/.agentos/state/audit_anchor.json``, written atomically, only ever moving forward."""
+
+    def __init__(self, project_path: str) -> None:
+        self.path = Path(project_path) / ".agentos" / "state" / "audit_anchor.json"
+        self._lock = asyncio.Lock()
+
+    async def read(self) -> dict[str, Any] | None:
+        if not self.path.exists():
+            return None
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except ValueError:
+            return {"seq": None, "hash": None, "mac": None}
+
+    async def write(self, anchor: dict[str, Any]) -> None:
+        async with self._lock:
+            current = await self.read()
+            if current and isinstance(current.get("seq"), int) and current["seq"] >= anchor["seq"]:
+                return
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(self.path, json.dumps(anchor, sort_keys=True) + "\n")
+
+
 # The Mongo store lives in agentos/storage/mongo/audit.py (only the Mongo adapter imports pymongo, and
 # Standalone installs need not have it).

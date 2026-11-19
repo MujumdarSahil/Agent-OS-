@@ -63,6 +63,8 @@ class InProcessFlowWorker:
             secret_resolver=(state.vault.reveal if getattr(state, "vault", None) else None),
             # 2.5a: approved MCP tools run through the app's manager (same loop as this worker)
             mcp_manager=getattr(state, "mcp_manager", None),
+            # 3.2: usage ledger, budgets and run limits
+            usage=getattr(state, "usage", None),
         )
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="agentos-inprocess-flow-worker")

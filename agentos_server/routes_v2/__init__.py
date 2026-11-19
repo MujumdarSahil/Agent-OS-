@@ -16,6 +16,7 @@ from agentos_server.routes_v2.providers import router as providers_router
 from agentos_server.routes_v2.schedules import router as schedules_router
 from agentos_server.routes_v2.squads import router as squads_router
 from agentos_server.routes_v2.tools import router as tools_router
+from agentos_server.routes_v2.usage import router as usage_router
 from agentos_server.routes_v2.vault import router as vault_router
 from agentos_server.routes_v2.webhooks import router as webhooks_router
 
@@ -33,3 +34,4 @@ router.include_router(schedules_router)
 router.include_router(node_specs_router)
 router.include_router(overview_router)
 router.include_router(audit_router)
+router.include_router(usage_router)

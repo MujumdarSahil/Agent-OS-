@@ -77,8 +77,9 @@ async def test_secret_input_refused_for_hosted_providers(storage, real_mode, mon
 
     original = FlowEngine._router_llm
 
-    def secret_inbound(self, state, node, inbound, loop):
-        return original(self, state, node, Label(integrity="untrusted", confidentiality="secret", sources={"trig"}), loop)
+    def secret_inbound(self, state, node, inbound, loop, **kw):  # 3.2: _router_llm also takes guard=
+        return original(self, state, node, Label(integrity="untrusted", confidentiality="secret", sources={"trig"}), loop,
+                        **kw)
 
     monkeypatch.setattr(FlowEngine, "_router_llm", secret_inbound)
     st = await FlowEngine(llm_flow(), storage).run(run_id="r_secret", inputs={"text": "password=hunter2"})
