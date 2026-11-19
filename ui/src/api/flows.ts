@@ -89,6 +89,9 @@ export function apiErrorMessage(err: unknown): string {
   const e = err as { response?: { data?: { detail?: unknown } }; message?: string }
   const detail = e?.response?.data?.detail
   if (typeof detail === 'string') return detail
+  // structured details ({detail, retry}, 3.1) carry their own readable message
+  const inner = (detail as { detail?: unknown } | null)?.detail
+  if (typeof inner === 'string') return inner
   if (detail && typeof detail === 'object') return JSON.stringify(detail)
   return e?.message || String(err)
 }
@@ -137,13 +140,25 @@ export const startRun = (flowId: string, inputs: Record<string, unknown>) =>
   api.post<RunStartResponse>(`/v2/flows/${encodeURIComponent(flowId)}/runs`, { inputs }).then(r => r.data)
 export const getRun = (flowId: string, runId: string) =>
   api.get<RunInfo>(`/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}`).then(r => r.data)
-export const decideApproval = (flowId: string, runId: string, nodeId: string, approve: boolean) =>
-  api
-    .post(`/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/approve`, {
-      node_id: nodeId,
-      decision: approve ? true : 'reject',
-    })
-    .then(r => r.data)
+/** 3.1: a 409 means the worker is still parking the run (it holds the lease for a moment after the run
+ *  becomes visible as waiting). The decision was NOT applied, so it is retried a few times; the server
+ *  applies a decision exactly once. */
+export const APPROVAL_RETRIES = 5
+export const APPROVAL_RETRY_MS = 400
+
+export async function decideApproval(flowId: string, runId: string, nodeId: string, approve: boolean) {
+  const url = `/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/approve`
+  const body = { node_id: nodeId, decision: approve ? true : 'reject' }
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return (await api.post(url, body)).data
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status !== 409 || attempt >= APPROVAL_RETRIES) throw e
+      await new Promise(resolve => setTimeout(resolve, APPROVAL_RETRY_MS))
+    }
+  }
+}
 
 /** All events of one run (HTTP; used by list pages to build approval cards and provenance chains). */
 export const getRunEvents = (flowId: string, runId: string) =>

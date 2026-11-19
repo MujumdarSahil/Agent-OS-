@@ -123,15 +123,17 @@ test('benign run from the Run button: succeeded, output visible, a node input/ou
   await page.screenshot({ path: path.join(SHOTS, '2.4d-after-run-inspect.png') })
 })
 
-test('inline approval in the results panel -> approve -> succeeded', async ({ page, request }) => {
-  await seed(request, uc05('approval.flow.json', 'uc05_inline_approval'))
-  await page.goto('/flows/uc05_inline_approval')
+test('inline approval in the results panel -> approve -> succeeded', async ({ page, request }, testInfo) => {
+  // 3.1: a fresh flow id per --repeat-each run (the race check runs this test 20 times on one server)
+  const id = testInfo.repeatEachIndex ? `uc05_inline_approval_r${testInfo.repeatEachIndex}` : 'uc05_inline_approval'
+  await seed(request, uc05('approval.flow.json', id))
+  await page.goto(`/flows/${id}`)
   await runFromDialog(page, { to: 'partner@corp.local', body: '<b>quarterly memo</b>' })
   const card = page.getByTestId('results-panel').getByTestId('approval-card')
   await expect(card).toBeVisible()
   await expect(page.getByTestId('approval-arg-body')).toHaveAttribute('data-integrity', 'untrusted')
   await expect(page.getByTestId('results-panel').locator('b')).toHaveCount(0) // T-12: plain text only
-  await page.screenshot({ path: path.join(SHOTS, '2.4d-after-approval.png') })
+  if (!testInfo.repeatEachIndex) await page.screenshot({ path: path.join(SHOTS, '2.4d-after-approval.png') })
   await page.getByTestId('approve').click()
   await expect(page.getByTestId('run-status')).toHaveText('succeeded')
   await expect(page.getByTestId('send-count')).toHaveText('1')
