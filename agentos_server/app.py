@@ -97,6 +97,46 @@ def load_http_allowlist(project_path: str) -> list[str]:
         raise ValueError("agentos.config.yaml: security.http_allowlist must be a list of host/CIDR strings")
     return sorted({e.strip().lower() for e in entries if e.strip()})
 
+
+def _security_section(project_path: str) -> dict[str, Any]:
+    cfg_path = os.path.join(project_path, "agentos.config.yaml")
+    if not os.path.isfile(cfg_path):
+        return {}
+    import yaml
+
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    sec = cfg.get("security") if isinstance(cfg, dict) else None
+    return sec if isinstance(sec, dict) else {}
+
+
+def load_allowlists(project_path: str) -> dict[str, list[str]]:
+    """2.5b: named admin allowlists (``security.allowlists`` in agentos.config.yaml: name -> list of
+    strings), used by validator ``allowlist_match`` and quarantined-extraction ``allowlist`` fields.
+    Admin configuration only; a flow cannot add entries. Default: none."""
+    raw = _security_section(project_path).get("allowlists") or {}
+    if not isinstance(raw, dict) or not all(
+        isinstance(k, str) and isinstance(v, list) and all(isinstance(e, str) for e in v) for k, v in raw.items()
+    ):
+        raise ValueError("agentos.config.yaml: security.allowlists must map names to lists of strings")
+    return {k: [e.strip() for e in v if e.strip()] for k, v in raw.items()}
+
+
+ALLOW_EXTRACTION_DESTRUCTIVE_ENV = "AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE"
+
+
+def load_allow_extraction_for_destructive(project_path: str) -> bool:
+    """2.5b admin flag: may a DESTRUCTIVE sink be enabled solely by an extraction value? Default False.
+    Precedence: the env var (exactly "1"/"true" enables) if set, else ``security.allow_extraction_for_destructive``."""
+    env_val = os.environ.get(ALLOW_EXTRACTION_DESTRUCTIVE_ENV)
+    if env_val is not None:
+        return env_val.strip().lower() in ("1", "true")
+    val = _security_section(project_path).get("allow_extraction_for_destructive", False)
+    if not isinstance(val, bool):
+        raise ValueError("agentos.config.yaml: security.allow_extraction_for_destructive must be true or false")
+    return val
+
+
 def create_app(
     project_path: Optional[str] = None,
     storage: Optional[Any] = None,
@@ -288,6 +328,8 @@ def create_app(
     app.state.security_policy = SecurityPolicy(
         internal_domains=load_internal_domains(project_path),
         http_allowlist=load_http_allowlist(project_path),
+        allowlists=load_allowlists(project_path),
+        allow_extraction_for_destructive=load_allow_extraction_for_destructive(project_path),
     )
 
     # Initialize 1.2 Storage port (File or Mongo)

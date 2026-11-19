@@ -69,7 +69,9 @@ async def test_node_specs_lists_all_builtin_specs(client):
     body = r.json()
     assert [s["type"] for s in body] == sorted(BUILTIN_NODE_SPECS)
     for s in body:
-        assert set(s) == SPEC_KEYS
+        # 2.5b: additive keys for the extraction node only (badge + allowlist names for the field builder)
+        extra = {"declassifies", "allowlist_names"} if s["type"] == "quarantined_extraction" else set()
+        assert set(s) == SPEC_KEYS | extra
         assert s["side_effect"] in {"none", "read", "write", "external_send", "destructive"}
     by_type = {s["type"]: s for s in body}
     # Sink rules are exposed so the UI can show which args need trusted values.
