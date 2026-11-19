@@ -30,12 +30,16 @@ import Approvals from './pages/Approvals'
 import Triggers from './pages/Triggers'
 import SecurityLog from './pages/SecurityLog'
 import AuditLog from './pages/AuditLog'
+import Metrics from './pages/Metrics'
 
 interface NavItem { to: string; icon: ReactNode; label: string }
 
 // 2.4e: menu by purpose. v1 pages stay reachable under "Classic (v1)", collapsed by default.
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
-  { title: 'Watch', items: [{ to: '/', icon: <Gauge size={15}/>, label: 'Overview' }] },
+  { title: 'Watch', items: [
+    { to: '/', icon: <Gauge size={15}/>, label: 'Overview' },
+    { to: '/metrics', icon: <Gauge size={15}/>, label: 'Metrics' },
+  ] },
   { title: 'Work', items: [
     { to: '/runs', icon: <ListChecks size={15}/>, label: 'Runs' },
     { to: '/approvals', icon: <Hand size={15}/>, label: 'Approvals' },
@@ -186,6 +190,7 @@ export default function App() {
             <Route path="/triggers" element={<Triggers />} />
             <Route path="/security" element={<SecurityLog />} />
             <Route path="/audit" element={<AuditLog />} />
+            <Route path="/metrics" element={<Metrics />} />
             <Route path="/classic/dashboard" element={<Dashboard />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/squads" element={<Squads />} />

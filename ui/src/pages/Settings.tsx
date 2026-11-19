@@ -1,3 +1,4 @@
+import { BudgetsEditor } from '../flow/UsageWidgets'
 import { useState, useEffect } from 'react'
 import {
   getProviders,
@@ -140,6 +141,8 @@ export default function Settings() {
       </div>
 
       <div className="grid gap-6">
+        {/* 3.2: budgets and run limits (audited) */}
+        <BudgetsEditor />
         {/* Section 1: LLM Providers Registry */}
         <div className="card">
           <div className="flex items-center gap-2 mb-4">

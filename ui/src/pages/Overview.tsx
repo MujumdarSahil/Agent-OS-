@@ -1,9 +1,11 @@
 // src/pages/Overview.tsx — 2.4e: Watch > Overview, the home page.
 // Shows only data the backend really has (GET /api/v2/overview plus the per-run events endpoint).
-// No spend, cost or alerts here: those arrive with 3.2 / 3.3. Fetched on open and on the window
+// 3.2: the Spend card (today / this month vs budget) appears once there is spend or a budget. No alerts
+// yet (3.3). Fetched on open and on the window
 // toggle; no polling. Untrusted values only appear inside the approval card, as plain text.
 
 import { AuditChainStatus } from './AuditLog'
+import { SpendCard } from '../flow/UsageWidgets'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -124,6 +126,7 @@ export default function Overview() {
               sub={<>median {d.kpis.model_calls.median_latency_ms === null ? '-' : formatMs(d.kpis.model_calls.median_latency_ms)} · {d.kpis.model_calls.fallbacks} fallback{d.kpis.model_calls.fallbacks === 1 ? '' : 's'}</>}
             />
 
+            <SpendCard />
             <div className="card ov-span-8" data-testid="recent-runs">
               <div className="ov-card-title">Live and recent runs <Link to="/runs" className="ml-auto" style={{ fontSize: 11, textTransform: 'none' }}>All runs</Link></div>
               {d.recent_runs.length === 0 ? (

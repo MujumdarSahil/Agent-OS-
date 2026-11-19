@@ -216,6 +216,9 @@ export interface LlmInfo {
   model: string
   tokens: number
   hops: string
+  /** 3.2: estimated cost in USD; null = price unknown; undefined = event from before 3.2 */
+  costUsd?: number | null
+  priceSource?: string
 }
 
 export interface Step {
@@ -240,7 +243,11 @@ export function stepTimeline(events: RunEvent[]): Step[] {
     if (!s) continue
     if (['node_succeeded', 'node_failed', 'node_waiting', 'node_skipped'].includes(e.type)) s.end = e
     if (e.type === 'llm_call') {
-      s.llm.push({ provider: str(e.data.provider), model: str(e.data.model), tokens: Number(e.data.total_tokens ?? 0), hops: llmHops(e.data) })
+      s.llm.push({
+        provider: str(e.data.provider), model: str(e.data.model), tokens: Number(e.data.total_tokens ?? 0), hops: llmHops(e.data),
+        costUsd: e.data.cost_usd === undefined ? undefined : (e.data.cost_usd as number | null),
+        priceSource: e.data.price_source === undefined ? undefined : str(e.data.price_source),
+      })
     }
   }
   return [...steps.values()].map(({ start, end, ...s }) => {

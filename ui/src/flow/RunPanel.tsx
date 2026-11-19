@@ -45,6 +45,23 @@ export function UntrustedText({ value, untrusted = true }: { value: unknown; unt
   )
 }
 
+/** 3.2: the run's model calls, tokens and estimated cost (from its llm_call events). */
+function RunCostTotal({ steps }: { steps: { llm: { tokens: number; costUsd?: number | null }[] }[] }) {
+  const calls = steps.flatMap(s => s.llm)
+  if (!calls.length) return null
+  const known = calls.filter(c => typeof c.costUsd === 'number')
+  const unknown = calls.filter(c => c.costUsd === null).length
+  const total = known.reduce((a, c) => a + (c.costUsd as number), 0)
+  const tokens = calls.reduce((a, c) => a + c.tokens, 0)
+  return (
+    <div data-testid="run-cost-total" style={{ fontSize: 12, marginBottom: 6 }}>
+      Run total: {calls.length} model call{calls.length === 1 ? '' : 's'} · {tokens} tokens · <strong data-testid="run-cost-usd">${total.toFixed(4)}</strong>
+      {unknown > 0 && <span className="text-muted"> (+{unknown} with unknown price)</span>}
+      <span className="text-muted"> · estimate</span>
+    </div>
+  )
+}
+
 /** Integrity/confidentiality badge. A pinned value reads "pinned in flow" (its source is the flow author). */
 export function LabelBadge({ label, pinned = false }: { label?: LabelInfo; pinned?: boolean }) {
   if (!label) return <span className="badge badge-default" data-testid="label-badge" data-integrity="unknown">label unknown</span>
@@ -538,6 +555,8 @@ export default function ResultsPanel({
                 )
               )}
               {tab === 'steps' && (
+                <>
+                <RunCostTotal steps={steps} />
                 <table style={{ width: '100%' }} data-testid="step-timeline">
                   <tbody>
                     {steps.map(s => (
@@ -554,13 +573,14 @@ export default function ResultsPanel({
                         <td data-testid="step-duration">{formatMs(s.durationMs)}</td>
                         <td data-testid="step-llm">
                           {s.llm.map((l, i) => (
-                            <div key={i}>{l.provider} · {l.model} · {l.tokens} tokens · {l.hops}</div>
+                            <div key={i} data-testid="step-llm-call">{l.provider} · {l.model} · {l.tokens} tokens{l.costUsd !== undefined && <> · <span data-testid="step-cost">{l.costUsd === null ? 'price unknown' : `$${l.costUsd.toFixed(4)}`}</span></>} · {l.hops}</div>
                           ))}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </>
               )}
               {tab === 'logs' && (
                 <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11 }} data-testid="event-list">
