@@ -129,8 +129,19 @@ def upstream_context(flow: FlowDefinition, state: FlowRunState, node_id: str) ->
     return outs, lbls
 
 
-def check_control(node_id: str, side_effect: SideEffectClass, control_label: Label | None) -> None:
-    violations = evaluate_control_dependency(node_id, side_effect, control_label, [node_id])
+def _gated(flow: Any, node_id: str) -> bool:
+    from agentos.flows.extraction import is_approval_gated
+
+    return is_approval_gated(flow, node_id)
+
+
+def check_control(
+    node_id: str, side_effect: SideEffectClass, control_label: Label | None, *,
+    approval_gated: bool = False, policy: Any = None,
+) -> None:
+    violations = evaluate_control_dependency(
+        node_id, side_effect, control_label, [node_id], approval_gated=approval_gated, policy=policy
+    )
     if violations:
         raise SinkRuleViolationError(violations[0])
 
@@ -293,10 +304,13 @@ async def run_http_request(
             node_id=nid, spec=spec, arg_name=arg, rule=spec.sink_rules[arg], arriving_label=lbl,
             effective_inbound_label=lbl, is_pinned=fixed, is_approved=_approved(engine.flow, nid, arg),
             pinned_to_val=None, policy=engine.policy, path=[nid], sink_context=sink_ctx,
+            approval_gated=_gated(engine.flow, nid),
         )
         if violations:
             raise SinkRuleViolationError(violations[0])
-    check_control(nid, eff, control_label)
+    from agentos.flows.extraction import is_approval_gated
+
+    check_control(nid, eff, control_label, approval_gated=is_approval_gated(engine.flow, nid), policy=engine.policy)
 
     call = dict(method=method, url=url, headers=headers, query=query or None, body=body,
                 timeout_s=cfg.get("timeout_s") or DEFAULT_TIMEOUT_S, max_bytes=cfg.get("max_bytes") or DEFAULT_MAX_BYTES,

@@ -16,6 +16,8 @@ from agentos.flows.policy import SecurityPolicy
 from typing import Any
 
 from agentos.flows.expressions import label_of, references
+from agentos.flows.extraction import config_errors as extraction_config_errors
+from agentos.flows.extraction import extraction_output_labels, is_approval_gated
 from agentos.flows.rules import RuleViolation, evaluate_control_dependency, evaluate_sink_argument_rule
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass, effective_side_effect, is_checked_sink
 from agentos.flows.tool_catalog import (
@@ -228,7 +230,20 @@ class StaticFlowAnalyzer:
                 )
 
             # 2.3: destructive sinks need a trusted control dependency
-            violations.extend(evaluate_control_dependency(node_id, eff, control.get(node_id), current_path))
+            # 2.5b: a predicate trusted only through an extraction needs an approval-gated sink
+            violations.extend(
+                evaluate_control_dependency(
+                    node_id, eff, control.get(node_id), current_path,
+                    approval_gated=is_approval_gated(self.flow, node_id), policy=self.policy,
+                )
+            )
+
+            # 2.5b: semantic config checks of quarantined extraction (the JSON Schema ran in FlowDefinition)
+            if node.type == "quarantined_extraction":
+                for err in extraction_config_errors(node.config, self.policy.allowlists):
+                    violations.append(
+                        RuleViolation(node_id=node_id, target_arg="(config)", path=current_path, reason=err)
+                    )
 
             # 2.3: subflows containing approval/wait are not supported yet (decision C)
             if node.type == "subflow":
@@ -406,6 +421,7 @@ class StaticFlowAnalyzer:
                 policy=self.policy,
                 path=current_path,
                 sink_context=sink_context,
+                approval_gated=is_approval_gated(self.flow, node_id),
             )
             violations.extend(arg_violations)
 
@@ -508,6 +524,10 @@ class StaticFlowAnalyzer:
                 "data": effective_inbound,
                 "*": effective_inbound,
             }
+
+        # 3b. 2.5b quarantined extraction: the shared label function (the engine calls the same one).
+        if node.type == "quarantined_extraction":
+            return extraction_output_labels(node_id, node.config.get("fields") or [], effective_inbound)
 
         # 4. Validator node: field_type is required, unknown/missing -> untrusted;
         # allowlist_match requires admin allowlist_name (inline allowlist is forbidden).

@@ -28,6 +28,10 @@ class SecurityPolicy(BaseModel):
     # Default empty: no internal host is reachable and untrusted data goes nowhere via HTTP.
     http_allowlist: list[str] = Field(default_factory=list)
 
+    # 2.5b: may a DESTRUCTIVE sink be enabled solely by a quarantined-extraction value (as an argument or
+    # as the deciding predicate) without an approval? Admin-only (config/env, never a flow). Default: no.
+    allow_extraction_for_destructive: bool = False
+
     def is_http_allowlisted(self, url: str, ips: list[str] | None = None) -> bool:
         """True if the URL's host matches the admin http_allowlist."""
         from agentos.flows.net_guard import host_matches_allowlist, url_host
