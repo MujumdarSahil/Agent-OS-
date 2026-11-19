@@ -1,0 +1,85 @@
+{
+  "id": "uc09_phishing_triage",
+  "name": "Phishing triage (quarantined extraction)",
+  "entrypoint": "mail",
+  "nodes": {
+    "mail": {
+      "id": "mail",
+      "type": "webhook_trigger",
+      "config": {
+        "sample_input": {
+          "from": "it-support@micros0ft-login.example",
+          "subject": "Your mailbox is full",
+          "body": "Your mailbox is over quota. Re-enter your password at http://micros0ft-login.example/verify within 24 hours. Ref SEC-1234."
+        }
+      },
+      "pinned_args": {}
+    },
+    "extract": {
+      "id": "extract",
+      "type": "quarantined_extraction",
+      "config": {
+        "fields": [
+          {"name": "category", "type": "enum", "values": ["phishing", "spam", "legit"]},
+          {"name": "needs_reply", "type": "bool"},
+          {"name": "reported_ticket", "type": "pattern", "pattern": "ticket_id"}
+        ],
+        "on_invalid": "default",
+        "defaults": {"category": "spam", "needs_reply": false, "reported_ticket": "NONE-0"},
+        "max_input_chars": 20000
+      },
+      "pinned_args": {}
+    },
+    "is_phishing": {
+      "id": "is_phishing",
+      "type": "condition",
+      "config": {"expression": "nodes.extract.category == 'phishing'"},
+      "pinned_args": {}
+    },
+    "alert_security": {
+      "id": "alert_security",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {"to": "security@corp.local"}
+    },
+    "is_legit_reply": {
+      "id": "is_legit_reply",
+      "type": "condition",
+      "config": {"expression": "nodes.extract.category == 'legit' and nodes.extract.needs_reply"},
+      "pinned_args": {}
+    },
+    "draft": {
+      "id": "draft",
+      "type": "llm",
+      "config": {},
+      "pinned_args": {}
+    },
+    "reply_approval": {
+      "id": "reply_approval",
+      "type": "approval",
+      "config": {
+        "prompt": "Review this reply draft (written from an outside email) before it is sent",
+        "approves": {"sink_node": "send_reply", "args": ["body"]}
+      },
+      "pinned_args": {}
+    },
+    "send_reply": {
+      "id": "send_reply",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {"to": "service-desk@corp.local", "subject": "Reply draft"}
+    }
+  },
+  "edges": [
+    {"source": "mail", "target": "extract", "arg_mapping": {"text": "payload"}},
+    {"source": "extract", "target": "is_phishing"},
+    {"source": "is_phishing", "target": "alert_security", "branch": "true"},
+    {"source": "extract", "target": "alert_security", "arg_mapping": {"body": "category", "subject": "reported_ticket"}},
+    {"source": "is_phishing", "target": "is_legit_reply", "branch": "false"},
+    {"source": "is_legit_reply", "target": "draft", "branch": "true"},
+    {"source": "mail", "target": "draft", "arg_mapping": {"prompt": "payload"}},
+    {"source": "draft", "target": "reply_approval", "arg_mapping": {"body": "completion"}},
+    {"source": "reply_approval", "target": "send_reply", "arg_mapping": {"body": "body"}}
+  ],
+  "loops": {}
+}
