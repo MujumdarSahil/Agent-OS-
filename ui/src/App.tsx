@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target, Wand2, Shield, Package, Cpu, LayoutGrid,
   Settings as SettingsIcon, Server, Key, Lock, LogOut, Workflow, Gauge, ListChecks, Hand,
-  Zap, ShieldAlert, ChevronDown, ChevronRight,
+  Zap, ShieldAlert, ChevronDown, ChevronRight, Bell, Mail,
 } from 'lucide-react'
 import { getHealth, getAuthToken, clearAuthToken } from './api/client'
 import { getOverview } from './api/flows'
@@ -31,6 +31,8 @@ import Triggers from './pages/Triggers'
 import SecurityLog from './pages/SecurityLog'
 import AuditLog from './pages/AuditLog'
 import Metrics from './pages/Metrics'
+import Alerts from './pages/Alerts'
+import NotificationChannels from './pages/NotificationChannels'
 
 interface NavItem { to: string; icon: ReactNode; label: string }
 
@@ -39,6 +41,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Watch', items: [
     { to: '/', icon: <Gauge size={15}/>, label: 'Overview' },
     { to: '/metrics', icon: <Gauge size={15}/>, label: 'Metrics' },
+    { to: '/alerts', icon: <Bell size={15}/>, label: 'Alerts' },
   ] },
   { title: 'Work', items: [
     { to: '/runs', icon: <ListChecks size={15}/>, label: 'Runs' },
@@ -54,6 +57,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     { to: '/providers', icon: <Key size={15}/>, label: 'Models & keys' },
     { to: '/tools', icon: <Wrench size={15}/>, label: 'Tools' },
     { to: '/mcp-servers', icon: <Server size={15}/>, label: 'MCP servers' },
+    { to: '/notifications', icon: <Mail size={15}/>, label: 'Notification channels' },
   ] },
   { title: 'Govern', items: [
     { to: '/security', icon: <ShieldAlert size={15}/>, label: 'Security log' },
@@ -191,6 +195,8 @@ export default function App() {
             <Route path="/security" element={<SecurityLog />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/metrics" element={<Metrics />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/notifications" element={<NotificationChannels />} />
             <Route path="/classic/dashboard" element={<Dashboard />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/squads" element={<Squads />} />

@@ -85,12 +85,17 @@ let mcpApprovals: Record<string, unknown>[] = []
 let mcpEnables: Record<string, unknown>[] = []
 
 let emptyOverview = false
+// 3.3: notification channels / alerts (mocked API, contract shapes of agentos_server/routes_v2/notify.py)
+let notifyPosts: { url: string; body: Record<string, unknown> }[] = []
+let alertAcked = false
 let overviewWindows: string[] = []
 let approvals: Record<string, unknown>[] = []
 
 test.describe('AgentOS 2.0 UI Core Resource Management', () => {
   test.beforeEach(async ({ page }) => {
     emptyOverview = false
+    notifyPosts = []
+    alertAcked = false
     overviewWindows = []
     approvals = []
     mcpApprovals = []
@@ -167,6 +172,46 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
                                  totals: { calls: 0, errors: 0, fallbacks: 0, prompt_tokens: 0, completion_tokens: 0,
                                            cost_usd: 0, cost_unknown_calls: 0, latency_ms_sum: 0, latency_count: 0 } }),
         })
+      }
+
+      // 3.3: channels, rules, alerts
+      if (url.includes('/api/v2/notify/channels')) {
+        if (method === 'POST' && url.endsWith('/test')) {
+          return route.fulfill({ status: 200, contentType: 'application/json',
+                                 body: JSON.stringify({ ok: false, error: 'the SMTP server refused the recipient(s)' }) })
+        }
+        if (method === 'POST') {
+          const body = request.postDataJSON()
+          notifyPosts.push({ url, body })
+          if (String(body.webhook_url || '').startsWith('https://evil')) {
+            return route.fulfill({ status: 400, contentType: 'application/json',
+                                   body: JSON.stringify({ detail: 'the Slack webhook URL must be https://hooks.slack.com/... (incoming webhooks only)' }) })
+          }
+          return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ...body, webhook_url: undefined, webhook_set: true }) })
+        }
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ channels: [
+          { type: 'email', name: 'ops-mail', enabled: true, host: 'smtp.corp.local', port: 587, security: 'starttls',
+            allow_insecure_local: false, username: 'agentos', password_secret: 'notify.smtp.ops-mail', password_set: true,
+            from_address: 'agentos@corp.local', allowed_recipient_domains: [], alert_recipients: ['ops@corp.local'], use_for_flows: true },
+        ] }) })
+      }
+      if (url.includes('/api/v2/alerts/rules')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rules: [
+          { id: 'attack_blocked', title: 'Attack blocked', enabled: true, channels: ['ops-mail'], cooldown_min: 15, params: {} },
+          { id: 'approval_waiting', title: 'Approval waiting', enabled: true, channels: [], cooldown_min: 15, params: { minutes: 30 } },
+        ] }) })
+      }
+      if (url.includes('/api/v2/alerts/') && url.endsWith('/acknowledge')) {
+        alertAcked = true
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'al_1', acknowledged: true }) })
+      }
+      if (url.includes('/api/v2/alerts')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ unacknowledged: alertAcked ? 0 : 1, alerts: [
+          { id: 'al_1', rule: 'attack_blocked', title: 'Attack blocked', target: 'uc07_support_desk', flow_id: 'uc07_support_desk',
+            run_id: 'r_blk', reason: 'a sink rule blocked a send (label check)', count: 3, created_at: '2026-11-19T10:00:00+00:00',
+            last_seen: '2026-11-19T10:05:00+00:00', link: 'http://127.0.0.1:8000/runs/r_blk', acknowledged: alertAcked, ack_at: null,
+            status: 'retrying', deliveries: [{ channel: 'ops-mail', status: 'retrying', attempts: 2, error: 'could not connect to the SMTP server', sent_at: null }] },
+        ] }) })
       }
 
       // 3.1: the agent tool picker loads the server's tool catalog (same list the real server returns)
@@ -685,5 +730,34 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
     await page.getByTestId('nav-security').click()
     await expect(page.getByTestId('security-log-page').getByTestId('blocked-call')).toHaveCount(1)
     await expect(page.getByTestId('security-log-note')).toContainText('3.1 audit log')
+  })
+
+  test('3.3 Alerts and notification channels: delivery status, acknowledge, write-only secrets, AgentOS errors', async ({ page }) => {
+    await page.goto(`/#token=${TEST_TOKEN}`)
+    await page.getByTestId('nav-alerts').click()
+    const row = page.getByTestId('alert-row')
+    await expect(row).toHaveCount(1)
+    await expect(row).toHaveAttribute('data-status', 'retrying')
+    await expect(row).toContainText('a sink rule blocked a send (label check)')
+    await expect(row).toContainText('ops-mail: retrying (2)')
+    await expect(row).toContainText('×3')
+    await expect(page.getByTestId('rule-row')).toHaveCount(2)
+    await row.getByTestId('ack').click()
+    await expect(page.getByTestId('alert-row')).toContainText('acknowledged')
+
+    await page.getByTestId('nav-notifications').click()
+    const ch = page.getByTestId('channel-row')
+    await expect(ch).toHaveCount(1)
+    await expect(ch).toContainText('set (vault)')
+    await expect(page.getByTestId('channels-page')).not.toContainText('notify.smtp.ops-mail-value')
+    await page.getByTestId('test-ops-mail').click()
+    await expect(page.getByTestId('test-result-ops-mail')).toHaveText('the SMTP server refused the recipient(s)')
+    // Slack: a non-Slack host is refused with the server's AgentOS-written reason
+    await page.getByTestId('add-slack').click()
+    await page.getByLabel('Slack channel name').fill('sec')
+    await page.getByLabel('Slack webhook URL').fill('https://evil.example/services/x')
+    await page.getByTestId('slack-save').click()
+    await expect(page.getByTestId('channel-error')).toContainText('hooks.slack.com')
+    expect(notifyPosts.at(-1)?.body.type).toBe('slack')
   })
 })

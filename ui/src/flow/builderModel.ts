@@ -19,6 +19,7 @@ const CATEGORY: Record<string, NodeCategory> = {
   subflow: 'logic',
   error_handler: 'error',
   send_email: 'action',
+  send_slack: 'action',
   http_request: 'action',
   fetch_url: 'action',
   tool: 'action',
@@ -126,6 +127,8 @@ export function configSummary(node: CanvasNode): string {
       return clip(`${String(c.method ?? 'GET')} ${hostOf(p.url ?? c.url) || 'no URL'}`)
     case 'send_email':
       return clip(p.to ? `to ${String(p.to)}` : 'recipient not pinned')
+    case 'send_slack':
+      return clip(p.channel ? `to Slack ${String(p.channel)}` : 'channel not pinned')
     case 'agent':
       return clip([c.model, c.role].filter(Boolean).map(String).join(' · ') || 'agent')
     case 'llm':

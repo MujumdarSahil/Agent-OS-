@@ -380,6 +380,10 @@ export default function ResultsPanel({
   const io = useMemo(() => (inspectNode ? nodeIO(events, inspectNode) : undefined), [events, inspectNode])
   const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
   const sends = events.filter(e => e.type === 'sink_committed').length
+  // 3.3: a send with no configured channel is SIMULATED; say so (AgentOS-written reason from the sink result)
+  const simulated = events
+    .filter(e => e.type === 'sink_committed' && (e.data?.result as { status?: string } | undefined)?.status === 'simulated')
+    .map(e => String((e.data?.result as { reason?: string }).reason ?? 'simulated'))
 
   // The running clock ticks once a second only while the run is live (no polling of the server).
   const live = !!runId && !finished && runStatus !== 'waiting'
@@ -475,6 +479,11 @@ export default function ResultsPanel({
               stream <span data-testid="ws-state">{conn}</span> · connections <span data-testid="ws-connects">{connects}</span> ·
               sends <span data-testid="send-count">{sends}</span> · missing events <span data-testid="missing-seqs">{gaps.length}</span>
             </span>
+            {simulated.length > 0 && (
+              <span data-testid="simulated-sends" style={{ color: 'var(--accent-amber)' }} title="Configure a channel in Connect > Notification channels">
+                {simulated.length} send{simulated.length === 1 ? '' : 's'} {[...new Set(simulated)].join('; ')}
+              </span>
+            )}
             <button className="btn btn-ghost btn-sm" data-testid="ws-reconnect" onClick={reconnect} disabled={conn !== 'open'}>Reconnect</button>
           </>
         ) : (

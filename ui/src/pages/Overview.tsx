@@ -1,7 +1,7 @@
 // src/pages/Overview.tsx — 2.4e: Watch > Overview, the home page.
 // Shows only data the backend really has (GET /api/v2/overview plus the per-run events endpoint).
-// 3.2: the Spend card (today / this month vs budget) appears once there is spend or a budget. No alerts
-// yet (3.3). Fetched on open and on the window
+// 3.2: the Spend card (today / this month vs budget) appears once there is spend or a budget. 3.3: "Needs you now"
+// counts unacknowledged alerts (link to Watch > Alerts). Fetched on open and on the window
 // toggle; no polling. Untrusted values only appear inside the approval card, as plain text.
 
 import { AuditChainStatus } from './AuditLog'
@@ -9,7 +9,7 @@ import { SpendCard } from '../flow/UsageWidgets'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Hand, ShieldAlert, Snowflake } from 'lucide-react'
+import { Bell, CheckCircle2, Circle, Hand, ShieldAlert, Snowflake } from 'lucide-react'
 import { getOverview, type OverviewData, type OverviewWindow } from '../api/flows'
 import { formatMs } from '../flow/runModel'
 import { runHref } from '../flow/allRuns'
@@ -33,10 +33,16 @@ function when(ts: string | null): string {
 
 function NeedsYou({ d }: { d: OverviewData }) {
   const n = d.needs_you
-  if (!n.waiting_approvals && !n.attacks_blocked_today && !n.providers_cooling) return null
+  const alerts = n.unacknowledged_alerts ?? 0
+  if (!n.waiting_approvals && !n.attacks_blocked_today && !n.providers_cooling && !alerts) return null
   return (
     <div className="ov-needs" data-testid="needs-you">
       <strong style={{ fontSize: 13 }}>Needs you now</strong>
+      {alerts > 0 && (
+        <Link to="/alerts" className="ov-pill ov-pill-red" data-testid="needs-alerts">
+          <Bell size={13}/> {alerts} unacknowledged alert{alerts === 1 ? '' : 's'}
+        </Link>
+      )}
       {n.waiting_approvals > 0 && (
         <a href="#waiting" className="ov-pill ov-pill-amber" data-testid="needs-approvals">
           <Hand size={13}/> {n.waiting_approvals} waiting for approval
