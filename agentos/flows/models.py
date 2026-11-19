@@ -128,7 +128,11 @@ class FlowDefinition(BaseModel):
         # Validate that all referenced tools exist (fail closed on unknown tools)
         tools = cfg.get("tools", [])
         for tool_name in tools:
-            if tool_name not in BUILTIN_NODE_SPECS:
+            # 2.5a: a well-formed mcp.<server>.<tool> name is checked by the shared tool catalog instead
+            # (approved, unchanged, enabled), at publish by the static analyzer and again at run time.
+            from agentos.mcp.catalog import parse_name
+
+            if tool_name not in BUILTIN_NODE_SPECS and parse_name(str(tool_name)) is None:
                 raise InvalidFlowConfigError(
                     f"Agent node {node_id!r} references unknown tool {tool_name!r}. "
                     "Unknown tools are rejected at publish (fail closed)."

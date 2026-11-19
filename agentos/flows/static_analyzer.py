@@ -18,6 +18,15 @@ from typing import Any
 from agentos.flows.expressions import label_of, references
 from agentos.flows.rules import RuleViolation, evaluate_control_dependency, evaluate_sink_argument_rule
 from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass, effective_side_effect, is_checked_sink
+from agentos.flows.tool_catalog import (
+    BUILTIN_CATALOG,
+    ToolCatalog,
+    ToolEntry,
+    ToolLookupError,
+    agent_initial_context,
+    context_after_tool_output,
+)
+from agentos.mcp.catalog import is_mcp_name
 
 # Backwards compatibility alias
 Violation = RuleViolation
@@ -49,9 +58,12 @@ class StaticFlowAnalyzer:
         flow: FlowDefinition,
         policy: SecurityPolicy | None = None,
         subflow_summaries: dict[tuple[str, int], dict[str, Any] | None] | None = None,
+        tool_catalog: ToolCatalog | None = None,
     ) -> None:
         self.flow = flow
         self.policy = policy or SecurityPolicy()
+        # 2.5a: one tool-spec lookup shared with the runtime proxy (built-ins + approved MCP tools)
+        self.tool_catalog = tool_catalog or BUILTIN_CATALOG
         # (flow_id, version) -> published analysis summary of a subflow (None/missing = unknown).
         self.subflow_summaries = subflow_summaries or {}
         self._labels: dict[str, dict[str, Label]] = {}
@@ -145,7 +157,39 @@ class StaticFlowAnalyzer:
                 refs.append(list(key))
                 child = self.subflow_summaries.get(key) or {}
                 has_waiting = has_waiting or bool(child.get("has_waiting"))
-        return {"output_label": out.model_dump(mode="json"), "has_waiting": has_waiting, "subflows": refs}
+        mcp_names = [t for n in self.flow.nodes.values() if n.type == "agent" for t in (n.config.get("tools") or [])]
+        return {
+            "output_label": out.model_dump(mode="json"), "has_waiting": has_waiting, "subflows": refs,
+            # 2.5a: hashes of the approved MCP tools this version uses; a run fails closed if one changed
+            "mcp_tools": self.tool_catalog.mcp_hashes(mcp_names),
+        }
+
+    # ------------------------------------------------------------------ 2.5a agent tools
+
+    def _agent_tools(self, node: NodeDefinition) -> tuple[list[ToolEntry], list[ToolLookupError]]:
+        """Resolved tools of an agent node; unresolved MCP tools are returned as errors (unknown bare
+        names are skipped here as before; the runtime proxy rejects them)."""
+        entries: list[ToolEntry] = []
+        errors: list[ToolLookupError] = []
+        for name in node.config.get("tools", []) or []:
+            try:
+                entries.append(self.tool_catalog.resolve(name))
+            except ToolLookupError as e:
+                if is_mcp_name(name):
+                    errors.append(e)
+        return entries, errors
+
+    def _agent_context(self, node: NodeDefinition, inbound: Label) -> Label:
+        """Same rule as the runtime proxy: an unreplaced MCP description makes the context untrusted from
+        the start; MCP tool outputs are untrusted with their configured confidentiality."""
+        entries, _ = self._agent_tools(node)
+        ctx = agent_initial_context(inbound, entries)
+        for e in entries:
+            # Outputs the model can read before calling a sink: read tools (same rule as built-ins). A sink's
+            # own output only exists after it ran; the proxy then makes the context untrusted for later calls.
+            if e.spec.type in ("fetch_url", "tool") or e.spec.side_effect == SideEffectClass.READ:
+                ctx = context_after_tool_output(ctx, e)
+        return ctx
 
     def verify(self) -> PublishVerificationResult:
         """Statically inspect flow graph and verify that sink arguments satisfy security policies."""
@@ -374,23 +418,19 @@ class StaticFlowAnalyzer:
         violations: list[RuleViolation],
     ) -> None:
         """Verify sink tools attached to agent nodes using the shared rule engine."""
-        tools = node.config.get("tools", [])
         pinned_args = node.pinned_args
+        entries, lookup_errors = self._agent_tools(node)
+        # 2.5a: unknown, unreviewed, changed, missing or disabled MCP tools refuse publish (fail closed)
+        for err in lookup_errors:
+            violations.append(RuleViolation(node_id=node_id, target_arg=err.name, path=current_path + [err.name],
+                                            reason=str(err)))
 
-        # Accumulate agent context: tools producing untrusted output degrade context to untrusted
-        agent_context_label = agent_input_label
-        for tool_name in tools:
-            tool_spec = BUILTIN_NODE_SPECS.get(tool_name)
-            if tool_spec and (
-                tool_spec.type in ("fetch_url", "tool")
-                or tool_spec.side_effect == SideEffectClass.READ
-            ):
-                agent_context_label = agent_context_label.join(Label.untrusted(sources={tool_name}))
+        # Accumulate agent context (shared rule with the runtime proxy, see tool_catalog)
+        agent_context_label = self._agent_context(node, agent_input_label)
 
-        for tool_name in tools:
-            tool_spec = BUILTIN_NODE_SPECS.get(tool_name)
-            if not tool_spec:
-                continue
+        for entry in entries:
+            tool_name = entry.name
+            tool_spec = entry.spec
 
             # Confidentiality check for agent sink tools
             if tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
@@ -501,14 +541,7 @@ class StaticFlowAnalyzer:
 
         # 5. Agent node inherits inbound label and joins with tools producing untrusted output
         if node.type == "agent":
-            agent_ctx = effective_inbound
-            for tool_name in node.config.get("tools", []):
-                tool_spec = BUILTIN_NODE_SPECS.get(tool_name)
-                if tool_spec and (
-                    tool_spec.type in ("fetch_url", "tool")
-                    or tool_spec.side_effect == SideEffectClass.READ
-                ):
-                    agent_ctx = agent_ctx.join(Label.untrusted(sources={tool_name}))
+            agent_ctx = self._agent_context(node, effective_inbound)
             out_lbl = Label(
                 integrity=agent_ctx.integrity,
                 confidentiality=agent_ctx.confidentiality,

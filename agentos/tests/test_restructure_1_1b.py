@@ -80,6 +80,12 @@ V2_API_ROUTES = sorted([
     ("/api/v2/mcp-servers", "POST"),
     ("/api/v2/mcp-servers/{name}", "DELETE"),
     ("/api/v2/mcp-servers/{name}", "GET"),
+    # 2.5a: MCP discovery and review (additive)
+    ("/api/v2/mcp-servers/{name}/discover", "POST"),
+    ("/api/v2/mcp-servers/{name}/enable", "POST"),
+    ("/api/v2/mcp-servers/{name}/launch-preview", "GET"),
+    ("/api/v2/mcp-servers/{name}/tools/{tool}/approve", "POST"),
+    ("/api/v2/mcp-servers/{name}/tools/{tool}/revoke", "POST"),
     ("/api/v2/node-specs", "GET"),
     ("/api/v2/overview", "GET"),  # 2.4e: read-only Overview aggregate (additive)
     ("/api/v2/providers", "GET"),

@@ -41,6 +41,8 @@ dependencies = [
     "httpx>=0.27,<1.0",
     "pyyaml>=6.0",
     "croniter==6.0.0",
+    # 2.5a: official MCP SDK; exact pin, same version crewai 1.15.41 requires (mcp>=1.30.0,<2)
+    "mcp==1.30.0",
 ]
 
 [project.optional-dependencies]

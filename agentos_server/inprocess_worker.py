@@ -61,6 +61,8 @@ class InProcessFlowWorker:
             transport_registry=registry,
             # 2.3: {"vault": name} credential headers on http_request resolve through the app vault.
             secret_resolver=(state.vault.reveal if getattr(state, "vault", None) else None),
+            # 2.5a: approved MCP tools run through the app's manager (same loop as this worker)
+            mcp_manager=getattr(state, "mcp_manager", None),
         )
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="agentos-inprocess-flow-worker")

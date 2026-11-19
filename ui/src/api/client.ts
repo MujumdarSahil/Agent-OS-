@@ -394,6 +394,60 @@ export const createV2MCPServer = (server: V2MCPServer) =>
   api.post<V2MCPServer>('/v2/mcp-servers', server).then(r => r.data)
 export const deleteV2MCPServer = (name: string) => api.delete(`/v2/mcp-servers/${name}`).then(r => r.data)
 
+// 2.5a: discovery and review. Tool descriptions and schemas are server-controlled UNTRUSTED text:
+// render them only as plain text.
+export type MCPToolStatus = 'unreviewed' | 'approved' | 'changed' | 'missing'
+export type MCPSideEffect = 'read' | 'write' | 'external_send' | 'destructive'
+export interface MCPToolState {
+  snapshot: { name: string; description: string; input_schema: Record<string, unknown>; sha256: string; label: 'untrusted' }
+  approval: null | {
+    approved_sha256: string
+    side_effect: MCPSideEffect
+    untrusted_ok_args: string[]
+    output_confidentiality: string
+    replacement_description: string | null
+  }
+  missing: boolean
+  warnings: string[]
+  status: MCPToolStatus
+  canonical_name: string
+  wire_name: string
+}
+export interface V2MCPServerView extends V2MCPServer {
+  tools?: Record<string, MCPToolState>
+  last_discovery?: { at: number; tool_count: number; rejected?: { tool: string; reason: string }[] } | null
+}
+export interface MCPLaunchPreview {
+  transport: string
+  command_line?: string
+  argv?: string[]
+  cwd?: string
+  env_names?: string[]
+  secret_env?: Record<string, string>
+  inherits_parent_env?: boolean
+  url?: string
+  note?: string
+}
+export interface MCPApproveBody {
+  expected_sha256: string
+  side_effect: MCPSideEffect
+  untrusted_ok_args: string[]
+  output_confidentiality: string
+  replacement_description?: string | null
+}
+const mcpPath = (name: string) => `/v2/mcp-servers/${encodeURIComponent(name)}`
+export const getMCPServersView = () => api.get<V2MCPServerView[]>('/v2/mcp-servers').then(r => r.data)
+export const getMCPLaunchPreview = (name: string) =>
+  api.get<MCPLaunchPreview>(`${mcpPath(name)}/launch-preview`).then(r => r.data)
+export const setMCPEnabled = (name: string, enabled: boolean) =>
+  api.post<{ server: V2MCPServerView; launch_preview: MCPLaunchPreview }>(`${mcpPath(name)}/enable`, { enabled }).then(r => r.data)
+export const discoverMCPServer = (name: string) =>
+  api.post<V2MCPServerView>(`${mcpPath(name)}/discover`).then(r => r.data)
+export const approveMCPTool = (name: string, tool: string, body: MCPApproveBody) =>
+  api.post<V2MCPServerView>(`${mcpPath(name)}/tools/${encodeURIComponent(tool)}/approve`, body).then(r => r.data)
+export const revokeMCPTool = (name: string, tool: string) =>
+  api.post<V2MCPServerView>(`${mcpPath(name)}/tools/${encodeURIComponent(tool)}/revoke`).then(r => r.data)
+
 // Vault v2
 export const getV2VaultKeys = () => api.get<V2SecretInfo[]>('/v2/vault/keys').then(r => r.data)
 export const saveV2VaultKey = (data: { name: string; secret: string; provider?: string }) =>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getV2Agents, createV2Agent, deleteV2Agent, getV2Tools, type V2AgentConfig } from '../api/client'
+import { getV2Agents, createV2Agent, deleteV2Agent, getV2Tools, getMCPServersView, type V2AgentConfig } from '../api/client'
 import { Plus, Trash2, Bot, X, ShieldAlert, Check } from 'lucide-react'
 
 // Known safe built-in tools that match NodeSpec declarations
@@ -131,6 +131,8 @@ function AgentModal({
                 <button
                   key={t}
                   type="button"
+                  data-testid={`tool-option-${t}`}
+                  title={t.startsWith('mcp.') ? 'MCP tool approved by an admin (output is untrusted)' : 'Built-in tool'}
                   className={`btn btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   onClick={() => toggleTool(t)}
@@ -142,7 +144,8 @@ function AgentModal({
             })}
           </div>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-            Only tools with declared NodeSpecs can be attached (fail-closed security rule).
+            Only tools with declared NodeSpecs can be attached (fail-closed security rule). MCP tools appear here as
+            mcp.&lt;server&gt;.&lt;tool&gt; once an admin has approved them on the MCP servers page.
           </p>
         </div>
 
@@ -217,11 +220,17 @@ export default function Agents() {
     },
   })
 
-  // Combine built-in declared tools and custom stored tools
+  // 2.5a: approved MCP tools (namespaced mcp.<server>.<tool>); unreviewed or changed ones are not offered
+  const { data: mcpServers = [] } = useQuery({ queryKey: ['v2-mcp-servers'], queryFn: getMCPServersView })
+  const approvedMcpTools = mcpServers.flatMap(s =>
+    Object.values(s.tools || {}).filter(t => t.status === 'approved').map(t => t.canonical_name))
+
+  // Combine built-in declared tools, custom stored tools and approved MCP tools
   const knownToolsList = Array.from(
     new Set([
       ...BUILTIN_TOOLS.map(t => t.name),
       ...toolsData.map(t => t.name),
+      ...approvedMcpTools,
     ])
   )
 

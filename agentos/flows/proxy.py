@@ -28,7 +28,14 @@ from agentos.flows.rules import (
     SinkRuleViolationError,
     evaluate_sink_argument_rule,
 )
-from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec, SideEffectClass
+from agentos.flows.specs import SideEffectClass
+from agentos.flows.tool_catalog import (
+    BUILTIN_CATALOG,
+    ToolCatalog,
+    ToolEntry,
+    ToolLookupError,
+    context_after_tool_output,
+)
 from agentos.storage.models import EventRecord
 from agentos.storage.ports import FencingTokenError, Storage
 
@@ -67,7 +74,12 @@ class AgentOSToolProxy:
         track_labels: bool = True,
         lease_id: str | None = None,
         fencing_checker: Any | None = None,
+        tool_catalog: ToolCatalog | None = None,
+        mcp_manager: Any | None = None,
     ) -> None:
+        # 2.5a: same tool-spec lookup as the static analyzer (built-ins + approved MCP tools)
+        self.tool_catalog = tool_catalog or BUILTIN_CATALOG
+        self.mcp_manager = mcp_manager
         self.run_id = run_id
         self.agent_node_id = agent_node_id
         self.storage = storage
@@ -123,18 +135,24 @@ class AgentOSToolProxy:
 
     async def invoke(self, agent_node_id: str, tool_name: str, call_args: dict[str, Any]) -> Any:
         """Asynchronously mediate, inspect, validate, and execute an agent tool call."""
-        if tool_name not in BUILTIN_NODE_SPECS:
+        try:
+            entry = self.tool_catalog.resolve(tool_name)
+        except ToolLookupError as err:
+            reason = (
+                f"Unknown tool {tool_name!r}: tool has no declared NodeSpec (fail closed)"
+                if err.reason == "unknown" and not tool_name.startswith("mcp")
+                else f"{err} (fail closed)"
+            )
             await self._append_event(
                 type="tool_call_rejected",
-                data={
-                    "agent_node": agent_node_id,
-                    "tool_name": tool_name,
-                    "reason": f"Unknown tool {tool_name!r}: tool has no declared NodeSpec (fail closed)",
-                },
+                data={"agent_node": agent_node_id, "tool_name": tool_name, "reason": reason, "lookup": err.reason},
             )
-            raise ValueError(f"Tool {tool_name!r} has no declared NodeSpec (fail closed)")
+            if err.reason == "unknown" and not tool_name.startswith("mcp"):
+                raise ValueError(f"Tool {tool_name!r} has no declared NodeSpec (fail closed)") from err
+            raise ValueError(reason) from err
 
-        tool_spec = BUILTIN_NODE_SPECS[tool_name]
+        tool_name = entry.name  # canonical (wire names from the model map back to mcp.<server>.<tool>)
+        tool_spec = entry.spec
 
         # 1. Pinned argument verification: reject any attempt to override pinned arguments
         for p_key, p_val in self.pinned_args.items():
@@ -240,7 +258,9 @@ class AgentOSToolProxy:
         )
 
         # 5. Execute tool or sink pipeline
-        if tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
+        if entry.is_mcp:
+            ret_val = await self._invoke_mcp(agent_node_id, entry, final_args)
+        elif tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
             canonical_json = json.dumps(final_args, sort_keys=True, separators=(",", ":"))
             key_raw = f"{self.run_id}:{agent_node_id}:{tool_name}:{canonical_json}"
             idempotency_key = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()
@@ -300,27 +320,100 @@ class AgentOSToolProxy:
         else:
             ret_val = f"Executed {tool_name} successfully with args: {final_args}"
 
-        # 6. Accumulate tool output label: tool outputs are untrusted sources
-        tool_output_label = Label.untrusted(sources={tool_name})
-        self.agent_context_label = self.agent_context_label.join(tool_output_label)
+        # 6. Accumulate tool output label: tool outputs are untrusted sources (shared rule, see tool_catalog;
+        #    MCP outputs carry the confidentiality the admin configured)
+        self.agent_context_label = context_after_tool_output(self.agent_context_label, entry)
 
         return ret_val
 
+    async def _invoke_mcp(self, agent_node_id: str, entry: ToolEntry, args: dict[str, Any]) -> str:
+        """Call an approved MCP tool through the manager. Above read: sink_intent -> call -> sink_committed;
+        an intent without a commit is never retried (MCP has no idempotency): it needs review."""
+        from agentos.mcp.manager import MCPError, MCPTimeout, MCPToolChanged
+
+        record = self.tool_catalog.server(entry.server or "")
+        if self.mcp_manager is None or record is None:
+            reason = f"MCP tool {entry.name!r} cannot run: no MCP manager is available in this process (fail closed)"
+            await self._append_event(type="tool_call_rejected",
+                                     data={"agent_node": agent_node_id, "tool_name": entry.name, "reason": reason})
+            raise ValueError(reason)
+
+        is_sink = entry.spec.side_effect != SideEffectClass.READ
+        idempotency_key = None
+        if is_sink:
+            canonical_json = json.dumps(args, sort_keys=True, separators=(",", ":"), default=str)
+            idempotency_key = hashlib.sha256(
+                f"{self.run_id}:{agent_node_id}:{entry.name}:{canonical_json}".encode("utf-8")
+            ).hexdigest()
+            events = await self.storage.events.list(self.run_id, after_seq=0)
+            if any(e.type == "sink_committed" and (e.data or {}).get("idempotency_key") == idempotency_key for e in events):
+                return f"{entry.name}: already executed in this run (recorded result)"
+            if any(e.type == "sink_intent" and (e.data or {}).get("idempotency_key") == idempotency_key for e in events):
+                reason = (f"{entry.name}: an earlier call with these arguments may or may not have run "
+                          f"(uncommitted_sink_needs_review); MCP calls are never retried automatically")
+                await self._append_event(type="tool_call_blocked",
+                                         data={"agent_node": agent_node_id, "tool_name": entry.name, "reason": reason})
+                raise ValueError(reason)
+            await self._append_event(type="sink_intent", data={
+                "sink_node": agent_node_id, "tool_name": entry.name, "idempotency_key": idempotency_key, "args": args,
+            })
+
+        self._check_fencing()
+        base = {"agent_node": agent_node_id, "tool_name": entry.name, "server": entry.server, "tool": entry.tool}
+        try:
+            res = await self.mcp_manager.call_tool(record, entry.server_tool_name or "", entry.sha256 or "", args)
+        except MCPToolChanged as e:
+            await self._append_event(type="mcp_tool_call", data={**base, "status": "changed"})
+            await self._append_event(type="tool_call_rejected", data={**base, "reason": f"{e} (fail closed)"})
+            raise ValueError(str(e)) from e
+        except MCPTimeout as e:
+            await self._append_event(type="mcp_tool_call", data={**base, "status": "timeout", "error": str(e)[:300]})
+            raise
+        except MCPError as e:
+            await self._append_event(type="mcp_tool_call", data={**base, "status": "error", "error": str(e)[:300]})
+            raise
+
+        await self._append_event(type="mcp_tool_call", data={
+            **base, "status": res.status, "duration_ms": res.duration_ms,
+            "output_bytes": res.output_bytes, "truncated": res.truncated,
+        })
+        if is_sink:
+            await self._append_event(type="sink_committed", data={
+                "sink_node": agent_node_id, "tool_name": entry.name, "idempotency_key": idempotency_key,
+                "result": {"status": res.status, "output_bytes": res.output_bytes, "truncated": res.truncated},
+            })
+        return res.text if res.status == "ok" else f"Tool error: {res.text}"
+
     def create_wrapped_tool(self, tool_name: str) -> BaseTool:
-        """Create a CrewAI BaseTool wrapping the proxy with caching strictly disabled."""
+        """Create a CrewAI BaseTool wrapping the proxy with caching strictly disabled.
+
+        MCP tools are exposed under their wire name (mcp__<server>__<tool>); the model sees the admin's
+        replacement description when there is one (and only property names/types), otherwise the
+        server's text, in which case the agent context already started untrusted (tool_catalog)."""
         proxy = self
-        tool_spec = BUILTIN_NODE_SPECS.get(tool_name) or NodeSpec(type=tool_name)
-        schema_props = (tool_spec.input_schema.get("properties") or {}) if tool_spec.input_schema else {}
+        entry = self.tool_catalog.try_resolve(tool_name)
+        if entry is not None and entry.is_mcp:
+            from agentos.mcp.catalog import wire_name
+
+            exposed_name = wire_name(entry.server or "", entry.tool or "")
+            tool_description = entry.model_description or exposed_name
+            schema = entry.model_schema
+        else:
+            exposed_name = tool_name
+            tool_description = f"AgentOS mediated tool {tool_name}"
+            schema = entry.spec.input_schema if entry is not None else {}
+        schema_props = (schema.get("properties") or {}) if schema else {}
 
         fields: dict[str, Any] = {}
         for p_name in schema_props:
-            fields[p_name] = (Any, Field(default=None))
+            if p_name.isidentifier():
+                fields[p_name] = (Any, Field(default=None))
 
-        schema_cls = create_model(f"{tool_name.capitalize()}Schema", **fields) if fields else None
+        schema_cls = create_model(f"{exposed_name.capitalize()}Schema", **fields) if fields else None
 
         class WrappedTool(BaseTool):
-            name: str = tool_name
-            description: str = f"AgentOS mediated tool {tool_name}"
+            name: str = exposed_name
+            description: str = tool_description
             args_schema: type[Any] | None = schema_cls
             # Force cache function to return False always
             cache_function: Callable[..., bool] = Field(default=lambda *args, **kwargs: False)
