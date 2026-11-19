@@ -122,19 +122,32 @@ def load_allowlists(project_path: str) -> dict[str, list[str]]:
     return {k: [e.strip() for e in v if e.strip()] for k, v in raw.items()}
 
 
+ALLOW_DECLASSIFIED_DESTRUCTIVE_ENV = "AGENTOS_ALLOW_DECLASSIFIED_FOR_DESTRUCTIVE"
+# 2.5b draft names, still read (the new name wins when both are set)
 ALLOW_EXTRACTION_DESTRUCTIVE_ENV = "AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE"
 
 
-def load_allow_extraction_for_destructive(project_path: str) -> bool:
-    """2.5b admin flag: may a DESTRUCTIVE sink be enabled solely by an extraction value? Default False.
-    Precedence: the env var (exactly "1"/"true" enables) if set, else ``security.allow_extraction_for_destructive``."""
-    env_val = os.environ.get(ALLOW_EXTRACTION_DESTRUCTIVE_ENV)
-    if env_val is not None:
-        return env_val.strip().lower() in ("1", "true")
-    val = _security_section(project_path).get("allow_extraction_for_destructive", False)
-    if not isinstance(val, bool):
-        raise ValueError("agentos.config.yaml: security.allow_extraction_for_destructive must be true or false")
-    return val
+def load_allow_declassified_for_destructive(project_path: str) -> bool:
+    """2.5b admin flag: may a DESTRUCTIVE sink be enabled solely by a declassified value (validator or quarantined
+    extraction)? Default False. Precedence: ``AGENTOS_ALLOW_DECLASSIFIED_FOR_DESTRUCTIVE``, then the old
+    ``AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE`` (exactly "1"/"true" enables), then
+    ``security.allow_declassified_for_destructive``, then the old ``security.allow_extraction_for_destructive``."""
+    for env_name in (ALLOW_DECLASSIFIED_DESTRUCTIVE_ENV, ALLOW_EXTRACTION_DESTRUCTIVE_ENV):
+        env_val = os.environ.get(env_name)
+        if env_val is not None:
+            return env_val.strip().lower() in ("1", "true")
+    sec = _security_section(project_path)
+    for key in ("allow_declassified_for_destructive", "allow_extraction_for_destructive"):
+        if key in sec:
+            val = sec[key]
+            if not isinstance(val, bool):
+                raise ValueError(f"agentos.config.yaml: security.{key} must be true or false")
+            return val
+    return False
+
+
+# Deprecated 2.5b draft name of the loader.
+load_allow_extraction_for_destructive = load_allow_declassified_for_destructive
 
 
 def create_app(
@@ -329,7 +342,7 @@ def create_app(
         internal_domains=load_internal_domains(project_path),
         http_allowlist=load_http_allowlist(project_path),
         allowlists=load_allowlists(project_path),
-        allow_extraction_for_destructive=load_allow_extraction_for_destructive(project_path),
+        allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_path),
     )
 
     # Initialize 1.2 Storage port (File or Mongo)

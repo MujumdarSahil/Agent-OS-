@@ -18,6 +18,7 @@ TOKEN = "test-token-extraction"
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     monkeypatch.delenv("AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE", raising=False)
+    monkeypatch.delenv("AGENTOS_ALLOW_DECLASSIFIED_FOR_DESTRUCTIVE", raising=False)
     monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
     monkeypatch.setenv("AGENTOS_API_TOKEN", TOKEN)
 
@@ -42,6 +43,19 @@ def test_config_and_env(tmp_path, monkeypatch):
     assert load_allow_extraction_for_destructive(p) is True
     monkeypatch.setenv("AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE", "0")
     assert load_allow_extraction_for_destructive(p) is False
+
+
+def test_renamed_flag_covers_both_and_wins_over_the_old_name(tmp_path, monkeypatch):
+    """2.5b hardening: allow_declassified_for_destructive (validator + extraction); the old name is still read."""
+    from agentos_server.app import load_allow_declassified_for_destructive
+
+    p = _project(tmp_path, "security:\n  allow_declassified_for_destructive: true\n"
+                           "  allow_extraction_for_destructive: false\n")
+    assert load_allow_declassified_for_destructive(p) is True
+    assert create_app(project_path=p).state.security_policy.allow_declassified_for_destructive is True
+    monkeypatch.setenv("AGENTOS_ALLOW_EXTRACTION_FOR_DESTRUCTIVE", "1")
+    monkeypatch.setenv("AGENTOS_ALLOW_DECLASSIFIED_FOR_DESTRUCTIVE", "0")
+    assert load_allow_declassified_for_destructive(p) is False  # the new env name wins
 
 
 @pytest.mark.parametrize("cfg", [

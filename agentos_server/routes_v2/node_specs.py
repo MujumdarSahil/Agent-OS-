@@ -45,8 +45,8 @@ async def list_node_specs(request: Request) -> List[Dict[str, Any]]:
         if t in ("llm", "agent", "quarantined_extraction") and "model" in props and models:
             # 2.3: the builder offers only models served by enabled providers (checked again on save/publish)
             d["config_schema"] = {**d["config_schema"], "properties": {**props, "model": {**props["model"], "enum": models}}}
-        if t == "quarantined_extraction":
-            # 2.5b: the field builder offers the admin allowlists by NAME only (entries are not exposed)
+        if t in ("quarantined_extraction", "validator"):
+            # 2.5b: both declassify; the shared field builder offers admin allowlists by NAME only (no entries)
             d["declassifies"] = True
             d["allowlist_names"] = sorted((getattr(policy, "allowlists", None) or {}).keys())
         out.append(d)
