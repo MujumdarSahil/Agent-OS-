@@ -137,6 +137,14 @@ class FlowDefinition(BaseModel):
                     f"Agent node {node_id!r} references unknown tool {tool_name!r}. "
                     "Unknown tools are rejected at publish (fail closed)."
                 )
+            # 3.2 (0b): a flow step type is never an agent tool (same set as the picker and the catalog)
+            from agentos.flows.specs import AGENT_TOOL_TYPES
+
+            if parse_name(str(tool_name)) is None and tool_name not in AGENT_TOOL_TYPES:
+                raise InvalidFlowConfigError(
+                    f"Agent node {node_id!r}: {tool_name!r} is a flow step, not an agent tool (fail closed). "
+                    f"Agent tools: {', '.join(AGENT_TOOL_TYPES)} or approved mcp.<server>.<tool>."
+                )
 
     def _validate_validator_node(self, node_id: str, node: NodeDefinition) -> None:
         """Validate validator node configuration soundness."""

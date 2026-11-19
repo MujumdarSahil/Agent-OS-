@@ -339,7 +339,9 @@ async def test_T3_shadowing_tools_are_namespaced_or_rejected(storage, manager):
     # "http_request" exists only as mcp.shadow.http_request, with a warning; the built-in is unaffected
     assert rec.tools["http_request"].warnings
     cat = ToolCatalog([approve(rec, "http_request")])
-    assert cat.resolve("http_request").is_mcp is False
+    # 3.2 (0b): a bare "http_request" is a flow step, never an agent tool; the MCP tool stays namespaced
+    with pytest.raises(ToolLookupError):
+        cat.resolve("http_request")
     assert cat.resolve("mcp.shadow.http_request").is_mcp is True
 
 
