@@ -156,7 +156,12 @@ Sub-milestones (each is one branch and one PR into `2.0`):
   (`agentos usage rebuild`), run limits on by default (50 calls / 300k tokens), USD budgets checked before every
   provider attempt (no paid fallback around a budget), `GET /api/v2/usage`, `GET|PUT /api/v2/budgets` (audited),
   Watch > Metrics and the Overview Spend card. Design and gaps: `docs/evidence/3.2.md`.
-- **3.3 Alerts and notifications** (SMTP, Slack)
+- **3.3 Alerts and notifications**: **done** (MOCK-verified; real SMTP against a local aiosmtpd server, Slack
+  against a local stand-in). Email and Slack channels (secrets in the vault, SMTP host SSRF-checked, Slack host
+  pinned), real `send_email` with header-injection hardening and no automatic resend, the `send_slack` sink node
+  (escaped, untrusted text only to internal channels), six alert rule types written from metadata only, persistent
+  outbox with retries / dead letter, Watch > Alerts and Connect > Notification channels. Also: per-provider billing
+  plan, live Mongo usage tests, real `fetch_url`. Design and gaps: `docs/evidence/3.3.md`.
 - **3.4 Access** (users, login, roles)
 - **3.5 Sandbox for code tools**
 - **3.6 Review queue, trusted proxy, OTel export**
