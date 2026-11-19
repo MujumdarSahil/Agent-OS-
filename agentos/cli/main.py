@@ -754,6 +754,66 @@ def export_cmd(
 pack_app = typer.Typer(help="Build, sign, verify, and install .agentpack bundles")
 app.add_typer(pack_app, name="pack")
 
+# =====================================================================
+# AUDIT LOG (3.1)
+# =====================================================================
+
+audit_app = typer.Typer(help="Verify or export the tamper-evident audit log")
+app.add_typer(audit_app, name="audit")
+
+
+async def _open_audit_log(project: Optional[str]):
+    """Same store and key as the server: the configured storage backend and the vault master key."""
+    from agentos.audit import AuditLog, audit_store_for
+    from agentos.security.vault import MasterKey
+    from agentos.storage import open_storage
+
+    storage = await open_storage(project_path=project)
+    return storage, AuditLog(audit_store_for(storage), MasterKey.load(create=False).key)
+
+
+@audit_app.command("verify")
+def audit_verify(project: Optional[str] = typer.Option(None, help="Project directory (default: current)")):
+    """Walk the audit chain; exit code 1 if it is broken."""
+    import asyncio
+
+    async def _run():
+        storage, log = await _open_audit_log(project)
+        try:
+            return await log.verify()
+        finally:
+            await storage.close()
+
+    res = asyncio.run(_run())
+    console.print_json(json.dumps(res))
+    if res["status"] == "broken":
+        raise typer.Exit(code=1)
+
+
+@audit_app.command("export")
+def audit_export(
+    project: Optional[str] = typer.Option(None, help="Project directory (default: current)"),
+    out: Optional[str] = typer.Option(None, help="Write JSONL to this file (default: stdout)"),
+):
+    """Export the audit chain as JSONL, exactly as stored."""
+    import asyncio
+    import sys
+
+    async def _run():
+        storage, log = await _open_audit_log(project)
+        try:
+            return await log.export_jsonl()
+        finally:
+            await storage.close()
+
+    body = asyncio.run(_run())
+    if out:
+        with open(out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        console.print(f"[green]OK[/green] {body.count(chr(10))} entries written to {out}")
+    else:
+        sys.stdout.write(body)
+
 
 @app.command("keygen")
 def keygen(

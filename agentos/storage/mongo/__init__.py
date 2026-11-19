@@ -366,6 +366,8 @@ async def ensure_indexes(db) -> None:
     await db.flows.create_index([("record_type", ASCENDING)])
     await db.webhooks.create_index([("secret_path_hash", ASCENDING)], unique=True)
     await db.schedules.create_index([("flow_id", ASCENDING)])
+    # 3.1 audit chain: seq is the _id (unique); prev_hash unique so the chain cannot fork
+    await db.audit.create_index("prev_hash", unique=True)
 
 
 async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: int = 5000) -> Storage:
