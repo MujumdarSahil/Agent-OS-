@@ -98,7 +98,11 @@ Declassification converts untrusted data into trusted data through deliberate, v
    - Strict regex allowlists (e.g., UUIDs, hash digests).
    - Cryptographic signatures verified against known public keys.
    *Soundness Rule:* Free-text strings and unstructured markdown/JSON fields **remain untrusted** even if they pass schema validation.
-3. **Quarantined Extraction Node (`quarantined_extraction`):** An isolated parsing node that extracts only strictly typed, constrained fields (enums, booleans, bounded numeric IDs) from untrusted input payloads, shedding all free text.
+3. **Quarantined Extraction Node (`quarantined_extraction`):** An isolated parsing node that extracts only strictly typed, constrained fields from untrusted input payloads, shedding all free text. (2.5b, design in `docs/evidence/2.5b.md`.)
+   - Field types: `enum` (2-50 fixed values), `bool`, `int_range` (inclusive, |value| ≤ 10^9), `pattern` from a fixed set (`uuid`, `sha256`, `iso_date`, `ticket_id`; no user regex), and `allowlist` (an admin allowlist; the output is the canonical entry). There is no free-text type.
+   - One direct model call (no tools, function calling, memory or agent loop). Output over 4 KB, extra or missing keys, nested values and wrong types are rejected and go to `on_invalid` (`fail`, or validated `defaults`). Raw model output is never passed on or stored, only its length and sha256. SECRET input may only reach local providers (T-13).
+   - Labels: each field is `trusted`, keeps the input's confidentiality, and carries the input's sources plus a `declassified:quarantined_extraction:<node>:<field>:<type>` marker. The analyzer and the runtime use the same function.
+   - *Soundness Rule:* extraction constrains WHAT can come out, not WHICH allowed value: an attacker can steer the choice. So a DESTRUCTIVE sink must not be enabled solely by an extraction value, as an argument or as the deciding predicate: it still needs an approval, unless the admin-only policy flag `allow_extraction_for_destructive` (default false) is set. An EXTERNAL_SEND recipient may come from an extraction only through an `allowlist` field; an enum never becomes a recipient. Both rules are enforced at publish and at run time.
 
 ### 2.4 Agent Tool Call Mediation via AgentOS Proxy
 Agents (including CrewAI squads and individual agent executors) never invoke Python functions, external APIs, or MCP servers directly. All tool definitions provided to the model point to the **AgentOS Tool Proxy**:
