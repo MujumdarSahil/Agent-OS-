@@ -69,40 +69,8 @@ export function ExtractionConfigForm({ config, allowlistNames, models, onChange 
         only validated values leave the node (labelled trusted). There is no free-text field.
       </div>
       {cfg.fields.map((f, i) => (
-        <div key={i} className="card" style={{ padding: 6 }} data-testid="extraction-field" data-field={f.name}>
-          <div className="flex gap-1 items-center">
-            <input className="form-input" aria-label="Field name" data-testid="extraction-field-name" value={f.name}
-              onChange={e => setField(i, { ...f, name: e.target.value })} style={{ flex: 1 }} />
-            <select className="form-select" aria-label="Field type" data-testid="extraction-field-type" value={f.type}
-              onChange={e => setField(i, retype(f, e.target.value as FieldType))} style={{ width: 110 }}>
-              {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <button className="btn btn-ghost btn-sm" aria-label={`Remove field ${f.name}`} data-testid="extraction-field-remove"
-              disabled={cfg.fields.length <= 1} onClick={() => set({ fields: cfg.fields.filter((_, j) => j !== i) })}>×</button>
-          </div>
-          {f.type === 'enum' && <EnumChips values={f.values ?? []} onChange={values => setField(i, { ...f, values })} />}
-          {f.type === 'int_range' && (
-            <div className="flex gap-1 mt-1">
-              <input className="form-input" type="number" aria-label="Minimum" data-testid="extraction-min" value={f.min ?? 0}
-                onChange={e => setField(i, { ...f, min: Math.trunc(Number(e.target.value)) })} />
-              <input className="form-input" type="number" aria-label="Maximum" data-testid="extraction-max" value={f.max ?? 0}
-                onChange={e => setField(i, { ...f, max: Math.trunc(Number(e.target.value)) })} />
-            </div>
-          )}
-          {f.type === 'pattern' && (
-            <select className="form-select mt-1" aria-label="Pattern" data-testid="extraction-pattern" value={f.pattern}
-              onChange={e => setField(i, { ...f, pattern: e.target.value })}>
-              {PATTERNS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          )}
-          {f.type === 'allowlist' && (
-            <select className="form-select mt-1" aria-label="Allowlist" data-testid="extraction-allowlist" value={f.allowlist_name ?? ''}
-              onChange={e => setField(i, { ...f, allowlist_name: e.target.value })}>
-              <option value="">{allowlistNames.length ? 'admin allowlist…' : 'no admin allowlists configured'}</option>
-              {allowlistNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          )}
-        </div>
+        <FieldEditor key={i} field={f} allowlistNames={allowlistNames} onChange={nf => setField(i, nf)}
+          onRemove={cfg.fields.length > 1 ? () => set({ fields: cfg.fields.filter((_, j) => j !== i) }) : undefined} />
       ))}
       <button className="btn btn-secondary btn-sm" data-testid="extraction-add-field" disabled={cfg.fields.length >= MAX_FIELDS}
         onClick={() => set({ fields: [...cfg.fields, { name: newName(), type: 'bool' }] })}>
@@ -128,6 +96,112 @@ export function ExtractionConfigForm({ config, allowlistNames, models, onChange 
         <option value="">default router chain</option>
         {(models ?? []).map(m => <option key={m} value={m}>{m}</option>)}
       </select>
+    </div>
+  )
+}
+
+/** One constrained field (type + its constraint). Shared by the extraction field list and the validator form:
+ *  both nodes accept exactly the same types and limits (one implementation server side, too). */
+export function FieldEditor({ field: f, allowlistNames, onChange, onRemove, nameLabel = 'Field name' }: {
+  field: ExtractionField
+  allowlistNames: string[]
+  onChange: (f: ExtractionField) => void
+  onRemove?: () => void
+  nameLabel?: string
+}) {
+  return (
+    <div className="card" style={{ padding: 6 }} data-testid="extraction-field" data-field={f.name}>
+      <div className="flex gap-1 items-center">
+        <input className="form-input" aria-label={nameLabel} data-testid="extraction-field-name" value={f.name}
+          onChange={e => onChange({ ...f, name: e.target.value })} style={{ flex: 1 }} />
+        <select className="form-select" aria-label="Field type" data-testid="extraction-field-type" value={f.type}
+          onChange={e => onChange(retype(f, e.target.value as FieldType))} style={{ width: 110 }}>
+          {!FIELD_TYPES.includes(f.type) && <option value={f.type}>{String(f.type)} (not allowed)</option>}
+          {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        {onRemove !== undefined && (
+          <button className="btn btn-ghost btn-sm" aria-label={`Remove field ${f.name}`} data-testid="extraction-field-remove"
+            onClick={onRemove}>×</button>
+        )}
+      </div>
+      {f.type === 'enum' && <EnumChips values={f.values ?? []} onChange={values => onChange({ ...f, values })} />}
+      {f.type === 'int_range' && (
+        <div className="flex gap-1 mt-1">
+          <input className="form-input" type="number" aria-label="Minimum" data-testid="extraction-min" value={f.min ?? 0}
+            onChange={e => onChange({ ...f, min: Math.trunc(Number(e.target.value)) })} />
+          <input className="form-input" type="number" aria-label="Maximum" data-testid="extraction-max" value={f.max ?? 0}
+            onChange={e => onChange({ ...f, max: Math.trunc(Number(e.target.value)) })} />
+        </div>
+      )}
+      {f.type === 'pattern' && (
+        <select className="form-select mt-1" aria-label="Pattern" data-testid="extraction-pattern" value={f.pattern}
+          onChange={e => onChange({ ...f, pattern: e.target.value })}>
+          {PATTERNS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      )}
+      {f.type === 'allowlist' && (
+        <select className="form-select mt-1" aria-label="Allowlist" data-testid="extraction-allowlist" value={f.allowlist_name ?? ''}
+          onChange={e => onChange({ ...f, allowlist_name: e.target.value })}>
+          <option value="">{allowlistNames.length ? 'admin allowlist…' : 'no admin allowlists configured'}</option>
+          {allowlistNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------- validator (2.5b hardening)
+
+/** Legacy validator names still accepted where safe: allowlist_match = allowlist, bounded_number = int_range. */
+const LEGACY_VALIDATOR_TYPES: Record<string, FieldType> = { allowlist_match: 'allowlist', bounded_number: 'int_range' }
+
+export interface ValidatorConfig {
+  field: string
+  field_type: string
+  values?: string[]
+  min?: number
+  max?: number
+  pattern?: string
+  allowlist_name?: string
+}
+
+export function validatorToField(c: Partial<ValidatorConfig>): ExtractionField {
+  const raw = c.field_type ?? 'enum'
+  const type = (LEGACY_VALIDATOR_TYPES[raw] ?? raw) as FieldType
+  const f: ExtractionField = { name: c.field ?? 'data', type }
+  if (c.values !== undefined) f.values = c.values
+  if (c.min !== undefined) f.min = c.min
+  if (c.max !== undefined) f.max = c.max
+  if (c.pattern !== undefined) f.pattern = c.pattern
+  if (c.allowlist_name !== undefined) f.allowlist_name = c.allowlist_name
+  return f
+}
+
+export function fieldToValidator(f: ExtractionField): ValidatorConfig {
+  const { name, type, ...rest } = f
+  return { field: name, field_type: type, ...rest }
+}
+
+export function defaultValidatorConfig(): ValidatorConfig {
+  return { field: 'data', field_type: 'enum', values: ['a', 'b'] }
+}
+
+/** Validator config form: ONE constrained field, same editor as extraction. Legacy names are shown as their new
+ *  type and saved with the new name once edited; unknown or incomplete configs are refused at publish. */
+export function ValidatorConfigForm({ config, allowlistNames, onChange }: {
+  config: Partial<ValidatorConfig>
+  allowlistNames: string[]
+  onChange: (c: ValidatorConfig) => void
+}) {
+  const field = validatorToField(config)
+  return (
+    <div data-testid="validator-config" className="flex flex-col gap-2" style={{ fontSize: 12 }}>
+      <div className="text-muted" style={{ fontSize: 11 }}>
+        Declassifies one input value: only a value that passes this constraint leaves the node (labelled trusted, same
+        confidentiality). There is no free-text type. The input still chooses WHICH allowed value comes out.
+      </div>
+      <FieldEditor field={field} allowlistNames={allowlistNames} nameLabel="Input field"
+        onChange={f => onChange(fieldToValidator(f))} />
     </div>
   )
 }
@@ -183,16 +257,31 @@ function DefaultInput({ field, value, onChange }: {
   )
 }
 
-/** Extraction nodes that declassified this label (from the markers in its sources). */
-export function declassifiedBy(label?: LabelInfo): string[] {
-  const out = new Set<string>()
+export const VALIDATOR_MARKER_PREFIX = 'declassified:validator:'
+
+/** Nodes that declassified this label (validator or quarantined extraction), from the markers in its sources. */
+export function declassifiedBy(label?: LabelInfo): { kind: 'extraction' | 'validator'; node: string }[] {
+  const out = new Map<string, { kind: 'extraction' | 'validator'; node: string }>()
   for (const s of label?.sources ?? []) {
-    if (s.startsWith(MARKER_PREFIX)) out.add(s.slice(MARKER_PREFIX.length).split(':')[0])
+    const hit = s.startsWith(MARKER_PREFIX) ? { kind: 'extraction' as const, rest: s.slice(MARKER_PREFIX.length) }
+      : s.startsWith(VALIDATOR_MARKER_PREFIX) ? { kind: 'validator' as const, rest: s.slice(VALIDATOR_MARKER_PREFIX.length) }
+      : null
+    if (hit) {
+      const node = hit.rest.split(':')[0]
+      out.set(`${hit.kind}:${node}`, { kind: hit.kind, node })
+    }
   }
-  return [...out]
+  return [...out.values()]
+}
+
+/** "declassified by extraction (extract)", "declassified by validator (val)"; empty when not declassified. */
+export function declassificationText(label?: LabelInfo): string {
+  const by = declassifiedBy(label)
+  const kinds = [...new Set(by.map(b => b.kind))]
+  return kinds.map(k => `declassified by ${k} (${by.filter(b => b.kind === k).map(b => b.node).join(', ')})`).join('; ')
 }
 
 /** The sources to show for a label, without the declassification markers. */
 export function visibleSources(label?: LabelInfo): string[] {
-  return (label?.sources ?? []).filter(s => !s.startsWith(MARKER_PREFIX))
+  return (label?.sources ?? []).filter(s => !s.startsWith(MARKER_PREFIX) && !s.startsWith(VALIDATOR_MARKER_PREFIX))
 }

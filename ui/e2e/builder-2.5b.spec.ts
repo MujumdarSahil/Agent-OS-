@@ -88,3 +88,62 @@ test('run panel: extracted values are "trusted · declassified by extraction", t
   await expect(category).toContainText('phishing') // the MOCK answer: first enum value
   await expect(insp.locator('[data-testid="node-io-output-row"][data-key="reported_ticket"]')).toContainText('MOCK-1')
 })
+
+// 2.5b validator hardening: the validator uses the same field builder; its output reads "declassified by validator".
+test('validator: same field builder (legacy names shown as the new type), output labelled declassified by validator', async ({ page, request }) => {
+  await seed(request, {
+    id: 'val_e2e', name: 'validator e2e', entrypoint: 'val',
+    nodes: {
+      val: { id: 'val', type: 'validator', pinned_args: {},
+             config: { field: 'category', field_type: 'enum', values: ['phishing', 'spam', 'legit'] } },
+      size: { id: 'size', type: 'validator', pinned_args: {},
+              config: { field: 'n', field_type: 'bounded_number', min: 0, max: 5 } },
+    },
+    edges: [], loops: {},
+  }, false)
+  await page.goto('/flows/val_e2e')
+  await expect(page.getByTestId('flow-node-val').getByTestId('declassifies-val')).toHaveText('declassifies')
+  await page.getByTestId('flow-node-size').dblclick()
+  const form = page.getByTestId('validator-config')
+  await expect(form).toBeVisible()
+  expect(await form.getByTestId('extraction-field-type').locator('option').allTextContents())
+    .toEqual(['enum', 'bool', 'int_range', 'pattern', 'allowlist'])
+  await expect(form.getByTestId('extraction-field-type')).toHaveValue('int_range') // bounded_number shown as int_range
+  await expect(form.getByTestId('extraction-min')).toHaveValue('0')
+  await expect(form.getByTestId('extraction-max')).toHaveValue('5')
+})
+
+test('validator run: the value is "trusted · declassified by validator", the bypass flow is refused at publish', async ({ page, request }) => {
+  await seed(request, {
+    id: 'val_run_e2e', name: 'validator run', entrypoint: 'val',
+    nodes: { val: { id: 'val', type: 'validator', pinned_args: {},
+                    config: { field: 'category', field_type: 'enum', values: ['phishing', 'spam', 'legit'] } } },
+    edges: [], loops: {},
+  })
+  await page.goto('/flows/val_run_e2e')
+  await page.getByTestId('run-open').click()
+  await page.getByTestId('run-input').fill('{"category": "spam"}')
+  await page.getByTestId('run-flow').click()
+  await expect(page.getByTestId('run-status')).toHaveText('succeeded')
+  await page.locator('.react-flow__node[data-id="val"]').click()
+  const out = page.getByTestId('node-inspector').locator('[data-testid="node-io-output-row"][data-key="category"]')
+  await expect(out).toHaveAttribute('data-integrity', 'trusted')
+  await expect(out.getByTestId('label-badge')).toContainText('trusted · declassified by validator (val)')
+
+  // the reviewer's bypass: enum without values on `to` -> publish refused with the validator message
+  const bypass = {
+    id: 'val_bypass_e2e', name: 'bypass', entrypoint: 'hook',
+    nodes: {
+      hook: { id: 'hook', type: 'webhook_trigger', config: {}, pinned_args: {} },
+      val: { id: 'val', type: 'validator', config: { field: 'to', field_type: 'enum' }, pinned_args: {} },
+      send: { id: 'send', type: 'send_email', config: {}, pinned_args: { subject: 's', body: 'b' } },
+    },
+    edges: [{ source: 'hook', target: 'val', arg_mapping: { to: 'payload' } },
+            { source: 'val', target: 'send', arg_mapping: { to: 'to' } }],
+    loops: {},
+  }
+  expect((await request.post('/api/v2/flows', { data: bypass, headers: AUTH })).status()).toBe(201)
+  const pub = await request.post('/api/v2/flows/val_bypass_e2e/publish', { headers: AUTH })
+  expect(pub.status()).not.toBe(200)
+  expect(await pub.text()).toContain("validator field_type 'enum' requires 'values'")
+})
