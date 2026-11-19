@@ -1,4 +1,6 @@
-"""Quarantined extraction (2.5b): the third declassification path, next to approval and validator.
+"""Quarantined extraction (2.5b) and the shared constraint code of the validator node (2.5b hardening).
+
+Quarantined extraction is the third declassification path, next to approval and validator.
 
 The node reads untrusted text, asks a model to fill ONLY strictly constrained fields (enum, bool,
 int_range, a built-in pattern, an admin allowlist), validates every value, and outputs ONLY the
@@ -92,11 +94,15 @@ class ExtractionRejected(ValueError):
 
 # ---------------------------------------------------------------------------- validation of one value
 
-def validate_value(field: dict[str, Any], value: Any, allowlists: dict[str, list[str]] | None = None) -> Any:
-    """The validated (canonical) value, or ExtractionRejected. Shared by model output and defaults."""
+def validate_value(field: dict[str, Any], value: Any, allowlists: dict[str, list[str]] | None = None, *,
+                   bool_strings: bool = False) -> Any:
+    """The validated (canonical) value, or ExtractionRejected. Shared by model output, defaults and the validator
+    node. ``bool_strings`` (validator only): also accept the exact strings "true" / "false"."""
     name, ftype = field["name"], field["type"]
     if isinstance(value, (dict, list)):
         raise ExtractionRejected("nested_value", name)
+    if ftype == "bool" and bool_strings and isinstance(value, str) and value in ("true", "false"):
+        return value == "true"
     if ftype == "enum":
         if not isinstance(value, str):
             raise ExtractionRejected("wrong_type", name)
@@ -289,17 +295,24 @@ def extraction_output_labels(node_id: str, fields: Iterable[dict[str, Any]], inb
     return labels
 
 
-def extraction_markers(label: Label | None) -> list[tuple[str, str, str]]:
-    """(node_id, field, field_type) for every quarantined-extraction marker in a label's sources."""
+def declassification_markers(label: Label | None) -> list[tuple[str, str, str, str]]:
+    """(kind, node_id, field, field_type) for every declassification marker in a label's sources; kind is
+    "quarantined_extraction" or "validator". Both kinds are "constrained WHAT, not WHICH"."""
     if label is None:
         return []
     out = []
     for s in label.sources:
-        if s.startswith(MARKER_PREFIX):
-            parts = s[len(MARKER_PREFIX):].rsplit(":", 2)
-            if len(parts) == 3:
-                out.append((parts[0], parts[1], parts[2]))
+        for kind, prefix in ((NODE_TYPE, MARKER_PREFIX), ("validator", VALIDATOR_MARKER_PREFIX)):
+            if s.startswith(prefix):
+                parts = s[len(prefix):].rsplit(":", 2)
+                if len(parts) == 3:
+                    out.append((kind, parts[0], parts[1], parts[2]))
     return out
+
+
+def extraction_markers(label: Label | None) -> list[tuple[str, str, str]]:
+    """(node_id, field, field_type) for every quarantined-extraction marker in a label's sources."""
+    return [(n, f, t) for k, n, f, t in declassification_markers(label) if k == NODE_TYPE]
 
 
 def shared_inbound(flow: Any, node_id: str, labels_by_node: dict[str, dict[str, Label]], fallback: Label) -> Label:
@@ -335,3 +348,129 @@ def is_approval_gated(flow: Any, sink_node_id: str) -> bool:
 def enabled_by_extraction(label: Label | None) -> bool:
     """True when a TRUSTED label carries extraction markers (its trust may come from an attacker-steered choice)."""
     return bool(label is not None and label.integrity == Integrity.TRUSTED.value and extraction_markers(label))
+
+
+def enabled_by_declassification(label: Label | None) -> bool:
+    """True when a TRUSTED label carries a validator or extraction marker: its value was constrained (WHAT) but an
+    attacker may still have chosen it among the allowed values (WHICH)."""
+    return bool(label is not None and label.integrity == Integrity.TRUSTED.value and declassification_markers(label))
+
+
+# ---------------------------------------------------------------------------- validator node (2.5b hardening)
+# One constraint implementation for validator and extraction: a validator config describes ONE field of the
+# same five types, checked by the same FIELD_SCHEMA and validate_value.
+
+VALIDATOR_MARKER_PREFIX = "declassified:validator:"
+VALIDATOR_LEGACY_TYPES = {"allowlist_match": "allowlist", "bounded_number": "int_range"}
+
+VALIDATOR_CONFIG_SCHEMA: dict[str, Any] = {
+    # field_type stays a plain string here so a flow published before 2.5b still loads: an unknown or
+    # incomplete type is refused at publish (analyzer) and fails closed at run time (engine), with a message.
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["field", "field_type"],
+    "properties": {
+        "field": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+        "field_type": {"type": "string"},
+        "values": {"type": "array", "minItems": 2, "maxItems": 50, "uniqueItems": True, "items": _ENUM_VALUE},
+        "min": _INT,
+        "max": _INT,
+        "pattern": {"enum": sorted(PATTERNS)},
+        "allowlist_name": {"type": "string", "minLength": 1, "maxLength": 64},
+    },
+}
+
+_TYPE_KEYS = {"enum": ("values",), "bool": (), "int_range": ("min", "max"), "pattern": ("pattern",),
+              "allowlist": ("allowlist_name",)}
+
+
+def validator_type(config: dict[str, Any]) -> str | None:
+    """The normalized constrained type (legacy names mapped), or None if it is not a constrained type."""
+    ft = config.get("field_type")
+    t = VALIDATOR_LEGACY_TYPES.get(ft, ft) if isinstance(ft, str) else None
+    return t if t in FIELD_TYPES else None
+
+
+def validator_field(config: dict[str, Any]) -> dict[str, Any]:
+    """The validator config as an extraction-style field (name = the configured field)."""
+    t = validator_type(config) or str(config.get("field_type"))
+    f: dict[str, Any] = {"name": config.get("field", "data"), "type": t}
+    for k in _TYPE_KEYS.get(t, ()):
+        if k in config:
+            f[k] = config[k]
+    return f
+
+
+def validator_config_errors(config: dict[str, Any], allowlists: dict[str, list[str]] | None = None) -> list[str]:
+    """Why this validator config cannot declassify (empty = sound). Same types and limits as extraction."""
+    ft = config.get("field_type")
+    t = validator_type(config)
+    if t is None:
+        return [f"validator field_type {ft!r} is not a constrained type; use enum (with values), bool, int_range "
+                f"(with min and max), pattern ({', '.join(sorted(PATTERNS))}) or allowlist (with allowlist_name). "
+                "Free text cannot be declassified."]
+    errors: list[str] = []
+    for k in _TYPE_KEYS[t]:
+        if k not in config:
+            errors.append(f"validator field_type {ft!r} requires {k!r}" + (
+                " (bounded_number now needs explicit min and max)" if ft == "bounded_number" else ""))
+    stray = [k for k in ("values", "min", "max", "pattern", "allowlist_name") if k in config and k not in _TYPE_KEYS[t]]
+    if stray:
+        errors.append(f"validator field_type {ft!r} does not take {stray}")
+    if errors:
+        return errors
+    try:
+        import jsonschema
+
+        jsonschema.validate({**validator_field(config), "name": "value"}, FIELD_SCHEMA)
+    except jsonschema.ValidationError as err:
+        return [f"validator {t} constraint is invalid: {err.message}"]
+    if t == "int_range" and config["min"] > config["max"]:
+        errors.append("validator int_range: min must be <= max")
+    if t == "allowlist":
+        name = config["allowlist_name"]
+        if name == "http_allowlist":
+            errors.append("validator allowlist 'http_allowlist' matches hosts, not exact entries, so it cannot "
+                          "declassify a value; use a named admin allowlist of exact values")
+        elif not (allowlists or {}).get(name):
+            errors.append(f"validator allowlist {name!r} is not configured by an admin")
+    return errors
+
+
+def validator_output_keys(config: dict[str, Any]) -> list[str]:
+    keys = [config.get("field", "data"), "data"]
+    if validator_type(config) == "allowlist":
+        keys.append("to")  # kept from 2.0: an allowlisted recipient can be mapped as `to`
+    return list(dict.fromkeys(keys))
+
+
+def validator_output_labels(node_id: str, config: dict[str, Any], inbound: Label,
+                            allowlists: dict[str, list[str]] | None = None) -> dict[str, Label]:
+    """Shared by the analyzer and the engine. Sound config: TRUSTED, the inbound confidentiality, the inbound
+    sources plus the node id and a ``declassified:validator:<node>:<field>:<type>`` marker. Unsound config:
+    nothing is declassified (untrusted, same confidentiality)."""
+    sources = frozenset(inbound.sources) | {node_id}
+    if validator_config_errors(config, allowlists):
+        lbl = Label(integrity=Integrity.UNTRUSTED.value, confidentiality=inbound.confidentiality, sources=sources)
+    else:
+        f = validator_field(config)
+        lbl = Label(integrity=Integrity.TRUSTED.value, confidentiality=inbound.confidentiality,
+                    sources=sources | {f"{VALIDATOR_MARKER_PREFIX}{node_id}:{f['name']}:{f['type']}"})
+    return {**{k: lbl for k in validator_output_keys(config)}, "*": lbl}
+
+
+def run_validator(config: dict[str, Any], raw_inputs: dict[str, Any],
+                  allowlists: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    """The validated outputs, or ExtractionRejected (``invalid_config`` fails closed for unsound configs)."""
+    errors = validator_config_errors(config, allowlists)
+    if errors:
+        raise ExtractionRejected("invalid_config", None, errors[0])
+    field = config.get("field", "data")
+    if field in raw_inputs:
+        raw = raw_inputs[field]
+    elif "data" in raw_inputs:
+        raw = raw_inputs["data"]
+    else:
+        raise ExtractionRejected("missing_input", field)
+    value = validate_value(validator_field(config), raw, allowlists, bool_strings=True)
+    return {k: value for k in validator_output_keys(config)}

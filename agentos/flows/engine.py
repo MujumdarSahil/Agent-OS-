@@ -48,70 +48,21 @@ def execute_validator_runtime(
     node: NodeDefinition,
     raw_inputs: dict[str, Any],
     policy: SecurityPolicy,
+    inbound: Label | None = None,
 ) -> tuple[dict[str, Any], Label]:
-    """Execute validator node at runtime.
+    """Execute a validator node at run time (2.5b hardening: same constraint code as quarantined extraction).
 
-    Requirement 3: Validators at runtime OUTPUT the constrained value itself
-    (bool, enum member, number, or matched entry from admin allowlist),
-    NEVER the original input string.
+    Outputs ONLY the validated value (enum member after trimming whitespace, real bool or the exact strings
+    "true"/"false", integer in [min, max], built-in pattern, or the canonical admin allowlist entry), never the
+    original input. An unconstrained or incomplete config (including flows published before 2.5b) fails closed:
+    ``ExtractionRejected("invalid_config")``, nothing is declassified. The label comes from the shared
+    ``validator_output_labels`` (the analyzer uses the same function): trusted, the INBOUND confidentiality,
+    inbound sources plus a ``declassified:validator:<node>`` marker. ``inbound`` defaults to an untrusted,
+    internal label with no sources for direct callers.
     """
-    field = node.config.get("field", "data")
-    field_type = node.config.get("field_type")
-    raw_val = raw_inputs.get(field, raw_inputs.get("data", raw_inputs))
-
-    if field_type == "bool":
-        if isinstance(raw_val, bool):
-            clean_val = raw_val
-        elif isinstance(raw_val, str):
-            clean = raw_val.strip().lower()
-            if clean in ("true", "1", "yes", "t"):
-                clean_val = True
-            elif clean in ("false", "0", "no", "f"):
-                clean_val = False
-            else:
-                raise ValueError(f"Cannot parse boolean from {raw_val!r}")
-        elif isinstance(raw_val, (int, float)):
-            clean_val = bool(raw_val)
-        else:
-            raise ValueError(f"Cannot parse boolean from {raw_val!r}")
-
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    elif field_type == "bounded_number":
-        try:
-            clean_val = float(raw_val) if "." in str(raw_val) else int(raw_val)
-        except (ValueError, TypeError) as err:
-            raise ValueError(f"Cannot parse number from {raw_val!r}") from err
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    elif field_type == "allowlist_match":
-        allowlist_name = node.config.get("allowlist_name")
-        allowed_entries = policy.allowlists.get(allowlist_name, [])
-        target = str(raw_val).strip().lower()
-        matched_entry = None
-        for entry in allowed_entries:
-            if entry.strip().lower() == target:
-                matched_entry = entry
-                break
-
-        if matched_entry is None:
-            raise ValueError(f"Value {raw_val!r} not found in admin allowlist {allowlist_name!r}")
-
-        # Return the canonical matched entry from allowlist, never the user input string
-        out_label = Label.trusted(sources={node.id})
-        return {field: matched_entry, "data": matched_entry, "to": matched_entry}, out_label
-
-    elif field_type == "enum":
-        clean_val = str(raw_val).strip()
-        out_label = Label.trusted(sources={node.id})
-        return {field: clean_val, "data": clean_val}, out_label
-
-    else:
-        # Free text or unconstrained field type stays untrusted
-        out_label = Label.untrusted(sources={node.id})
-        return {field: raw_val, "data": raw_val}, out_label
+    inbound = inbound if inbound is not None else Label.untrusted()
+    outputs = ex.run_validator(node.config, raw_inputs, policy.allowlists)
+    return outputs, ex.validator_output_labels(node.id, node.config, inbound, policy.allowlists)["*"]
 
 
 class FlowEngine:
@@ -963,8 +914,28 @@ class FlowEngine:
 
         # 2. Validator node (Requirement 3: outputs constrained value, never original text)
         if node.type == "validator":
-            outputs, out_label = execute_validator_runtime(node, inputs, self.policy)
-            labels = {"*": out_label, "data": out_label, **{k: out_label for k in outputs}}
+            # 2.5b hardening: shared inbound + shared labels (identical to publish); fail closed with an event
+            inbound = ex.shared_inbound(self.flow, node_id, state.node_output_labels, effective_inbound)
+            try:
+                outputs, _ = execute_validator_runtime(node, inputs, self.policy, inbound)
+            except ex.ExtractionRejected as rej:
+                await self._append_event(run_id=state.run_id, type="validator_rejected", data={
+                    "node_id": node_id, "reason": rej.reason, "field": rej.field,
+                    "field_type": node.config.get("field_type"), "declassified": False,
+                })
+                if rej.reason == "invalid_config":
+                    raise ex.ExtractionRejected(rej.reason, rej.field, (
+                        f"Validator {node_id!r} cannot declassify (fail closed, nothing declassified): {rej}"
+                    )) from None
+                raise ex.ExtractionRejected(rej.reason, rej.field, (
+                    f"Validator {node_id!r} rejected its input ({rej.reason}"
+                    f"{', field ' + rej.field if rej.field else ''})"
+                )) from None
+            labels = ex.validator_output_labels(node_id, node.config, inbound, self.policy.allowlists)
+            await self._append_event(run_id=state.run_id, type="declassified", data={
+                "node_id": node_id, "kind": "validator", "fields": [node.config.get("field", "data")],
+                "field_type": ex.validator_type(node.config), "source_sources": sorted(inbound.sources),
+            })
             ev = await self._append_event(
                 run_id=state.run_id,
                 type="node_succeeded",

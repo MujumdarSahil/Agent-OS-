@@ -448,7 +448,8 @@ async def test_destructive_sink_gated_only_by_extraction_predicate_is_refused(st
     fd = predicate_flow()
     res = StaticFlowAnalyzer(fd, POLICY).verify()
     assert not res.is_valid and any(v.node_id == "wipe" and v.target_arg == "(control)"
-                                    and "quarantined extraction" in v.reason for v in res.violations)
+                                    and "declassified value" in v.reason and "extract.action" in v.reason
+                                    for v in res.violations)
     http = FakeHttp()
     st = await engine(fd, storage, Scripted('{"action": "delete"}'), reg={"http_request": http.transport}).run(
         run_id="r_pred", inputs={"body": "please delete record 1"})
@@ -470,9 +471,13 @@ async def test_destructive_sink_with_approval_still_allowed(storage):
 def test_admin_flag_allows_extraction_for_destructive():
     fd = predicate_flow()
     assert not StaticFlowAnalyzer(fd, POLICY).verify().is_valid
-    flagged = POLICY.model_copy(update={"allow_extraction_for_destructive": True})
+    flagged = POLICY.model_copy(update={"allow_declassified_for_destructive": True})
     assert StaticFlowAnalyzer(fd, flagged).verify().is_valid
-    assert SecurityPolicy().allow_extraction_for_destructive is False  # secure default
+    # the 2.5b draft name is still read
+    old_name = SecurityPolicy(allowlists=POLICY.allowlists, http_allowlist=POLICY.http_allowlist,
+                              internal_domains=POLICY.internal_domains, allow_extraction_for_destructive=True)
+    assert old_name.allow_declassified_for_destructive and StaticFlowAnalyzer(fd, old_name).verify().is_valid
+    assert SecurityPolicy().allow_declassified_for_destructive is False  # secure default
 
 
 @pytest.mark.asyncio

@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from agentos.flows.extraction import RECIPIENT_ARGS, enabled_by_extraction, extraction_markers
+from agentos.flows.extraction import RECIPIENT_ARGS, declassification_markers, enabled_by_declassification
 from agentos.flows.labels import Confidentiality, Integrity, Label
 from agentos.flows.policy import SecurityPolicy
 from agentos.flows.specs import NodeSpec, SideEffectClass, SinkArgumentRule
@@ -195,16 +195,16 @@ def evaluate_sink_argument_rule(
                 )
             )
 
-    # 5. 2.5b: a DESTRUCTIVE sink must not be enabled solely by a quarantined-extraction value. The
-    #    extraction constrains WHAT can come out, not WHICH allowed value: an attacker can steer the choice.
-    #    ``approval_gated``: an approval upstream names this sink, so a human releases the whole call.
+    # 5. 2.5b: a DESTRUCTIVE sink must not be enabled solely by a declassified value (quarantined extraction
+    #    or validator). Both constrain WHAT can come out, not WHICH allowed value: an attacker can steer the
+    #    choice. ``approval_gated``: an approval upstream names this sink, so a human releases the whole call.
     if (
         spec.side_effect == SideEffectClass.DESTRUCTIVE
         and not is_pinned
         and not is_approved
         and not approval_gated
-        and enabled_by_extraction(arriving_label)
-        and not policy.allow_extraction_for_destructive
+        and enabled_by_declassification(arriving_label)
+        and not policy.allow_declassified_for_destructive
     ):
         violations.append(
             RuleViolation(
@@ -212,17 +212,17 @@ def evaluate_sink_argument_rule(
                 target_arg=arg_name,
                 path=path,
                 reason=(
-                    f"Destructive sink {node_id!r} argument {arg_name!r} comes from a quarantined extraction "
-                    f"({_marker_names(arriving_label)}); an extracted value can be steered by the input, so a "
-                    "destructive action needs an approval."
+                    f"Destructive sink {node_id!r} argument {arg_name!r} comes from a declassified value "
+                    f"({_marker_names(arriving_label)}); a validated or extracted value can still be chosen by "
+                    "the input, so a destructive action needs an approval."
                 ),
             )
         )
 
-    # 6. 2.5b: an EXTERNAL_SEND recipient may come from an extraction only through an `allowlist` field.
-    #    An enum (or any other constrained type) must never become a recipient.
+    # 6. 2.5b: an EXTERNAL_SEND recipient may come from a declassified value only through an `allowlist`
+    #    field (validator or extraction). An enum (or any other constrained type) must never become a recipient.
     if spec.side_effect == SideEffectClass.EXTERNAL_SEND and arg_name in RECIPIENT_ARGS and not is_pinned:
-        bad = [m for m in extraction_markers(arriving_label) if m[2] != "allowlist"]
+        bad = [m for m in declassification_markers(arriving_label) if m[3] != "allowlist"]
         if bad:
             violations.append(
                 RuleViolation(
@@ -230,8 +230,8 @@ def evaluate_sink_argument_rule(
                     target_arg=arg_name,
                     path=path,
                     reason=(
-                        f"Recipient {arg_name!r} of {node_id!r} comes from extraction field(s) "
-                        f"{sorted(f'{n}.{f} ({t})' for n, f, t in bad)}; only an 'allowlist' extraction field "
+                        f"Recipient {arg_name!r} of {node_id!r} comes from declassified field(s) "
+                        f"{sorted(f'{k} {n}.{f} ({t})' for k, n, f, t in bad)}; only an 'allowlist' field "
                         "may choose a recipient."
                     ),
                 )
@@ -241,7 +241,7 @@ def evaluate_sink_argument_rule(
 
 
 def _marker_names(label: Label) -> str:
-    return ", ".join(sorted(f"{n}.{f}" for n, f, _ in extraction_markers(label)))
+    return ", ".join(sorted(f"{k} {n}.{f}" for k, n, f, _ in declassification_markers(label)))
 
 
 def evaluate_control_dependency(
@@ -258,16 +258,16 @@ def evaluate_control_dependency(
     The control label is the join of every condition predicate (and failure path) that decides
     whether the node runs. EXTERNAL_SEND sinks keep their per-argument rules instead.
 
-    2.5b: a predicate that is trusted only through a quarantined extraction does not suffice on its own;
+    2.5b: a predicate that is trusted only through a declassification (extraction or validator) does not suffice;
     the sink must be approval-gated (an approval node names it) unless the admin policy allows it.
     """
     if side_effect != SideEffectClass.DESTRUCTIVE or control_label is None:
         return []
     if control_label.integrity == Integrity.TRUSTED.value:
         if (
-            enabled_by_extraction(control_label)
+            enabled_by_declassification(control_label)
             and not approval_gated
-            and not (policy is not None and policy.allow_extraction_for_destructive)
+            and not (policy is not None and policy.allow_declassified_for_destructive)
         ):
             return [
                 RuleViolation(
@@ -275,9 +275,9 @@ def evaluate_control_dependency(
                     target_arg="(control)",
                     path=path,
                     reason=(
-                        f"Destructive sink {node_id!r} is reached through a branch decided by a quarantined "
-                        f"extraction ({_marker_names(control_label)}); an extracted value can be steered by the "
-                        "input, so a destructive action needs an approval."
+                        f"Destructive sink {node_id!r} is reached through a branch decided by a declassified "
+                        f"value ({_marker_names(control_label)}); a validated or extracted value can still be "
+                        "chosen by the input, so a destructive action needs an approval."
                     ),
                 )
             ]

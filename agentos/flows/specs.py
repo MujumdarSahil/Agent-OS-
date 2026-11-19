@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from agentos.flows.extraction import CONFIG_SCHEMA as _EXTRACTION_CONFIG_SCHEMA
+from agentos.flows.extraction import VALIDATOR_CONFIG_SCHEMA as _VALIDATOR_CONFIG_SCHEMA
 
 
 class SideEffectClass(str, Enum):
@@ -267,16 +268,8 @@ APPROVAL_NODE_SPEC = NodeSpec(
 
 VALIDATOR_NODE_SPEC = NodeSpec(
     type="validator",
-    config_schema={
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "field": {"type": "string"},
-            "field_type": {"type": "string"},
-            "allowlist_name": {"type": "string"},
-        },
-        "required": ["field", "field_type"],
-    },
+    # 2.5b hardening: the same constrained types and limits as quarantined extraction (agentos/flows/extraction.py)
+    config_schema=_VALIDATOR_CONFIG_SCHEMA,
     input_schema={"type": "object"},
     output_schema={
         "type": "object",
