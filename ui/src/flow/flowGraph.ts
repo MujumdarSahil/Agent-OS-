@@ -140,6 +140,10 @@ export function schemaProps(s: JSONSchema | undefined): string[] {
 export function outputFields(def: FlowNodeDef, spec?: NodeSpecInfo): string[] {
   const out = new Set(schemaProps(spec?.output_schema))
   if (def.type === 'validator' && typeof def.config?.field === 'string' && def.config.field) out.add(def.config.field)
+  // 2.5b: a quarantined extraction exposes exactly its configured (validated) fields
+  if (def.type === 'quarantined_extraction' && Array.isArray(def.config?.fields)) {
+    for (const f of def.config.fields as { name?: unknown }[]) if (typeof f?.name === 'string' && f.name) out.add(f.name)
+  }
   return [...out]
 }
 

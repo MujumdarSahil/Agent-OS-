@@ -112,6 +112,15 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 3 }}>
         <span style={{ color: 'var(--text-secondary)' }}>{type}</span>
+        {(data.spec?.declassifies || type === 'quarantined_extraction') && (
+          <span
+            data-testid={`declassifies-${id}`}
+            style={{ color: 'var(--accent-teal, #2dd4bf)', fontSize: 10, border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}
+            title="Outputs only validated constrained values, labelled trusted (declassification)"
+          >
+            declassifies
+          </span>
+        )}
         {sideEffect !== 'none' && (
           <span
             data-testid={`side-effect-${id}`}
