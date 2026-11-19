@@ -1,0 +1,57 @@
+﻿F                                                                        [100%]
+================================== FAILURES ===================================
+_______ test_approve_inside_the_window_waits_and_is_applied_once[file] ________
+
+backend = ('C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-492\\test_approve_inside_the_window0\\project', None)
+
+    @pytest.mark.asyncio
+    async def test_approve_inside_the_window_waits_and_is_applied_once(backend):
+        env, storage = backend
+        mt = MockTransport()
+        app = _app(env, storage, mt)
+        async with app.router.lifespan_context(app):
+            app.state.transport_registry = {"send_email": mt}
+            async with _client(app) as c:
+                run_id, parking = await _start_parked(app, c)
+                approve = asyncio.create_task(
+                    c.post(f"/api/v2/flows/race_flow/runs/{run_id}/approve", json={"node_id": "gate", "decision": True}))
+                await asyncio.sleep(0.3)  # the endpoint is now waiting for the release
+>               assert not approve.done()
+E               assert not True
+E                +  where True = <built-in method done of _asyncio.Task object at 0x0000016ABBF31C00>()
+E                +    where <built-in method done of _asyncio.Task object at 0x0000016ABBF31C00> = <Task finished name='Task-9' coro=<AsyncClient.post() done, defined at C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\L...ages\httpx\_client.py:1838> exception=FencingTokenError("Lease None expired or superseded for run 'run_088a12abd9c8'")>.done
+
+agentos_server\tests\test_approval_race_3_1.py:136: AssertionError
+---------------------------- Captured stdout call -----------------------------
+
+============================================================
+AgentOS Local Server Ready
+One-Time UI Access Link: http://localhost:8000/#token=test-token-approval-race
+Direct API Access: Authorization: Bearer test-token-approval-race
+============================================================
+
+=========================== short test summary info ===========================
+FAILED agentos_server/tests/test_approval_race_3_1.py::test_approve_inside_the_window_waits_and_is_applied_once[file]
+1 failed in 19.54s
+.\venv\Scripts\python.exe : --- Logging error ---
+At line:1 char:402
++ ... 2/flows.py; .\venv\Scripts\python.exe -m pytest "agentos_server/tests ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (--- Logging error ---:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Traceback (most recent call last):
+  File "C:\Users\mujum\AppData\Local\Programs\Python\Python311\Lib\logging\__init__.py", line 1113, in emit
+    stream.write(msg + self.terminator)
+ValueError: I/O operation on closed file.
+Call stack:
+  File "C:\Users\mujum\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 1811, in 
+call_exception_handler
+    self.default_exception_handler(context)
+  File "C:\Users\mujum\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 1785, in 
+default_exception_handler
+    logger.error('\n'.join(log_lines), exc_info=exc_info)
+Message: 'Task exception was never retrieved\nfuture: <Task finished name=\'Task-9\' coro=<AsyncClient.post() done, 
+defined at C:\\Users\\mujum\\OneDrive\\Desktop\\Agent OS\\venv\\Lib\\site-packages\\httpx\\_client.py:1838> 
+exception=FencingTokenError("Lease None expired or superseded for run \'run_088a12abd9c8\'")>'
+Arguments: None
