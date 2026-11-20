@@ -135,7 +135,7 @@ async def test_tool_options_list_only_what_the_server_accepts(tmp_path, monkeypa
                            headers={"Authorization": "Bearer test-token-tool-options", "Host": "localhost"}) as c:
         opts = (await c.get("/api/v2/agents/tool-options")).json()
         names = [o["name"] for o in opts]
-        assert names == ["calculator", "fetch_url", "send_email"]
+        assert names == ["calculator", "fetch_url", "send_email", "send_slack"]  # 3.3: send_slack
         assert "file_read" not in names and "file_write" not in names
         for n in names:  # every option is accepted by the save check
             r = await c.post("/api/v2/agents", json={"name": f"a_{n}", "role": "r", "goal": "g", "backstory": "b",

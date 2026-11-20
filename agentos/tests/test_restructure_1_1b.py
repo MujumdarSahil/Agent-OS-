@@ -60,6 +60,16 @@ V2_API_ROUTES = sorted([
     ("/api/v2/agents", "GET"),
     ("/api/v2/agents", "POST"),
     ("/api/v2/agents/tool-options", "GET"),  # 3.1: tools the agent picker may offer
+    ("/api/v2/alerts", "GET"),  # 3.3: alerts, rules, notification channels, billing plan
+    ("/api/v2/alerts/rules", "GET"),
+    ("/api/v2/alerts/rules/{rule_id}", "PUT"),
+    ("/api/v2/alerts/{alert_id}/acknowledge", "POST"),
+    ("/api/v2/notify/channels", "GET"),
+    ("/api/v2/notify/channels", "POST"),
+    ("/api/v2/notify/channels/{name}", "PUT"),
+    ("/api/v2/notify/channels/{name}", "DELETE"),
+    ("/api/v2/notify/channels/{name}/test", "POST"),
+    ("/api/v2/providers/{name}/billing-plan", "PUT"),
     ("/api/v2/audit", "GET"),  # 3.1: audit log (read-only)
     ("/api/v2/audit/export", "GET"),
     ("/api/v2/audit/verify", "GET"),

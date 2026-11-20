@@ -271,6 +271,7 @@ export interface V2Provider {
   api_key_env: string | null
   api_base_env: string | null
   is_local: boolean
+  billing_plan?: 'free' | 'paid' | null // 3.3: admin billing plan (null = default)
 }
 
 export interface V2ProviderTestResult {

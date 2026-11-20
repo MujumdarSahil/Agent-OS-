@@ -41,6 +41,8 @@ class NodeSpec(BaseModel):
     idempotent: bool = False
     timeout_seconds: float | None = None
     sink_rules: dict[str, SinkArgumentRule] = Field(default_factory=dict)
+    # 3.3: the argument that names where a send goes (email: "to"; Slack: "channel"); conditional rules read it
+    recipient_arg: str = "to"
     # Constrained output fields that a validator is soundly allowed to declassify
     constrained_fields: list[str] = Field(
         default_factory=lambda: ["enum", "bool", "bounded_number", "allowlist_match"]
@@ -192,7 +194,7 @@ CALCULATOR_TOOL_SPEC = NodeSpec(
 )
 
 # Built-in tools an agent can be given (bare names). Other node types are flow steps, not agent tools.
-AGENT_TOOL_TYPES = ("calculator", "fetch_url", "send_email")
+AGENT_TOOL_TYPES = ("calculator", "fetch_url", "send_email", "send_slack")
 
 FETCH_URL_TOOL_SPEC = NodeSpec(
     type="fetch_url",
@@ -490,6 +492,31 @@ def is_checked_sink(node_type: str, config: dict[str, Any] | None = None) -> boo
     )
 
 
+# 3.3: Slack message through an admin-configured incoming-webhook channel (text always escaped, unfurling off).
+SEND_SLACK_SINK_SPEC = NodeSpec(
+    type="send_slack",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel": {"type": "string"},
+            "text": {"type": "string", "maxLength": 3000},
+        },
+        "required": ["channel", "text"],
+    },
+    output_schema={
+        "type": "object",
+        "properties": {"status": {"type": "string"}, "idempotency_key": {"type": "string"}},
+    },
+    side_effect=SideEffectClass.EXTERNAL_SEND,
+    idempotent=True,
+    recipient_arg="channel",
+    sink_rules={
+        "channel": SinkArgumentRule(required_integrity="trusted", condition="slack_channel_configured"),
+        "text": SinkArgumentRule(required_integrity="untrusted", condition="text_internal_channel_only"),
+    },
+)
+
 BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "webhook_trigger": WEBHOOK_TRIGGER_SPEC,
     "manual_trigger": MANUAL_TRIGGER_SPEC,
@@ -499,6 +526,7 @@ BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
     "fetch_url": FETCH_URL_TOOL_SPEC,
     "calculator": CALCULATOR_TOOL_SPEC,
     "send_email": SEND_EMAIL_SINK_SPEC,
+    "send_slack": SEND_SLACK_SINK_SPEC,
     "approval": APPROVAL_NODE_SPEC,
     "validator": VALIDATOR_NODE_SPEC,
     "quarantined_extraction": QUARANTINED_EXTRACTION_SPEC,

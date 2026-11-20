@@ -10,6 +10,7 @@ import {
   updateV2FallbackPolicy,
   type V2FallbackPolicyItem,
 } from '../api/client'
+import { putBillingPlan } from '../api/notify'
 import {
   Cpu,
   Key,
@@ -248,6 +249,7 @@ export default function Providers() {
                   <th>LiteLLM Model</th>
                   <th>Configured</th>
                   <th>Tags</th>
+                  <th title="Free plan: calls cost $0, so a USD budget never blocks them. Paid: the free-tier tag is ignored.">Billing plan</th>
                   <th>Connectivity</th>
                   <th>Action</th>
                 </tr>
@@ -274,6 +276,23 @@ export default function Providers() {
                             {t}
                           </span>
                         ))}
+                      </td>
+                      <td>
+                        <select
+                          className="form-select"
+                          style={{ fontSize: 12, padding: '2px 6px' }}
+                          aria-label={`Billing plan of ${p.name}`}
+                          data-testid={`billing-plan-${p.name}`}
+                          value={p.billing_plan || 'default'}
+                          onChange={async e => {
+                            await putBillingPlan(p.name, e.target.value as 'free' | 'paid' | 'default')
+                            qc.invalidateQueries({ queryKey: ['v2-providers'] })
+                          }}
+                        >
+                          <option value="default">Default</option>
+                          <option value="free">Free plan ($0)</option>
+                          <option value="paid">Paid</option>
+                        </select>
                       </td>
                       <td>
                         {isTesting ? (

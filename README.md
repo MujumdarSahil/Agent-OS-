@@ -192,6 +192,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 
 **Usage, cost and budgets** — *Works today (verified in MOCK, scripted token counts)*. Every model call records tokens and an estimated cost; per-run limits stop runaway runs (also on free models), and USD budgets (global, per flow, per provider) block a call before it is made, without silently falling back to another paid provider. See **Watch → Metrics** and [the 3.2 evidence](docs/evidence/3.2.md).
 
+**Alerts and notifications** — *Works today (verified in MOCK; real SMTP only against a local test server, Slack only against a local stand-in)*. Email (SMTP, TLS required) and Slack (incoming webhook) channels with write-only secrets in the vault; `send_email` sends through the email channel (simulated, and labelled so, when none is configured) and the new `send_slack` node escapes every message; alerts for blocked attacks, failed runs, long approvals, providers down, budgets and a broken audit chain are written by AgentOS from metadata only and delivered through a persistent outbox with retries. See **Watch → Alerts**, **Connect → Notification channels**, [use case 10](examples/usecases/10-alerts-notifications/README.md) and [the 3.3 evidence](docs/evidence/3.3.md). Demo with real email to a local test server: `python -m aiosmtpd -n -l 127.0.0.1:1025` in one terminal, then `UC07_SMTP=127.0.0.1:1025 python examples/usecases/07-support-desk-copilot/run.py`.
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.
@@ -204,13 +206,13 @@ Use cases: [03 queue and worker](examples/usecases/03-flow-queue-worker/README.m
 [05 visual builder](examples/usecases/05-visual-builder/README.md).
 
 **Overview, runs and approvals** — *Works today (verified in MOCK)*. The home page (**Watch → Overview**)
-shows what needs you now (waiting approvals, attacks blocked today, providers cooling down), counts of runs,
+shows what needs you now (waiting approvals, attacks blocked today, providers cooling down, unacknowledged
+alerts), counts of runs,
 blocked attacks, waiting approvals and model calls for the last 24 hours or 7 days, recent runs with the
 model that answered, approval cards with the exact call, the last blocked attacks with where their data came
 from, and the provider fallback chain with its health. **Runs**, **Approvals**, **Triggers** and
 **Security log** list the same data across all flows. Flows that would be too small to read left to right
-open top to bottom. It shows only what AgentOS records: there is no cost or alerting yet (planned for 3.2
-and 3.3), and refused publishes are not stored yet (planned for the 3.1 audit log).
+open top to bottom. It shows only what AgentOS records (cost since 3.2, alerts since 3.3).
 
 **Packs** — *Experimental (v1 agent/tool packaging via `agentos pack`); Planned (2.0 packs carrying
 flows, prompts and policies)*. Packs will let you share a ready-made automation and install it with
@@ -257,7 +259,7 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
 - **Provider Verification Status**: Recorded VCR cassettes exist for the three Groq entries and for OpenRouter Gemma 4 31B, Laguna S 2.1 free, GLM-5.2 free and Nemotron (vision). The Groq, Laguna and GLM-5.2 cassettes are historical: those model IDs are deprecated or no longer listed, and the entries are disabled by default. OpenAI, Anthropic, Gemini and Ollama have no cassette; they have mock-level tests only. `zai_glm_4_7_flash` is **LIVE-verified** by the owner's 2.4c run. Together AI, Fireworks, DeepSeek (`deepseek-chat` is missing from DeepSeek's live list and awaits the owner's choice of ID), Hugging Face Inference API and `zai_glm_5_3` remain UNVERIFIED. For **OpenRouter Nemotron 3 Nano Omni**: multimodal vision processing is verified (`test_nemotron_3_nano_omni_vision` passes via offline cassette), while text completion (`openrouter_nemotron_3_nano_omni_free`) is unverified due to upstream 504 Gateway Timeout / 400 degraded errors recorded in its cassette, and is skipped pending fresh recording.
 - **Local Ollama Probe Behavior**: Connectivity probe `check_ollama_reachable()` performs non-blocking HTTP probes (`http://localhost:11434/api/tags`) with a 1.0s timeout and non-fatal logging. When Ollama is offline, calls gracefully fall back to alternative providers in the fallback chain.
 - **Screenshots and UI checks are MOCK**: the images above and the Playwright suites use a simulated model. Real-model behaviour (for example whether a model follows an injected instruction) can differ; the security outcome does not depend on it.
-- **Overview data**: provider health comes from the server's in-memory circuit breaker (it resets on restart, and in Platform mode with separate workers it shows only the API process). Counts cover the newest 500 runs. SSRF blocks recorded before 2.4e are not counted as attacks. There is no cost, budget or alert data yet.
+- **Overview data**: provider health comes from the server's in-memory circuit breaker (it resets on restart, and in Platform mode with separate workers it shows only the API process). Counts cover the newest 500 runs. SSRF blocks recorded before 2.4e are not counted as attacks.
 - **Refused publishes** are shown in the editor but not stored, so the Security log lists run-time blocks only (the 3.1 audit log will record refusals).
 - **Vault startup check**: the Standalone vault file is checked at startup (it must parse and decrypt); the Platform (Mongo) vault is not.
 - **Run history**: runs created before 2.4d have no stored trigger, so older webhook runs may show as `manual`.
@@ -279,6 +281,18 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   local models), or LiteLLM's bundled price map; an unknown price is shown as unknown, never guessed. The provider's
   bill is the truth. Budgets are checked before each call without a reservation, so parallel calls in flight can
   overshoot a budget by at most their own cost.
+
+- **Email can't be exactly-once (3.3)**: SMTP has no idempotency. A send that crashed after the server accepted
+  it but before AgentOS recorded the commit is never resent automatically (the run waits for review), and every
+  message carries a `Message-ID` derived from the send's idempotency key so a receiver can de-duplicate. Alert
+  deliveries interrupted mid-send are marked "delivery uncertain" and not resent.
+- **Slack via incoming webhooks only (3.3)**: one webhook per channel, `https://hooks.slack.com/...` only; the
+  channel name in AgentOS is a label (the webhook decides where the message goes). No Slack app, threads or
+  interactive buttons.
+- **Alerts are evaluated in the server process (3.3)**: events written by a separate `agentos worker` process
+  (Platform mode) do not raise alerts yet.
+- **fetch_url (3.3)** makes a real GET through the SSRF guard (100 KB, 10 s, no credentials); in MOCK mode it
+  returns a canned body marked "mock".
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).

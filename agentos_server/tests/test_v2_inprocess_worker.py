@@ -160,11 +160,16 @@ async def test_run_history_records_trigger_type(env, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_worker_uses_mock_transport_when_none_configured(env, monkeypatch):
+async def test_worker_uses_channel_transports_when_none_configured(env, monkeypatch):
+    # 3.3: the server's default send_email/send_slack transports are the notification channels; with no email
+    # channel configured send_email is SIMULATED (and says so), never a silent send. (Was MockTransport until 3.2.)
+    from agentos.notify.service import ChannelEmailTransport, ChannelSlackTransport
+
     monkeypatch.setenv("AGENTOS_INPROCESS_WORKER", "1")
     app = _app(env)
     async with app.router.lifespan_context(app):
-        assert isinstance(app.state.transport_registry["send_email"], MockTransport)
+        assert isinstance(app.state.transport_registry["send_email"], ChannelEmailTransport)
+        assert isinstance(app.state.transport_registry["send_slack"], ChannelSlackTransport)
 
 
 @pytest.mark.asyncio

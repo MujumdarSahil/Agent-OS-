@@ -40,6 +40,7 @@ vcrpy>=6.0.0
 cvss==3.6
 fakeredis>=2.40.0
 lupa>=2.8
+aiosmtpd==1.4.6  # 3.3: local SMTP test server (tests only; runtime uses smtplib)
 
 # Frontend/UI (Python-only)
 # Streamlit app lives in agentos/ui/streamlit_app.py

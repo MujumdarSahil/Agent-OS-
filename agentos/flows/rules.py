@@ -39,6 +39,11 @@ class PinnedArgumentOverrideError(Exception):
     """Raised at runtime when an LLM attempts to override an author-pinned argument."""
 
 
+class SinkArgumentRejected(ValueError):
+    """3.3: a real channel refused a send's arguments before any intent (header injection, size caps, a From
+    override, an unknown or disabled channel). The message is AgentOS-written."""
+
+
 def normalize_and_validate_recipients(to_value: Any) -> list[str]:
     """Validate and normalize email recipient(s).
 
@@ -168,6 +173,28 @@ def evaluate_sink_argument_rule(
                     ),
                 )
             )
+
+    # 3.3: send_slack. The channel must be one the admin configured (checked when the value is known: pinned at
+    #      publish, always at runtime). Untrusted text only to a channel the admin marked internal.
+    if rule.condition == "slack_channel_configured" and pinned_to_val is not None:
+        if not (isinstance(pinned_to_val, str) and pinned_to_val in policy.slack_channels):
+            violations.append(RuleViolation(
+                node_id=node_id, target_arg=arg_name, path=path,
+                reason=f"Slack channel {pinned_to_val!r} is not a configured Slack notification channel.",
+            ))
+    if rule.condition == "text_internal_channel_only":
+        if (
+            arriving_label.integrity == Integrity.UNTRUSTED.value
+            and not is_approved
+            and not policy.is_internal_slack_channel(pinned_to_val)
+        ):
+            violations.append(RuleViolation(
+                node_id=node_id, target_arg=arg_name, path=path,
+                reason=(
+                    "Untrusted text can be sent only to a Slack channel the admin marked internal"
+                    + (f"; {pinned_to_val!r} is not." if pinned_to_val else " (the channel is not fixed).")
+                ),
+            ))
 
     # 4. Conditional rule (http_request): untrusted or secret data only to admin-allowlisted hosts.
     #    Applies to body/headers for non-GET methods, and to the query for non-GET methods or when

@@ -30,7 +30,8 @@ RUN_SCAN_LIMIT = 500
 BLOCK_TYPES = ("tool_call_blocked", "tool_call_rejected")
 # SinkRuleViolationError text: "[node:arg] reason"
 _SINK_VIOLATION = re.compile(r"^\[[^:\]]+:[^\]]+\]")
-_SECURITY_ERROR_TYPES = ("SinkRuleViolationError", "PinnedArgumentOverrideError", "SSRFBlockedError")
+_SECURITY_ERROR_TYPES = ("SinkRuleViolationError", "PinnedArgumentOverrideError", "SSRFBlockedError",
+                         "SinkArgumentRejected")
 _WINDOWS = {"24h": timedelta(hours=24), "7d": timedelta(days=7)}
 
 
@@ -105,6 +106,16 @@ async def _provider_rows(request: Request) -> tuple[List[Dict[str, Any]], bool]:
         })
     rows.sort(key=lambda r: (r["state"] == "disabled", r["order"]))
     return rows, remote_key
+
+
+async def _unacked_alerts(request: Request) -> int:
+    notify = getattr(request.app.state, "notify", None)
+    if notify is None:
+        return 0
+    try:
+        return await notify.unacknowledged_count()
+    except Exception:
+        return 0
 
 
 @router.get("/overview")
@@ -239,6 +250,7 @@ async def get_overview(
             "waiting_approvals": len(waiting),
             "attacks_blocked_today": attacks_today,
             "providers_cooling": sum(1 for p in providers if p["state"] == "cooling"),
+            "unacknowledged_alerts": await _unacked_alerts(request),
         },
         "recent_runs": recent,
         "waiting": waiting[:10],

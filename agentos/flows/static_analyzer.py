@@ -426,7 +426,7 @@ class StaticFlowAnalyzer:
                 effective_inbound_label=effective_inbound,
                 is_pinned=is_pinned,
                 is_approved=is_approved,
-                pinned_to_val=pinned_args.get("to"),
+                pinned_to_val=pinned_args.get(spec.recipient_arg),
                 policy=self.policy,
                 path=current_path,
                 sink_context=sink_context,
@@ -484,8 +484,8 @@ class StaticFlowAnalyzer:
                     else agent_context_label
                 )
                 to_val = (
-                    pinned_args.get(f"{tool_name}.to")
-                    or pinned_args.get("to")
+                    pinned_args.get(f"{tool_name}.{tool_spec.recipient_arg}")
+                    or pinned_args.get(tool_spec.recipient_arg)
                 )
 
                 arg_violations = evaluate_sink_argument_rule(

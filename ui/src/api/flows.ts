@@ -196,7 +196,7 @@ export interface OverviewData {
     waiting_for_approval: number
     model_calls: { total: number; median_latency_ms: number | null; fallbacks: number }
   }
-  needs_you: { waiting_approvals: number; attacks_blocked_today: number; providers_cooling: number }
+  needs_you: { waiting_approvals: number; attacks_blocked_today: number; providers_cooling: number; unacknowledged_alerts?: number }
   recent_runs: {
     run_id: string; flow_id: string; flow_version?: number | null; trigger: string; status: string
     answered_by: { provider?: string; model?: string; fallback: boolean; mock: boolean } | null

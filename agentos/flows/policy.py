@@ -24,6 +24,13 @@ class SecurityPolicy(BaseModel):
         allowed = {d.lower().lstrip("@").strip() for d in self.internal_domains}
         return domain in allowed
 
+    # 3.3: admin-configured Slack notification channels {name: internal}. send_slack may only target these;
+    # untrusted text only goes to a channel the admin marked internal. Synced by the server from the channel store.
+    slack_channels: dict[str, bool] = Field(default_factory=dict)
+
+    def is_internal_slack_channel(self, name: object) -> bool:
+        return isinstance(name, str) and self.slack_channels.get(name) is True
+
     # Admin allowlist for http_request: hostnames, '*.suffix' wildcards or IP/CIDR ranges.
     # Default empty: no internal host is reachable and untrusted data goes nowhere via HTTP.
     http_allowlist: list[str] = Field(default_factory=list)

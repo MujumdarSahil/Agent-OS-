@@ -12,7 +12,7 @@ import asyncio
 import datetime as _dt
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -149,6 +149,8 @@ class Budgets(BaseModel):
 class UsageSettings(BaseModel):
     run_limits: RunLimits = Field(default_factory=RunLimits)
     budgets: Budgets = Field(default_factory=Budgets)
+    # 3.3: admin billing plan per provider ("free" -> $0, source plan_free; "paid" -> ignore the free-tier tag)
+    billing_plans: Dict[str, Literal["free", "paid"]] = Field(default_factory=dict)
 
     def limits_for(self, flow_id: str) -> tuple[int, int]:
         """Effective limits: a per-flow value can only LOWER the global one."""

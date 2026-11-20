@@ -202,6 +202,9 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         rules = sorted({f"{v.node_id}.{v.target_arg}" for v in res.violations})
         await audit(request, "flow.publish", "flow", flow_id, outcome="refused",
                     details={"violated_rules": rules[:50], "violations": len(res.violations)})
+        notify = getattr(request.app.state, "notify", None)  # 3.3: "attack blocked" alert (metadata only)
+        if notify is not None:
+            await notify.on_publish_refused(flow_id, len(res.violations))
         violations_payload = [
             {
                 "node_id": v.node_id,

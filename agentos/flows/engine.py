@@ -28,7 +28,7 @@ from typing import Any
 from agentos.flows.labels import Confidentiality, Label
 from agentos.flows.models import FlowDefinition, NodeDefinition
 from agentos.flows.policy import SecurityPolicy
-from agentos.flows.proxy import AgentOSToolProxy, MockTransport
+from agentos.flows.proxy import AgentOSToolProxy, MockTransport, transport_send
 from agentos.flows.tool_catalog import BUILTIN_CATALOG, ToolCatalog, ToolLookupError, agent_initial_context
 from agentos.flows.rules import (
     RuleViolation,
@@ -244,6 +244,8 @@ class FlowEngine:
             and (
                 (self.flow.nodes.get((e.data or {}).get("sink_node")) and self.flow.nodes[(e.data or {}).get("sink_node")].type == "agent")
                 or bool((e.data or {}).get("tool_name"))
+                # 3.3: a direct sink whose transport is a real channel (SMTP, Slack) may already have sent
+                or self._sink_not_retry_safe((e.data or {}).get("sink_node"))
             )
             and (e.data or {}).get("idempotency_key") not in committed_keys
         ]
@@ -285,6 +287,13 @@ class FlowEngine:
                 del state.node_states[nid]
 
         return await self._execution_loop(state, raise_on_error=raise_on_error)
+
+    def _sink_not_retry_safe(self, node_id: Any) -> bool:
+        node = self.flow.nodes.get(node_id) if isinstance(node_id, str) else None
+        if node is None:
+            return False
+        transport = self.transport_registry.get(node.type)
+        return transport is not None and not getattr(transport, "retry_safe", True)
 
     async def approve(self, run_id: str, node_id: str, decision: Any) -> FlowRunState:
         """Deliver operator approval decision and resume flow execution.
@@ -1101,7 +1110,7 @@ class FlowEngine:
                                 is_approved = True
                                 break
 
-                to_val = inputs.get("to")
+                to_val = inputs.get(spec.recipient_arg)
                 violations = evaluate_sink_argument_rule(
                     node_id=node_id,
                     spec=spec,
@@ -1126,10 +1135,14 @@ class FlowEngine:
             else:
                 idempotency_key = f"{state.run_id}:{node_id}:{state.last_seq + 1}"
 
+            transport = self.transport_registry.get(node.type) or MockTransport()
             if idempotency_key in state.committed_sinks:
                 # Deduplicate on replay
                 transport_result = {"status": "deduplicated", "idempotency_key": idempotency_key}
             else:
+                # 3.3: a real channel checks its arguments (header injection, sizes, From) BEFORE the intent
+                if node_id not in state.pending_sink_intents and hasattr(transport, "avalidate"):
+                    await transport.avalidate(inputs)
                 if node_id not in state.pending_sink_intents:
                     intent_ev = await self._append_event(
                         run_id=state.run_id,
@@ -1144,8 +1157,7 @@ class FlowEngine:
 
                 # Requirement 1: Fencing check before transport invocation
                 self._check_fencing(state.run_id)
-                transport = self.transport_registry.get(node.type) or MockTransport()
-                transport_result = transport.send(idempotency_key=idempotency_key, **inputs)
+                transport_result = await transport_send(transport, idempotency_key, inputs)
 
                 commit_ev = await self._append_event(
                     run_id=state.run_id,

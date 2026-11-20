@@ -98,6 +98,32 @@ def load_http_allowlist(project_path: str) -> list[str]:
     return sorted({e.strip().lower() for e in entries if e.strip()})
 
 
+def load_notifications_config(project_path: str) -> dict[str, Any]:
+    """3.3: ``notifications`` in agentos.config.yaml (admin): ``smtp_allowlist`` (hosts / CIDRs an SMTP relay may
+    resolve to inside blocked ranges) and ``ui_base_url`` (links in alerts). Defaults: empty, http://127.0.0.1:8000."""
+    cfg_path = os.path.join(project_path, "agentos.config.yaml")
+    out: dict[str, Any] = {"smtp_allowlist": [], "ui_base_url": "http://127.0.0.1:8000"}
+    if not os.path.isfile(cfg_path):
+        return out
+    import yaml
+
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    sec = (cfg.get("notifications") if isinstance(cfg, dict) else None) or {}
+    if not isinstance(sec, dict):
+        raise ValueError("agentos.config.yaml: notifications must be a mapping")
+    allow = sec.get("smtp_allowlist") or []
+    if not isinstance(allow, list) or not all(isinstance(e, str) for e in allow):
+        raise ValueError("agentos.config.yaml: notifications.smtp_allowlist must be a list of host/CIDR strings")
+    out["smtp_allowlist"] = sorted({e.strip().lower() for e in allow if e.strip()})
+    base = sec.get("ui_base_url")
+    if base is not None:
+        if not isinstance(base, str) or not base.startswith(("http://", "https://")) or any(c in base for c in " \r\n"):
+            raise ValueError("agentos.config.yaml: notifications.ui_base_url must be an http(s) URL")
+        out["ui_base_url"] = base.rstrip("/")
+    return out
+
+
 def _security_section(project_path: str) -> dict[str, Any]:
     cfg_path = os.path.join(project_path, "agentos.config.yaml")
     if not os.path.isfile(cfg_path):
@@ -229,6 +255,10 @@ def create_app(
                 app.state.audit.anchor = audit_anchor_for(app.state.storage)
                 from agentos.usage import usage_stores_for
                 app.state.usage.ledger, app.state.usage.settings = usage_stores_for(app.state.storage)
+                from agentos.notify.store import notify_store_for
+                app.state.notify.store = notify_store_for(app.state.storage)
+                app.state.notify.storage = app.state.storage
+                app.state.notify.vault = app.state.vault
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
                 # Use Mongo server-time leader lock in Platform mode
@@ -294,6 +324,33 @@ def create_app(
             except Exception as e:
                 logger.warning("Could not load provider keys from the vault: %s", type(e).__name__)
 
+        # 3.3: billing plans are cached on the usage context (price() is synchronous)
+        try:
+            await app.state.usage.get_settings()
+        except Exception as e:
+            logger.warning("Could not load usage settings: %s", type(e).__name__)
+
+        # 3.3: notifications. Default alert rules (no channel), Slack channel names into the policy, outbox
+        # recovery (an entry left "sending" is never resent), approval timers, the event observer, the worker.
+        from agentos.notify.service import NotifyWorker, ObservedEvents
+        notify = app.state.notify
+        app.state.notify_worker = None
+        try:
+            await notify.ensure_default_rules()
+            await notify.sync_policy()
+            await notify.recover()
+            await notify.reschedule_waiting()
+            if not isinstance(app.state.storage.events, ObservedEvents):
+                app.state.storage.events = ObservedEvents(app.state.storage.events, notify.on_event)
+            app.state.notify_worker = NotifyWorker(notify)
+            app.state.notify_worker.start()
+        except Exception as e:
+            logger.error("Notifications could not start: %s", type(e).__name__)
+        try:
+            await notify.on_audit_verify(await app.state.audit.verify())
+        except Exception as e:
+            logger.warning("Startup audit verification failed: %s", type(e).__name__)
+
         # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
         from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
         app.state.inprocess_worker = None
@@ -317,6 +374,10 @@ def create_app(
         if getattr(app.state, "inprocess_worker", None) is not None:
             await app.state.inprocess_worker.stop()
             app.state.inprocess_worker = None
+        # 3.3: stop the notification worker (pending outbox entries are delivered after the next start)
+        if getattr(app.state, "notify_worker", None) is not None:
+            await app.state.notify_worker.stop()
+            app.state.notify_worker = None
         # 2.5a: stop every MCP server child process (no orphans)
         if getattr(app.state, "mcp_manager", None) is not None:
             try:
@@ -446,6 +507,18 @@ def create_app(
     from agentos.usage import UsageContext, usage_stores_for
     _ledger, _usage_settings = usage_stores_for(app.state.storage)
     app.state.usage = UsageContext(_ledger, _usage_settings, load_price_overrides(project_path))
+
+    # 3.3: notification channels, alerts and the flow transports for send_email / send_slack. A test (or an
+    # embedding app) that sets app.state.transport_registry after create_app keeps its own.
+    from agentos.notify.service import ChannelEmailTransport, ChannelSlackTransport, NotifyService
+    from agentos.notify.store import notify_store_for
+    _ncfg = load_notifications_config(project_path)
+    app.state.notify = NotifyService(
+        notify_store_for(app.state.storage), app.state.vault, storage=app.state.storage,
+        smtp_allowlist=_ncfg["smtp_allowlist"], ui_base_url=_ncfg["ui_base_url"], policy=app.state.security_policy,
+    )
+    app.state.transport_registry = {"send_email": ChannelEmailTransport(app.state.notify),
+                                    "send_slack": ChannelSlackTransport(app.state.notify)}
 
     # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
     # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.

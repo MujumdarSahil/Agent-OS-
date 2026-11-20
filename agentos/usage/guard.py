@@ -35,6 +35,8 @@ class UsageContext:
         self.ledger = ledger
         self.settings = settings
         self.price_overrides = price_overrides or {}
+        # 3.3: billing plans cached here (refreshed on every settings read/write) so price() needs no I/O
+        self.billing_plans: dict[str, str] = {}
 
     @classmethod
     def default(cls) -> "UsageContext":
@@ -42,10 +44,17 @@ class UsageContext:
         return cls()
 
     async def get_settings(self) -> UsageSettings:
-        return await self.settings.get() if self.settings is not None else UsageSettings()
+        s = await self.settings.get() if self.settings is not None else UsageSettings()
+        self.billing_plans = dict(s.billing_plans)
+        return s
+
+    async def put_settings(self, settings: UsageSettings) -> None:
+        await self.settings.put(settings)
+        self.billing_plans = dict(settings.billing_plans)
 
     def price(self, provider: Optional[str], model: Optional[str], local: bool = False) -> Price:
-        return price_for(provider, model, self.price_overrides, local=local)
+        return price_for(provider, model, self.price_overrides, local=local,
+                         plan=self.billing_plans.get(provider or ""))
 
     async def spend(self, *, month: bool, flow_id: Optional[str] = None, provider: Optional[str] = None,
                     day: Optional[str] = None) -> float:
