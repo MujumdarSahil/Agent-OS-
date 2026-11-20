@@ -21,7 +21,10 @@ def client_factory(tmp_path, monkeypatch):
 
     def make(reachable: bool, calls: list):
         import agentos.llm.router_factory as rf
+        import agentos_server.routes_v2.overview as ov
         from agentos_server.app import create_app
+
+        monkeypatch.setattr(ov, "_ollama_cache", None)  # each test does its own real (patched) check
 
         def probe(timeout: float = 1.0) -> bool:
             calls.append(timeout)

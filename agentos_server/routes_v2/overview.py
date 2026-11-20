@@ -75,18 +75,27 @@ def _storage_mode(request: Request) -> str:
 
 
 OLLAMA_CHECK_TIMEOUT_S = 1.5
+OLLAMA_CHECK_TTL_S = 30.0  # a real check, reused for 30 s so every Overview load does not wait up to 1.5 s
+_ollama_cache: tuple[float, bool] | None = None
 
 
 async def _ollama_reachable() -> bool:
-    """GET <OLLAMA_BASE_URL>/api/tags with a short timeout (in a thread: requests is blocking)."""
+    """GET <OLLAMA_BASE_URL>/api/tags with a short timeout (in a thread: requests is blocking); cached 30 s."""
     import asyncio
+    import time
 
     from agentos.llm.router_factory import check_ollama_reachable
 
+    global _ollama_cache
+    now = time.monotonic()
+    if _ollama_cache is not None and now - _ollama_cache[0] < OLLAMA_CHECK_TTL_S:
+        return _ollama_cache[1]
     try:
-        return await asyncio.to_thread(check_ollama_reachable, OLLAMA_CHECK_TIMEOUT_S)
+        up = await asyncio.to_thread(check_ollama_reachable, OLLAMA_CHECK_TIMEOUT_S)
     except Exception:
-        return False
+        up = False
+    _ollama_cache = (time.monotonic(), up)
+    return up
 
 
 async def _provider_rows(request: Request) -> tuple[List[Dict[str, Any]], bool]:
