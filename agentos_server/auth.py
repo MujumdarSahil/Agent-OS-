@@ -20,6 +20,13 @@ import warnings
 
 from fastapi import Request
 
+from agentos.access.permissions import allows
+from agentos_server.access_mw import (
+    LEGACY, LOCAL_HOSTS, UNSAFE_METHODS, bearer_token, capability, csrf_ok, origin_host, principal_from_session,
+    principal_from_token, route_template, session_cookie,
+)
+from agentos_server.permissions_table import PERMISSIONS, permission_for
+
 logger = logging.getLogger(__name__)
 
 _PRINTED_STARTUP_BANNER = False
@@ -215,34 +222,36 @@ class SecurityMiddleware:
             await send({"type": "http.response.body", "body": body})
             return
 
-        # 2. /api/health is always unauthenticated, and non-/api static/UI routes
-        if path == "/api/health" or not path.startswith("/api"):
+        # 2. Non-/api paths (UI, /hooks/* with their own HMAC) are not handled here
+        if not path.startswith("/api"):
             await self.app(scope, receive, send)
             return
 
-        # 3. Token validation
-        token = None
-        auth_header = headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if not token:
-            x_token = headers.get("x-agentos-token")
-            if x_token:
-                token = x_token.strip()
-
+        # 3. 3.4 access: route capability (deny by default) -> principal -> CSRF -> role check
         app_obj = scope.get("app")
-        expected_token = (
-            self.api_token
-            or (getattr(app_obj.state, "api_token", None) if hasattr(app_obj, "state") else None)
-            or get_or_create_api_token()
-        )
-
-        if token and verify_api_token(token, expected_token):
+        state = getattr(app_obj, "state", None)
+        method = scope.get("method", "GET")
+        template = route_template(app_obj, scope)
+        if template is None:  # no route at all: the app answers 404
             await self.app(scope, receive, send)
             return
+        cap = permission_for(method, template)
+        if cap is None and any(k[1] == template for k in PERMISSIONS):
+            await self.app(scope, receive, send)  # declared route, other method: the app answers 405
+            return
 
-        # 4. v1 compatibility flag
-        if not path.startswith("/api/v2") and os.environ.get("AGENTOS_V1_NO_AUTH") == "1":
+        expected_token = (getattr(state, "api_token", None) if state is not None else None) or self.api_token \
+            or get_or_create_api_token()
+        principal = None
+        token = bearer_token(headers)
+        if token:
+            principal = await principal_from_token(state, token, expected_token)
+        else:
+            principal = await principal_from_session(state, session_cookie(headers))
+
+        # v1 compatibility flag (deprecated): unauthenticated v1 routes act as the local admin
+        if principal is None and not token and not path.startswith("/api/v2") \
+                and os.environ.get("AGENTOS_V1_NO_AUTH") == "1":
             global _EMITTED_V1_NO_AUTH_WARNING
             if not _EMITTED_V1_NO_AUTH_WARNING:
                 warnings.warn(
@@ -251,20 +260,34 @@ class SecurityMiddleware:
                     stacklevel=2,
                 )
                 _EMITTED_V1_NO_AUTH_WARNING = True
+            principal = LEGACY
+
+        if cap == "public":
+            host = origin_host(headers)
+            if method in UNSAFE_METHODS and host is not None and host not in LOCAL_HOSTS:
+                await _json(send, 403, b'{"detail":"Cross-site request refused"}')
+                return
+            scope.setdefault("state", {})["principal"] = principal
             await self.app(scope, receive, send)
             return
 
-        await _note_auth_failure(app_obj, "ui" if headers.get("x-agentos-client", "").lower() == "ui" else "api")
-        body = b'{"detail":"Unauthorized: valid local API token required"}'
-        await send({
-            "type": "http.response.start",
-            "status": 401,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode("ascii")),
-            ],
-        })
-        await send({"type": "http.response.body", "body": body})
+        if principal is None:
+            if token or session_cookie(headers):
+                await _note_auth_failure(app_obj, "ui" if headers.get("x-agentos-client", "").lower() == "ui" else "api")
+            await _json(send, 401, b'{"detail":"Unauthorized: log in, or send a valid API token"}')
+            return
+        if cap is None:
+            await _json(send, 403, b'{"detail":"Forbidden: this route declares no permission (deny by default)"}')
+            return
+        if principal.kind == "session" and method in UNSAFE_METHODS and not csrf_ok(state, principal, headers):
+            await _json(send, 403, b'{"detail":"Forbidden: CSRF check failed (Origin and X-AgentOS-CSRF required)"}')
+            return
+        if not allows(principal.role, cap):
+            detail = f'{{"detail":"Forbidden: requires the {cap} permission (your role: {principal.role})"}}'
+            await _json(send, 403, detail.encode("utf-8"))
+            return
+        scope.setdefault("state", {})["principal"] = principal
+        await self.app(scope, receive, send)
 
     async def _handle_websocket(self, scope, receive, send):
         raw_headers = scope.get("headers", [])
@@ -282,27 +305,31 @@ class SecurityMiddleware:
             await self._reject_ws(receive, send, code=4401)
             return
 
-        # 3. Sec-WebSocket-Protocol token validation
+        # 3. Principal: subprotocol "agentos.token.<legacy token or PAT>", else the session cookie
+        app_obj = scope.get("app")
+        state = getattr(app_obj, "state", None)
         protocols = headers.get("sec-websocket-protocol", "")
         subprotocols = [p.strip() for p in protocols.split(",") if p.strip()]
         token_subprotocol = next((p for p in subprotocols if p.startswith("agentos.token.")), None)
-        if not token_subprotocol:
-            await self._reject_ws(receive, send, code=4401)
-            return
-
-        provided_token = token_subprotocol[len("agentos.token."):].strip()
-        app_obj = scope.get("app")
-        expected_token = (
-            self.api_token
-            or (getattr(app_obj.state, "api_token", None) if hasattr(app_obj, "state") else None)
+        expected_token = (getattr(state, "api_token", None) if state is not None else None) or self.api_token \
             or get_or_create_api_token()
-        )
-
-        if not verify_api_token(provided_token, expected_token):
-            await _note_auth_failure(app_obj, "ui")
+        if token_subprotocol:
+            principal = await principal_from_token(state, token_subprotocol[len("agentos.token."):].strip(),
+                                                   expected_token)
+        else:
+            principal = await principal_from_session(state, session_cookie(headers))
+        if principal is None:
+            if token_subprotocol:
+                await _note_auth_failure(app_obj, "ui")
             await self._reject_ws(receive, send, code=4401)
             return
 
+        # 4. Capability of the WebSocket route (deny by default)
+        cap = capability(app_obj, scope)
+        if cap is None or not allows(principal.role, cap):
+            await self._reject_ws(receive, send, code=4403)
+            return
+        scope.setdefault("state", {})["principal"] = principal
         await self.app(scope, receive, send)
 
     @staticmethod
@@ -310,6 +337,15 @@ class SecurityMiddleware:
         event = await receive()
         if event["type"] == "websocket.connect":
             await send({"type": "websocket.close", "code": code})
+
+
+async def _json(send, status: int, body: bytes) -> None:
+    await send({
+        "type": "http.response.start",
+        "status": status,
+        "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode("ascii"))],
+    })
+    await send({"type": "http.response.body", "body": body})
 
 
 async def _note_auth_failure(app_obj, source: str) -> None:
@@ -343,14 +379,18 @@ def get_ui_port(server_port: int = 8000) -> int:
 
 
 def print_startup_auth_banner(token: str, server_port: int = 8000) -> None:
-    """Print the one-time access link with token fragment on startup."""
+    """3.4: print where to log in. The token value is never printed (rule 6); scripts read it from its file."""
     global _PRINTED_STARTUP_BANNER
     if _PRINTED_STARTUP_BANNER:
         return
     _PRINTED_STARTUP_BANNER = True
     port = get_ui_port(server_port)
+    source = "the AGENTOS_API_TOKEN environment variable" if os.environ.get("AGENTOS_API_TOKEN") \
+        else str(default_token_path())
     print("\n" + "=" * 60)
     print("AgentOS Local Server Ready")
-    print(f"One-Time UI Access Link: http://localhost:{port}/#token={token}")
-    print(f"Direct API Access: Authorization: Bearer {token}")
+    print(f"Open http://localhost:{port}/ and log in.")
+    print("First start (no users yet): the setup page asks for the local API token to create the first admin")
+    print("(or run: agentos users create-admin).")
+    print(f"Local API token for scripts (legacy, admin): {source}")
     print("=" * 60 + "\n")

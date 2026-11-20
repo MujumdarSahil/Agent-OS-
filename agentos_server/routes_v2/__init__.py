@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from agentos_server.routes_v2.access import router as access_router
 from agentos_server.routes_v2.agents import router as agents_router
 from agentos_server.routes_v2.audit import router as audit_router
 from agentos_server.routes_v2.flows import router as flows_router
@@ -37,3 +38,4 @@ router.include_router(overview_router)
 router.include_router(audit_router)
 router.include_router(usage_router)
 router.include_router(notify_router)
+router.include_router(access_router)  # 3.4: auth, users, API tokens, legacy token

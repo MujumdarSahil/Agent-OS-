@@ -197,6 +197,8 @@ class RunRecord(BaseModel):
     # 2.4d: what started the run ("manual" | "webhook" | "cron" | "subflow"); display metadata only,
     # never used for labels (labels come from the run_started event). None on records from before 2.4d.
     trigger: Optional[str] = None
+    # 3.4: who started the run ({"user_id", "username"}; None for triggers and runs from before 3.4)
+    started_by: Optional[Dict[str, Any]] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 

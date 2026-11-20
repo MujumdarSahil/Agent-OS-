@@ -155,10 +155,11 @@ class AccessService:
         return any(u["role"] == "admin" and not u.get("disabled") and u["id"] != excluding
                    for u in await self.store.users.list())
 
-    async def create_user(self, username: Any, display_name: Any, role: Any, password: Any) -> dict[str, Any]:
+    @staticmethod
+    def validate_new_user(username: Any, display_name: Any, role: Any, password: Any) -> tuple[str, str]:
+        """Checks a new user without side effects; returns (username, display name)."""
         uname = _clean_text(username, "Username", 64)
-        lower = uname.lower()
-        if not USERNAME_RE.fullmatch(lower):
+        if not USERNAME_RE.fullmatch(uname.lower()):
             raise AccessError("Username must be 3-64 characters: letters, digits, '.', '_' or '-'")
         if role not in ROLES:
             raise AccessError(f"Role must be one of: {', '.join(ROLES)}")
@@ -167,6 +168,23 @@ class AccessService:
             pw.check_password_rules(password, uname)
         except pw.PasswordRuleError as e:
             raise AccessError(str(e)) from None
+        return uname, dname
+
+    @staticmethod
+    def validate_token_request(name: Any, days: Any) -> None:
+        _clean_text(name, "Token name", 64)
+        if not isinstance(days, int) or isinstance(days, bool) or not (1 <= days <= TOKEN_MAX_DAYS):
+            raise AccessError(f"Expiry must be 1-{TOKEN_MAX_DAYS} days")
+
+    async def verify_user_password(self, user_id: str, password: Any) -> bool:
+        u = await self.get_user(user_id)
+        if u is None or not isinstance(password, str) or len(password) > pw.MAX_LENGTH:
+            return False
+        return await self._verify(password, u["password_hash"])
+
+    async def create_user(self, username: Any, display_name: Any, role: Any, password: Any) -> dict[str, Any]:
+        uname, dname = self.validate_new_user(username, display_name, role, password)
+        lower = uname.lower()
         password_hash = await self._hash(password)
         uid = uuid.uuid4().hex
         if not await self.store.usernames.insert_if_absent({"id": lower, "user_id": uid}):
@@ -179,8 +197,9 @@ class AccessService:
         return self.public_user(doc)
 
     async def update_user(self, user_id: str, *, display_name: Any = None, role: Any = None,
-                          disabled: Any = None) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Returns (before, after) public views. Refuses to remove the last enabled admin."""
+                          disabled: Any = None, dry_run: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Returns (before, after) public views. Refuses to remove the last enabled admin. ``dry_run``: all checks,
+        nothing saved (the route audits between the check and the change)."""
         u = await self.get_user(user_id)
         if u is None:
             raise NotFound("User not found")
@@ -200,6 +219,8 @@ class AccessService:
         if was_admin and not still_admin and not await self.has_enabled_admin(excluding=user_id):
             raise Conflict("At least one enabled admin is required")
         new["updated_ts"] = self._clock()
+        if dry_run:
+            return self.public_user(u), self.public_user(new)
         await self.store.users.put(new)
         if new.get("disabled") and not u.get("disabled"):
             await self.revoke_user_sessions(user_id)
@@ -301,9 +322,8 @@ class AccessService:
 
     async def create_token(self, user_id: str, name: Any, days: Any = TOKEN_DEFAULT_DAYS) -> tuple[str, dict[str, Any]]:
         """Returns (the token, shown once; its public view)."""
+        self.validate_token_request(name, days)
         tname = _clean_text(name, "Token name", 64)
-        if not isinstance(days, int) or isinstance(days, bool) or not (1 <= days <= TOKEN_MAX_DAYS):
-            raise AccessError(f"Expiry must be 1-{TOKEN_MAX_DAYS} days")
         u = await self.get_user(user_id)
         if u is None or u.get("disabled"):
             raise NotFound("User not found")

@@ -7,8 +7,9 @@ main.py — AgentOS one-command launcher (2.4c).
 
 Default (single port): the backend serves the built UI from ui/dist. If ui/dist is missing and npm is
 available it is built once; otherwise the exact commands to run are printed. The in-process flow
-worker is on by default (--no-worker to disable). The browser opens on the login link
-(http://localhost:<port>/#token=...), which is also printed once. Ctrl+C stops every child process.
+worker is on by default (--no-worker to disable). The browser opens on the login page
+(http://localhost:<port>/; on the first start, the setup page creates the first admin with the local API
+token). Ctrl+C stops every child process.
 """
 
 from __future__ import annotations
@@ -154,7 +155,8 @@ def main(argv=None) -> int:
 
     from agentos_server.auth import get_or_create_api_token
 
-    token = get_or_create_api_token()  # same token file the server uses; read before starting children
+    # create the local API token file before starting children (scripts and the first-run setup page use it)
+    get_or_create_api_token()
 
     try:
         backend = [sys.executable, "-m", "uvicorn", "agentos_server.app:create_app", "--factory",
@@ -170,7 +172,7 @@ def main(argv=None) -> int:
             print("ERROR: the backend did not start; see the output above.", file=sys.stderr)
             return 1
 
-        url = f"http://localhost:{ui_port}/#token={token}"
+        url = f"http://localhost:{ui_port}/"  # 3.4: login page (first start: setup page); never the token in a URL
         print("\nAgentOS is running.")
         print(f"  Project: {project}")
         print(f"  Worker:  {'off (--no-worker)' if args.no_worker else 'on (in-process)'}")

@@ -27,15 +27,22 @@ def source_of(request: Request) -> str:
     return "ui" if request.headers.get(UI_CLIENT_HEADER, "").lower() == "ui" else "api"
 
 
+def actor_of(request: Request) -> str:
+    """3.4: the audit actor is the caller: a username, ``token:<name>@<username>``, or ``legacy-local-token``."""
+    principal = getattr(request.state, "principal", None)
+    return principal.actor if principal is not None else "anonymous"
+
+
 async def audit(request: Request, action: str, target_type: str, target_id: str, *, outcome: str = "ok",
-                details: dict[str, Any] | None = None, source: str | None = None) -> dict[str, Any]:
+                details: dict[str, Any] | None = None, source: str | None = None,
+                actor: str | None = None) -> dict[str, Any]:
     """Write the audit entry or raise 503 (fail closed: the caller must not apply the action)."""
     log = getattr(request.app.state, "audit", None)
     if log is None:
         raise HTTPException(status_code=503, detail=AUDIT_503)
     try:
         return await log.record(action, target_type, target_id, outcome=outcome, details=details,
-                                actor="local-admin", source=source or source_of(request))
+                                actor=actor or actor_of(request), source=source or source_of(request))
     except AuditUnavailable as e:
         logger.error("audit write failed for %s: %s", action, e)
         raise HTTPException(status_code=503, detail=AUDIT_503) from None
@@ -81,7 +88,13 @@ class AuthFailureAggregator:
         import datetime as _dt
 
         start = _dt.datetime.fromtimestamp(minute * 60, tz=_dt.timezone.utc).isoformat()
-        await audit_best_effort(app, "auth.failure", "api", "local-token", outcome="refused",
+        # 3.4: failed password logins (keys "login-ui" / "login-api") are their own action; no username is recorded
+        # (no enumeration through the log). The audit source stays ui / api.
+        if source.startswith("login-"):
+            action, target, source = "auth.login_failed", "login", source[len("login-"):]
+        else:
+            action, target = "auth.failure", "local-token"
+        await audit_best_effort(app, action, "api", target, outcome="refused",
                                 details={"count": count, "window_start": start, "window_s": 60}, source=source)
 
 

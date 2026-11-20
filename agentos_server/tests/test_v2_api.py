@@ -793,5 +793,6 @@ def test_startup_banner_port_selection(monkeypatch, capsys):
     auth_mod._PRINTED_STARTUP_BANNER = False
     print_startup_auth_banner("sample_token_123", server_port=8080)
     captured = capsys.readouterr().out
-    assert "http://localhost:5173/#token=sample_token_123" in captured
+    # 3.4: the banner points at the login page and never prints the token (rule 6)
+    assert "http://localhost:5173/" in captured and "sample_token_123" not in captured
 

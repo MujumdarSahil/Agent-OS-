@@ -177,6 +177,8 @@ class FlowEngine:
             flow_version=existing.flow_version if existing else None,
             # 2.4d: keep what started the run (set by the route/webhook/scheduler that created it)
             trigger=(existing.trigger if existing and existing.trigger else trigger),
+            # 3.4: who started it ({user_id, username}, set by the route that created the run)
+            started_by=existing.started_by if existing else None,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )
@@ -190,6 +192,7 @@ class FlowEngine:
                 "entrypoint": self.flow.entrypoint,
                 "inputs": inputs,
                 "trigger": trigger,
+                **({"started_by": existing.started_by} if existing and existing.started_by else {}),
                 **({"input_labels": input_labels} if trigger == "subflow" and input_labels else {}),
             },
         )
@@ -300,8 +303,11 @@ class FlowEngine:
         transport = self.transport_registry.get(node.type)
         return transport is not None and not getattr(transport, "retry_safe", True)
 
-    async def approve(self, run_id: str, node_id: str, decision: Any) -> FlowRunState:
+    async def approve(self, run_id: str, node_id: str, decision: Any,
+                      actor: dict[str, Any] | None = None) -> FlowRunState:
         """Deliver operator approval decision and resume flow execution.
+
+        3.4: ``actor`` ({user_id, username}) is recorded as ``decided_by`` on the approval_decision event.
 
         Requirement 6:
         - Only for runs in waiting at the named approval node.
@@ -342,6 +348,7 @@ class FlowEngine:
                 "decision": is_approved,
                 "raw_decision": decision,
                 "arguments": shown_args,
+                **({"decided_by": actor} if actor else {}),
             },
         )
         state.apply_event(ev)

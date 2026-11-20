@@ -172,6 +172,15 @@ def load_allow_declassified_for_destructive(project_path: str) -> bool:
     return False
 
 
+def load_separation_of_duties(project_path: str) -> bool:
+    """3.4 admin flag ``security.separation_of_duties`` (default False): whoever published a flow version may not
+    approve or reject runs of it."""
+    val = _security_section(project_path).get("separation_of_duties", False)
+    if not isinstance(val, bool):
+        raise ValueError("agentos.config.yaml: security.separation_of_duties must be true or false")
+    return val
+
+
 # Deprecated 2.5b draft name of the loader.
 load_allow_extraction_for_destructive = load_allow_declassified_for_destructive
 
@@ -244,6 +253,8 @@ def create_app(
                 app.state.audit.anchor = audit_anchor_for(app.state.storage)
                 from agentos.usage import usage_stores_for
                 app.state.usage.ledger, app.state.usage.settings = usage_stores_for(app.state.storage)
+                from agentos.access import access_store_for
+                app.state.access.store = access_store_for(app.state.storage)
                 from agentos.notify.store import notify_store_for
                 app.state.notify.store = notify_store_for(app.state.storage)
                 app.state.notify.storage = app.state.storage
@@ -347,7 +358,11 @@ def create_app(
             app.state.inprocess_worker = InProcessFlowWorker(app)
             app.state.inprocess_worker.start()
 
-        # Print one-time token access link with actual served UI port
+        # 3.4: compute the dummy password hash for unknown-user logins in the background (equal login timing)
+        import asyncio as _aio
+        app.state.access_warm_task = _aio.create_task(app.state.access.warm())
+
+        # Print where to log in (never the token itself)
         server_port = int(os.environ.get("AGENTOS_PORT", 8000))
         print_startup_auth_banner(app.state.api_token, server_port=server_port)
 
@@ -491,6 +506,17 @@ def create_app(
     app.state.audit = AuditLog(audit_store_for(app.state.storage), master_key.key,
                                anchor=audit_anchor_for(app.state.storage))
     app.state.auth_failures = AuthFailureAggregator()
+
+    # 3.4: users, sessions and API tokens (store follows the storage backend; rebound if Mongo replaces it).
+    # The CSRF key is derived from the master key inside AccessService (never stored or returned).
+    import asyncio as _asyncio
+
+    from agentos.access import AccessService, access_store_for
+    from agentos.access.ratelimit import LoginLimiter
+    app.state.access = AccessService(access_store_for(app.state.storage), master_key.key)
+    app.state.login_limiter = LoginLimiter()
+    app.state.access_setup_lock = _asyncio.Lock()
+    app.state.separation_of_duties = load_separation_of_duties(project_path)
 
     # 3.2: usage ledger, budgets and run limits (admin settings) + admin price overrides
     from agentos.usage import UsageContext, usage_stores_for

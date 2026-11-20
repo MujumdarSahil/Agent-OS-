@@ -57,6 +57,15 @@ V1_API_ROUTES = sorted([
 
 # v2 /api/v2 route table for core resource management (1.4) and flows (2.1).
 V2_API_ROUTES = sorted([
+    # 3.4: access (auth, users, API tokens, legacy token)
+    ("/api/v2/auth/status", "GET"), ("/api/v2/auth/setup", "POST"), ("/api/v2/auth/login", "POST"),
+    ("/api/v2/auth/logout", "POST"), ("/api/v2/auth/me", "GET"), ("/api/v2/auth/password", "POST"),
+    ("/api/v2/auth/tokens", "GET"), ("/api/v2/auth/tokens", "POST"), ("/api/v2/auth/tokens/{token_id}", "DELETE"),
+    ("/api/v2/users", "GET"), ("/api/v2/users", "POST"), ("/api/v2/users/{user_id}", "PUT"),
+    ("/api/v2/users/{user_id}/password", "POST"), ("/api/v2/users/{user_id}/tokens", "GET"),
+    ("/api/v2/users/{user_id}/tokens/{token_id}", "DELETE"),
+    ("/api/v2/access/legacy-token", "GET"), ("/api/v2/access/legacy-token", "PUT"),
+    ("/api/v2/access/legacy-token/rotate", "POST"),
     ("/api/v2/agents", "GET"),
     ("/api/v2/agents", "POST"),
     ("/api/v2/agents/tool-options", "GET"),  # 3.1: tools the agent picker may offer

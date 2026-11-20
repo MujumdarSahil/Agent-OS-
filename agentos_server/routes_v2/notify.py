@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from agentos.notify.channels import ChannelError, EmailChannel, SlackChannel, check_slack_webhook_url, parse_channel
 from agentos.notify.service import RULE_TYPES, AlertRule
-from agentos_server.audit_support import audit, audit_best_effort
+from agentos_server.audit_support import actor_of, audit, audit_best_effort, source_of
 
 router = APIRouter(tags=["v2-notify"])
 _SECRET_FIELDS = ("password", "webhook_url")
@@ -128,7 +128,7 @@ async def test_channel(name: str, request: Request) -> Dict[str, Any]:
     await audit_best_effort(request.app, "notify.channel.test_result", "notify_channel", name,
                             outcome="ok" if result["ok"] else "failed",
                             details={"error": result.get("error")} if not result["ok"] else {},
-                            actor="local-admin", source="api")
+                            actor=actor_of(request), source=source_of(request))
     return result
 
 

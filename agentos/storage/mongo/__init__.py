@@ -190,7 +190,8 @@ class MongoFlowRepository:
         return res
 
     async def publish(
-        self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None
+        self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None,
+        published_by: Optional[str] = None,
     ) -> FlowRecord:
         draft = await self.get_draft(flow_id)
         if draft is None:
@@ -217,6 +218,7 @@ class MongoFlowRepository:
             content_sha256=content_sha256,
             policy_hash=policy_hash,
             analysis=analysis,
+            published_by=published_by,
             created_at=draft.created_at,
             updated_at=utcnow(),
             published_at=utcnow(),
