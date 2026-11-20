@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiErrorMessage, archiveFlow, listFlows, listVersions } from '../api/flows'
+import { apiErrorMessage, archiveFlow, flowStatusLabel, listFlows, listVersions } from '../api/flows'
 
 export default function Flows() {
   const qc = useQueryClient()
@@ -83,8 +83,8 @@ export default function Flows() {
                   key={f.id}
                   id={f.id}
                   name={f.name}
-                  status={f.status}
-                  version={f.version}
+                  status={flowStatusLabel(f)}
+                  version={f.published_version ?? f.version}
                   showVersions={openVersions === f.id}
                   onToggleVersions={() => setOpenVersions(v => (v === f.id ? null : f.id))}
                   onArchive={() => archiveMut.mutate(f.id)}

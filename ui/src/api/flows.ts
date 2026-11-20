@@ -67,6 +67,18 @@ export interface FlowRecord {
   edges: FlowEdgeDef[]
   loops: Record<string, LoopDef>
   content_sha256?: string | null
+  published_by?: string | null
+  /** 3.4: computed by the server on read: latest published version, and whether the draft differs from it */
+  published_version?: number | null
+  unpublished_changes?: boolean | null
+}
+
+/** "published v3" when the latest version matches the draft, "draft" when there are unpublished changes. */
+export function flowStatusLabel(f: Pick<FlowRecord, 'status' | 'published_version' | 'unpublished_changes'>): string {
+  if (f.status === 'archived') return 'archived'
+  if (f.published_version && !f.unpublished_changes) return `published v${f.published_version}`
+  if (f.published_version) return `draft (published v${f.published_version})`
+  return 'draft'
 }
 
 /** Stable publish-refusal item (see test_v2_node_specs.py). */
@@ -181,7 +193,7 @@ export const listSchedules = () => api.get<ScheduleInfo[]>('/v2/schedules').then
 // ---- overview (2.4e) ------------------------------------------------------
 
 export type OverviewWindow = '24h' | '7d'
-export type ProviderHealth = 'healthy' | 'cooling' | 'disabled' | 'no_key'
+export type ProviderHealth = 'healthy' | 'cooling' | 'disabled' | 'no_key' | 'not_running'
 
 export interface OverviewData {
   window: OverviewWindow

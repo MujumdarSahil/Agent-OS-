@@ -22,7 +22,7 @@ from agentos.flows.state import RunStatus
 from agentos.flows.static_analyzer import StaticFlowAnalyzer
 from agentos.storage.models import EventRecord, FlowRecord, RunRecord
 from agentos.storage.ports import FencingTokenError
-from agentos_server.audit_support import audit, audit_best_effort, source_of
+from agentos_server.audit_support import actor_of, audit, audit_best_effort, source_of
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/flows", tags=["v2-flows"])
@@ -42,10 +42,41 @@ class ApprovalRequestBody(BaseModel):
 # Flow CRUD & Publish & Versions
 # ---------------------------------------------------------------------------
 
+def _who(request: Request) -> Optional[Dict[str, Any]]:
+    """3.4: the caller as recorded in run events and on published versions ({user_id, username})."""
+    p = getattr(request.state, "principal", None)
+    if p is None:
+        return None
+    return {"user_id": p.actor_id, "username": p.username or p.actor, "via": p.kind}
+
+
+def _publish_digest(flow: FlowRecord) -> Optional[str]:
+    """The content_sha256 that publishing this record would store (same computation as publish_flow)."""
+    try:
+        fd = FlowDefinition(id=flow.id, name=flow.name, entrypoint=flow.entrypoint, nodes=flow.nodes,
+                            edges=flow.edges, loops=flow.loops)
+    except Exception:
+        return None
+    return hashlib.sha256(json.dumps(fd.model_dump(mode="json"), sort_keys=True).encode("utf-8")).hexdigest()
+
+
+async def _with_publish_view(storage: Any, flow: FlowRecord) -> FlowRecord:
+    """3.4 Part 0c: add published_version / unpublished_changes so the UI shows "published vN" or "draft"."""
+    versions = await storage.flows.list_versions(flow.id)
+    latest = versions[-1] if versions else None
+    if latest is None:
+        return flow.model_copy(update={"published_version": None, "unpublished_changes": True})
+    if flow.status == "published" and flow.version == latest.version:
+        changed = False
+    else:
+        changed = _publish_digest(flow) != latest.content_sha256
+    return flow.model_copy(update={"published_version": latest.version, "unpublished_changes": changed})
+
+
 @router.get("", response_model=List[FlowRecord])
 async def list_flows(request: Request) -> List[FlowRecord]:
     storage = request.app.state.storage
-    return await storage.flows.list_flows()
+    return [await _with_publish_view(storage, f) for f in await storage.flows.list_flows()]
 
 
 @router.post("", response_model=FlowRecord, status_code=201)
@@ -67,6 +98,8 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
     """3.1: validate (no side effect) -> audit flow.save (refused or ok; 503 if the entry cannot be written)
     -> apply. Details: counts and the content sha256 only (never node configs or prompts)."""
     storage = request.app.state.storage
+    # response-only / server-set fields are never taken from the client
+    flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None})
     details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
                "content_sha256": _flow_digest(flow)}
     try:
@@ -85,7 +118,7 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
         await storage.flows.put_draft(flow)
     except (InvalidFlowConfigError, ValueError) as err:
         await audit_best_effort(request.app, "flow.save", "flow", flow.id, outcome="failed", details=details,
-                                actor="local-admin", source=source_of(request))
+                                actor=actor_of(request), source=source_of(request))
         raise HTTPException(status_code=400, detail=str(err))
 
 
@@ -94,10 +127,10 @@ async def get_flow(flow_id: str, request: Request) -> FlowRecord:
     storage = request.app.state.storage
     draft = await storage.flows.get_draft(flow_id)
     if draft is not None:
-        return draft
+        return await _with_publish_view(storage, draft)
     versions = await storage.flows.list_versions(flow_id)
     if versions:
-        return versions[-1]
+        return await _with_publish_view(storage, versions[-1])
     raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} not found")
 
 
@@ -110,7 +143,7 @@ async def put_flow(flow_id: str, flow: FlowRecord, request: Request) -> FlowReco
     saved = await storage.flows.get_draft(flow_id)
     if saved is None:
         raise HTTPException(status_code=500, detail="Failed to save flow draft")
-    return saved
+    return await _with_publish_view(storage, saved)
 
 
 @router.delete("/{flow_id}")
@@ -148,7 +181,7 @@ async def archive_flow(flow_id: str, request: Request) -> FlowRecord:
         return await storage.flows.archive_flow(flow_id)
     except ValueError as err:
         await audit_best_effort(request.app, "flow.archive", "flow", flow_id, outcome="failed",
-                                actor="local-admin", source=source_of(request))
+                                actor=actor_of(request), source=source_of(request))
         raise HTTPException(status_code=404, detail=str(err))
 
 
@@ -239,8 +272,9 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         content_sha256=content_sha256,
         policy_hash=policy_hash,
         analysis=analyzer.summary(),
+        published_by=(_who(request) or {}).get("user_id"),
     )
-    return published
+    return await _with_publish_view(storage, published)
 
 
 MAX_SUBFLOW_DEPTH = 5
@@ -346,6 +380,7 @@ async def enqueue_run(flow_id: str, body: RunFlowRequest, request: Request) -> D
         flow_version=target_version,
         status="queued",
         trigger="manual",
+        started_by=_who(request),
     )
     await storage.runs.put(run_record)
     await queue.enqueue(
@@ -531,13 +566,22 @@ async def approve_flow_run(
         approve = body.decision is True or str(body.decision).lower() in ("true", "approve", "approved")
         prior = [e for e in await storage.events.list(run_id, after_seq=0)
                  if e.type == "approval_decision" and (e.data or {}).get("node_id") == body.node_id]
+        # 3.4 separation of duties (admin config, default off): who published this version may not decide its runs
+        if getattr(request.app.state, "separation_of_duties", False) and not prior:
+            who = _who(request)
+            if who and flow_rec.published_by and flow_rec.published_by == who["user_id"]:
+                await audit(request, "approval.decide", "run", run_id, outcome="refused", details={
+                    "flow_id": flow_id, "node_id": body.node_id, "reason": "separation_of_duties"})
+                raise HTTPException(status_code=403, detail="Separation of duties: you published this flow "
+                                                            "version, so someone else must decide its approvals")
         # 3.1: audited before it is applied (503 and no decision if the entry cannot be written)
         await audit(request, "approval.decide", "run", run_id, details={
             "flow_id": flow_id, "node_id": body.node_id, "decision": "approve" if approve else "reject",
             "already_decided": bool(prior),
         })
         try:
-            state = await engine.approve(run_id=run_id, node_id=body.node_id, decision=body.decision)
+            state = await engine.approve(run_id=run_id, node_id=body.node_id, decision=body.decision,
+                                         actor=_who(request))
         except ValueError as err:
             raise HTTPException(status_code=400, detail=str(err))
         except FencingTokenError:

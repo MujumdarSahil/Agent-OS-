@@ -172,6 +172,12 @@ class FlowRecord(BaseModel):
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
     published_at: Optional[Timestamp] = None
+    # 3.4: who published this version (user id or "legacy-local-token"); None for versions published before 3.4
+    published_by: Optional[str] = None
+    # 3.4 Part 0c: response-only view fields, computed by the API on read (never stored, ignored on save):
+    # the latest published version number and whether the draft differs from it.
+    published_version: Optional[int] = None
+    unpublished_changes: Optional[bool] = None
 
 
 class RunRecord(BaseModel):
@@ -191,6 +197,8 @@ class RunRecord(BaseModel):
     # 2.4d: what started the run ("manual" | "webhook" | "cron" | "subflow"); display metadata only,
     # never used for labels (labels come from the run_started event). None on records from before 2.4d.
     trigger: Optional[str] = None
+    # 3.4: who started the run ({"user_id", "username"}; None for triggers and runs from before 3.4)
+    started_by: Optional[Dict[str, Any]] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 

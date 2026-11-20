@@ -6,11 +6,12 @@
 // <UntrustedText>; nothing here renders markdown/HTML or loads remote content.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { needs, useAuth } from '../components/AuthContext'
 import { useQuery } from '@tanstack/react-query'
-import { getAuthToken } from '../api/client'
 import { apiErrorMessage, decideApproval, listRuns, runEventsUrl, startRun } from '../api/flows'
 import {
-  blockedCalls, eventSummary, finalOutput, formatMs, mergeEvents, missingSeqs, nodeIO, nodeStatuses, pendingApproval,
+  blockedCalls, eventSummary, finalOutput, formatMs, lastDecision, mergeEvents, missingSeqs, nodeIO, nodeStatuses,
+  pendingApproval,
   runStatusFromEvents, runTiming, stepTimeline, triggerOf,
   type BlockedCall, type LabelInfo, type PendingApproval, type RunEvent,
 } from './runModel'
@@ -94,6 +95,7 @@ export function ApprovalCard({
   onDecide: (approve: boolean) => void
   title?: React.ReactNode
 }) {
+  const canApprove = useAuth().can('approve') // 3.4: display only; the server refuses other roles
   return (
     <div className="card" style={{ margin: 8, padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
       <div className="font-semibold">{title ?? <>Approval required: {approval.nodeId}</>}</div>
@@ -127,9 +129,9 @@ export function ApprovalCard({
           ))}
         </tbody>
       </table>
-      <div className="flex gap-2 mt-2">
-        <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding} onClick={() => onDecide(true)}>Approve these values</button>
-        <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding} onClick={() => onDecide(false)}>Reject</button>
+      <div className="flex gap-2 mt-2" title={canApprove ? undefined : needs('approve')}>
+        <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding || !canApprove} onClick={() => onDecide(true)}>Approve these values</button>
+        <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding || !canApprove} onClick={() => onDecide(false)}>Reject</button>
       </div>
     </div>
   )
@@ -199,7 +201,8 @@ function useRunEvents(flowId: string, runId: string | null) {
   const open = useCallback(() => {
     if (!runId || done.current) return
     setConn('connecting')
-    const sock = new WebSocket(runEventsUrl(flowId, runId, lastSeq.current), [`agentos.token.${getAuthToken() || ''}`, 'agentos.v1'])
+    // 3.4: the HttpOnly session cookie authenticates the upgrade (no token in the page)
+    const sock = new WebSocket(runEventsUrl(flowId, runId, lastSeq.current), ['agentos.v1'])
     ws.current = sock
     sock.onopen = () => {
       setConn('open')
@@ -340,12 +343,15 @@ export default function ResultsPanel({
   runId,
   onSelectRun,
   inspectNode,
+  inspectSeq = 0,
   onInspectNode,
   onStatuses,
   onClose,
   dock = 'bottom',
 }: {
   dock?: 'bottom' | 'right'
+  /** bumped on every selection, so re-selecting the same node scrolls and flashes again */
+  inspectSeq?: number
   flowId: string
   runId: string | null
   onSelectRun: (runId: string) => void
@@ -373,11 +379,22 @@ export default function ResultsPanel({
   const statuses = useMemo(() => nodeStatuses(events), [events])
   useEffect(() => onStatuses(statuses), [statuses, onStatuses])
   const approval = useMemo(() => pendingApproval(events), [events])
+  const decision = useMemo(() => lastDecision(events), [events]) // 3.4: who decided
   const blocked = useMemo(() => blockedCalls(events), [events])
   const steps = useMemo(() => stepTimeline(events), [events])
   const gaps = useMemo(() => missingSeqs(events), [events])
   const output = useMemo(() => finalOutput(events), [events])
   const io = useMemo(() => (inspectNode ? nodeIO(events, inspectNode) : undefined), [events, inspectNode])
+  // 3.4 Part 0c: every node selection (canvas or Steps row) brings the inspector into view and flashes it
+  const inspectorRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = inspectorRef.current
+    if (!inspectNode || !el) return
+    el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    el.classList.remove('inspector-highlight')
+    void el.offsetWidth // restart the animation on a repeated selection
+    el.classList.add('inspector-highlight')
+  }, [inspectNode, inspectSeq])
   const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
   const sends = events.filter(e => e.type === 'sink_committed').length
   // 3.3: a send with no configured channel is SIMULATED; say so (AgentOS-written reason from the sink result)
@@ -536,6 +553,12 @@ export default function ResultsPanel({
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: right ? 'auto' : undefined }}>
             {error && <div style={{ color: 'var(--accent-red)', padding: '4px 10px' }} data-testid="run-error">{error}</div>}
             {approval && <ApprovalCard approval={approval} deciding={deciding} onDecide={decide} />}
+            {!approval && decision && (
+              <div className="card" style={{ margin: 8, padding: 8, fontSize: 12 }} data-testid="approval-decided">
+                Approval <code>{decision.nodeId}</code>: <strong>{decision.approved ? 'approved' : 'rejected'}</strong> by{' '}
+                <strong data-testid="approval-decided-by">{decision.by}</strong>
+              </div>
+            )}
 
             <div className="flex gap-1" role="tablist" style={{ padding: '6px 8px 0' }}>
               {(['output', 'steps', 'logs', 'security'] as Tab[]).map(t => (
@@ -612,6 +635,7 @@ export default function ResultsPanel({
                 : { width: 340, borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12 }}
               data-testid="node-inspector"
               data-node={inspectNode}
+              ref={inspectorRef}
             >
               <div className="flex items-center mb-1">
                 <strong className="font-mono">{inspectNode}</strong>

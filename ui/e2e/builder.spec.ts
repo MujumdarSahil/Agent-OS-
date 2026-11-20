@@ -6,12 +6,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { E2E_TOKEN } from '../playwright.builder.config'
+import { loginViaUi } from './login'
 
 const UC05 = path.resolve(process.cwd(), '..', 'examples', 'usecases', '05-visual-builder', 'flows')
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 export async function dropNode(page: Page, type: string, x: number, y: number) {
@@ -91,8 +91,14 @@ test('use case 01 benign flow: build -> save -> publish OK', async ({ page }) =>
   await buildUc01(page, 'uc01_benign_ui', true)
   await page.getByTestId('publish-flow').click()
   await expect(page.getByTestId('editor-message')).toHaveText('Published version 1.')
-  await expect(page.getByTestId('flow-status')).toHaveText('published')
+  // 3.4 Part 0c: a published flow says which version, not "draft"
+  await expect(page.getByTestId('flow-status')).toHaveText('published v1')
   await expect(page.getByTestId('violation-list')).toHaveCount(0)
+  // 3.4 Part 0c: at 1440 px the Run button stays on the toolbar's first row
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const bar = await page.getByTestId('editor-toolbar').boundingBox()
+  const run = await page.getByTestId('run-open').boundingBox()
+  expect(bar && run && run.y - bar.y).toBeLessThan(12)
 
   // Export matches the committed use case 05 benign flow (ids aside).
   const committed = JSON.parse(fs.readFileSync(path.join(UC05, 'benign.flow.json'), 'utf8'))
@@ -118,7 +124,7 @@ test('use case 01 exfiltration variant: publish refused, agent node highlighted'
   await expect(page.getByTestId('flow-node-agent_node')).toHaveAttribute('data-violated', 'true')
   await expect(page.getByTestId('flow-node-webhook_in')).toHaveAttribute('data-violated', 'true')
   await expect(page.locator('.react-flow__edge.violated')).toHaveCount(1)
-  await expect(page.getByTestId('flow-status')).toHaveText('draft')
+  await expect(page.getByTestId('flow-status')).toHaveText('draft') // never published
 
   const committed = JSON.parse(fs.readFileSync(path.join(UC05, 'attack.flow.json'), 'utf8'))
   expect({ ...(await exported(page)), id: '', name: '' }).toEqual({ ...committed, id: '', name: '' })

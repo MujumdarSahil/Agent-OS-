@@ -48,16 +48,16 @@ logger = logging.getLogger(__name__)
 import functools
 
 @functools.lru_cache(maxsize=1)
-def check_ollama_reachable() -> bool:
+def check_ollama_reachable(timeout: float = 1.0) -> bool:
     """
-    Lightweight connectivity probe to check if Ollama is reachable.
+    Lightweight connectivity probe to check if Ollama is reachable (GET <OLLAMA_BASE_URL>/api/tags).
     """
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").strip()
     if not base_url:
         base_url = "http://localhost:11434"
     try:
         # Probe using /api/tags or root with short timeout
-        response = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=1.0)
+        response = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=timeout)
         if response.status_code == 200:
             return True
     except Exception as e:

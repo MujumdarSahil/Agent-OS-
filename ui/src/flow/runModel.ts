@@ -352,5 +352,23 @@ export function eventSummary(e: RunEvent): string {
   const node = str(d.node_id ?? d.agent_node ?? d.sink_node)
   if (e.type === 'llm_call') return [node, llmHops(d)].filter(Boolean).join(' · ')
   const extra = str(d.error ?? d.reason ?? (e.type === 'approval_decision' ? `decision=${str(d.raw_decision ?? d.decision)}` : ''))
-  return [node, extra].filter(Boolean).join(' · ')
+  return [node, extra, decidedBy(e)].filter(Boolean).join(' · ')
+}
+
+/** 3.4: "by <username>" for an approval decision or run start that recorded who did it ('' if unknown). */
+export function decidedBy(e: RunEvent): string {
+  const who = (e.type === 'approval_decision' ? e.data.decided_by : e.type === 'run_started' ? e.data.started_by : null) as
+    { username?: string } | null | undefined
+  return who && typeof who.username === 'string' ? `by ${who.username}` : ''
+}
+
+/** 3.4: the latest approval decision, for "Approved by X" after the card disappears. */
+export function lastDecision(events: RunEvent[]): { approved: boolean; by: string; nodeId: string } | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.type !== 'approval_decision') continue
+    const who = e.data.decided_by as { username?: string } | undefined
+    return { approved: !!e.data.decision, by: who?.username ?? 'unknown', nodeId: str(e.data.node_id) }
+  }
+  return null
 }

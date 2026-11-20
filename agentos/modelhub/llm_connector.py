@@ -5,10 +5,9 @@ ModelHub LLM Connector - Safe LLM access with redaction and filtering
 import os
 import re
 from typing import Dict, Any, Optional, List
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# 3.4 Part 0a: no import-time .env loading here. .env files are loaded once, at startup, by
+# agentos.core.dotenv_loader (which honours AGENTOS_SKIP_DOTENV).
 
 
 class LLMConnector:

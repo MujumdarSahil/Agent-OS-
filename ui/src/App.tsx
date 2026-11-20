@@ -1,14 +1,16 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useState, useEffect, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target, Wand2, Shield, Package, Cpu, LayoutGrid,
   Settings as SettingsIcon, Server, Key, Lock, LogOut, Workflow, Gauge, ListChecks, Hand,
   Zap, ShieldAlert, ChevronDown, ChevronRight, Bell, Mail,
 } from 'lucide-react'
-import { getHealth, getAuthToken, clearAuthToken } from './api/client'
+import { getHealth } from './api/client'
 import { getOverview } from './api/flows'
+import { getAuthStatus, getMe, ROLE_LABEL, type Capability, type Me } from './api/auth'
 import AuthGate from './components/AuthGate'
+import { AuthProvider, useAuth } from './components/AuthContext'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
 import Tools from './pages/Tools'
@@ -34,7 +36,8 @@ import Metrics from './pages/Metrics'
 import Alerts from './pages/Alerts'
 import NotificationChannels from './pages/NotificationChannels'
 
-interface NavItem { to: string; icon: ReactNode; label: string }
+// 3.4: `cap` hides pages the role cannot use (display only; the server refuses them anyway)
+interface NavItem { to: string; icon: ReactNode; label: string; cap?: Capability }
 
 // 2.4e: menu by purpose. v1 pages stay reachable under "Classic (v1)", collapsed by default.
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -56,12 +59,12 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Connect', items: [
     { to: '/providers', icon: <Key size={15}/>, label: 'Models & keys' },
     { to: '/tools', icon: <Wrench size={15}/>, label: 'Tools' },
-    { to: '/mcp-servers', icon: <Server size={15}/>, label: 'MCP servers' },
-    { to: '/notifications', icon: <Mail size={15}/>, label: 'Notification channels' },
+    { to: '/mcp-servers', icon: <Server size={15}/>, label: 'MCP servers', cap: 'admin' },
+    { to: '/notifications', icon: <Mail size={15}/>, label: 'Notification channels', cap: 'admin' },
   ] },
   { title: 'Govern', items: [
     { to: '/security', icon: <ShieldAlert size={15}/>, label: 'Security log' },
-    { to: '/audit', icon: <Shield size={15}/>, label: 'Audit log' },
+    { to: '/audit', icon: <Shield size={15}/>, label: 'Audit log', cap: 'admin' },
   ] },
   { title: 'System', items: [{ to: '/settings', icon: <SettingsIcon size={15}/>, label: 'Settings' }] },
 ]
@@ -78,9 +81,10 @@ const CLASSIC: NavItem[] = [
 const navTestId = (to: string) => (to === '/' ? 'nav-overview' : `nav-${to.slice(1).split('/').join('-')}`)
 
 function NavItems({ items }: { items: NavItem[] }) {
+  const { can } = useAuth()
   return (
     <>
-      {items.map(n => (
+      {items.filter(n => !n.cap || can(n.cap)).map(n => (
         <NavLink
           key={n.to}
           to={n.to}
@@ -109,44 +113,71 @@ function ModeCard({ version }: { version: string }) {
           <Cpu size={12}/> AgentOS · v{q.data?.version ?? version}
         </span>
         <span style={{ color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Lock size={10} /> Authenticated
+          <Lock size={10} /> Signed in
         </span>
       </div>
     </div>
   )
 }
 
+/** 3.4: user menu (name, role, logout). */
+function UserMenu() {
+  const { me, logout } = useAuth()
+  if (!me) return null
+  return (
+    <div data-testid="user-menu" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', fontSize: 12 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div data-testid="user-name" style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {me.display_name || me.username}
+        </div>
+        <div data-testid="user-role" style={{ color: 'var(--text-muted)' }}>{ROLE_LABEL[me.role]}</div>
+      </div>
+      <button id="logout-btn" data-testid="logout-btn" onClick={() => void logout()} className="btn btn-ghost btn-sm"
+              style={{ color: 'var(--text-muted)', fontSize: 12, padding: '4px 8px' }} title="Log out">
+        <LogOut size={13}/> Log out
+      </button>
+    </div>
+  )
+}
+
+type Phase = { kind: 'loading' } | { kind: 'setup' } | { kind: 'login' } | { kind: 'ready'; me: Me } | { kind: 'error' }
+
 export default function App() {
-  const [version, setVersion] = useState('2.0.0')
+  const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
+
+  const check = useCallback(() => {
+    getAuthStatus()
+      .then(s => (s.setup_required ? setPhase({ kind: 'setup' }) : getMe().then(me => setPhase({ kind: 'ready', me }))))
+      .catch(err => setPhase(err?.response?.status === 401 ? { kind: 'login' } : { kind: 'error' }))
+  }, [])
+  useEffect(check, [check])
+  const signedOut = useCallback(() => setPhase({ kind: 'login' }), [])
+
+  if (phase.kind === 'loading') return <div className="empty-state">Loading…</div>
+  if (phase.kind === 'error') {
+    return <div className="empty-state">Cannot reach the AgentOS server. <button className="btn btn-ghost btn-sm" onClick={check}>Retry</button></div>
+  }
+  if (phase.kind !== 'ready') {
+    return <AuthGate mode={phase.kind} onAuthenticated={me => setPhase({ kind: 'ready', me })} />
+  }
+  return (
+    <AuthProvider initial={phase.me} onSignedOut={signedOut}>
+      <Shell />
+    </AuthProvider>
+  )
+}
+
+function Shell() {
+  const [version, setVersion] = useState('2.0.0a1')
   const [classicOpen, setClassicOpen] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getAuthToken())
 
   useEffect(() => {
-    // If URL hash had #token=..., getAuthToken() will have extracted and stored it
-    const token = getAuthToken()
-    if (token) {
-      setIsAuthenticated(true)
-    }
-
-    if (isAuthenticated) {
-      getHealth()
-        .then(h => {
-          if (h.version) {
-            setVersion(h.version)
-          }
-        })
-        .catch(err => console.error('Error fetching health/version:', err))
-    }
-  }, [isAuthenticated])
-
-  if (!isAuthenticated) {
-    return <AuthGate onAuthenticated={() => setIsAuthenticated(true)} />
-  }
-
-  const handleLogout = () => {
-    clearAuthToken()
-    setIsAuthenticated(false)
-  }
+    getHealth()
+      .then(h => {
+        if (h.version) setVersion(h.version)
+      })
+      .catch(err => console.error('Error fetching health/version:', err))
+  }, [])
 
   return (
     <BrowserRouter>
@@ -175,14 +206,7 @@ export default function App() {
           </nav>
           <div style={{ padding: '0 12px', marginTop: 8 }}>
             <ModeCard version={version} />
-            <button
-              id="logout-btn"
-              onClick={handleLogout}
-              className="btn btn-ghost btn-sm"
-              style={{ width: '100%', justifyContent: 'flex-start', color: 'var(--text-muted)', fontSize: 12, padding: '6px 8px' }}
-            >
-              <LogOut size={13}/> Lock / Change Token
-            </button>
+            <UserMenu />
           </div>
         </aside>
 

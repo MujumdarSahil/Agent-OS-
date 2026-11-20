@@ -7,13 +7,14 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const UC05 = path.resolve(process.cwd(), '..', 'examples', 'usecases', '05-visual-builder', 'flows')
 const AUTH = { Authorization: `Bearer ${E2E_TOKEN}` }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 async function seedAndPublish(request: APIRequestContext, file: string, id: string) {

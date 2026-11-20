@@ -5,6 +5,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const ROOT = path.resolve(process.cwd(), '..', 'examples', 'usecases')
@@ -14,7 +15,7 @@ const SHOTS = path.resolve(process.cwd(), 'test-results', 'shots-2.4d')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 async function seed(request: APIRequestContext, flow: Record<string, unknown>, publish = true) {

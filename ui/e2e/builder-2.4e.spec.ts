@@ -7,6 +7,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const ROOT = path.resolve(process.cwd(), '..', 'examples', 'usecases')
@@ -18,7 +19,7 @@ fs.mkdirSync(IMAGES, { recursive: true })
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 async function seed(request: APIRequestContext, flow: Record<string, unknown>, publish = true) {

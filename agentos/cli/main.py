@@ -789,6 +789,61 @@ def usage_rebuild(project: Optional[str] = typer.Option(None, help="Project dire
                   f"{cost} USD (estimate)")
 
 
+# =====================================================================
+# USERS (3.4)
+# =====================================================================
+
+users_app = typer.Typer(help="User accounts (3.4)")
+app.add_typer(users_app, name="users")
+
+
+@users_app.command("create-admin")
+def users_create_admin(
+    project: Optional[str] = typer.Option(None, help="Project directory (default: current)"),
+    username: Optional[str] = typer.Option(None, help="Admin username (prompted if missing)"),
+    display_name: Optional[str] = typer.Option(None, help="Display name (default: the username)"),
+    password_stdin: bool = typer.Option(False, "--password-stdin", help="Read the password from stdin (scripts)"),
+):
+    """Create an admin user in the project's storage (works with or without existing users).
+
+    Whoever can run this already controls the AgentOS files (vault, token, data), so it needs no login.
+    The password is prompted without echo (or read from stdin) and is never printed or logged.
+    """
+    import asyncio
+    import sys
+
+    from agentos.access import AccessError, AccessService, access_store_for
+    from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
+    from agentos.security.vault import MasterKey
+    from agentos.storage import open_storage
+
+    name = username or typer.prompt("Admin username")
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
+    else:
+        password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+
+    async def _run():
+        storage = await open_storage(project_path=project)
+        try:
+            key = MasterKey.load(create=True).key
+            svc = AccessService(access_store_for(storage), key)
+            AccessService.validate_new_user(name, display_name, "admin", password)
+            log = AuditLog(audit_store_for(storage), key, anchor=audit_anchor_for(storage))
+            await log.record("user.create", "user", name.strip().lower(), details={"role": "admin", "via": "cli"},
+                             actor="cli", source="cli")
+            return await svc.create_user(name, display_name, "admin", password)
+        finally:
+            await storage.close()
+
+    try:
+        user = asyncio.run(_run())
+    except AccessError as e:
+        console.print(f"[red]Not created:[/red] {e}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]OK[/green] admin user {user['username']!r} created; log in on the AgentOS page.")
+
+
 async def _open_audit_log(project: Optional[str]):
     """Same store and key as the server: the configured storage backend and the vault master key."""
     from agentos.audit import AuditLog, audit_anchor_for, audit_store_for

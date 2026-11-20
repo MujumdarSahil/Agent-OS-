@@ -67,6 +67,10 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
     - Read only the parts of files you need; do not re-read large files or logs repeatedly.
     - Save full raw logs to docs/evidence/raw/ and paste only the summary lines and any
       failures in chat (rule 1 is satisfied by the saved raw file plus the pasted summary).
+13. Never open, list or read anything in the real AgentOS home (C:\Users\mujum\.agentos
+    or ~/.agentos), not even read-only, outside the isolated test home. Any ad-hoc script or server
+    that builds the app must first point the vault, master key, token and data paths at a temporary
+    directory.
 
 ## Baseline (2.0 after 1.3 + audit-fail-closed)
 - agentos/tests + agentos_server/tests + agentos/packaging/tests + tests/ci: 280 passed, 17 skipped with LIVE Mongo (265 passed, 32 skipped without Mongo).

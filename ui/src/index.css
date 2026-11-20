@@ -682,3 +682,15 @@ tr:hover td { background: var(--bg-hover); }
 .react-flow__controls-button svg {
   fill: currentColor;
 }
+
+/* 3.4 Part 0c: flow editor toolbar. Row 1: flow name and the primary actions (Save, Publish, Run), which never
+   wrap and stay at the top right. Row 2: the view tools in one line (they wrap among themselves on narrow screens,
+   never above or into the primary actions). */
+.editor-toolbar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.editor-toolbar > :first-child { order: 1; min-width: 0; }
+.editor-toolbar-primary { order: 2; margin-left: auto; display: flex; gap: 8px; flex: none; flex-wrap: nowrap; }
+.editor-toolbar-tools { order: 3; flex: 1 0 100%; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* 3.4 Part 0c: node inspector highlight after selecting a node on the canvas or in the Steps list */
+@keyframes inspector-flash { from { box-shadow: 0 0 0 2px var(--accent-brand, #8b5cf6); } to { box-shadow: 0 0 0 0 transparent; } }
+.inspector-highlight { animation: inspector-flash 1.5s ease-out; }

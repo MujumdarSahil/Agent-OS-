@@ -131,10 +131,20 @@ async def test_connection(req: ProviderTestRequest, request: Request) -> Provide
             message=f"No API key configured for provider '{req.provider_name}'",
         )
 
-    # 2. Mock mode handling
+    # 2. Local servers (Ollama): a real reachability check in every mode, never an assumed success (3.4 Part 0c)
+    if is_local:
+        import asyncio
+
+        from agentos.llm.router_factory import check_ollama_reachable
+
+        if await asyncio.to_thread(check_ollama_reachable, 1.5):
+            return ProviderTestResult(ok=True, message="healthy")
+        return ProviderTestResult(ok=False, error_class="NotRunning",
+                                  message="not running (no answer from the configured Ollama base URL)")
+
+    # 3. Mock mode handling (hosted providers): no call is made
     if os.environ.get("AGENTOS_MOCK_LLM") == "1":
-        # Simulate quick successful probe
-        return ProviderTestResult(ok=True)
+        return ProviderTestResult(ok=True, message="mock mode: not contacted")
 
     # 3. Live connectivity probe
     try:

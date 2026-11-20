@@ -7,7 +7,9 @@ AgentOS is a workflow engine for AI agents that is built to stay safe when the c
 ## Getting started
 
 This walks you from a clean machine to the visual flow builder running in **MOCK mode**: no API keys,
-no cost, a simulated LLM, and emails that are never actually sent.
+no cost, a simulated LLM, and emails that are never actually sent. In MOCK mode every model call (agent, llm and
+extraction nodes) is answered by a built-in scripted model: no model provider is contacted even if provider keys are
+set in your environment or in a `.env` file (checked by `tests/ci/test_mock_no_egress.py`).
 
 > Verified from a fresh clone on Windows 11 / PowerShell 5.1 (see `docs/evidence/raw/2.3-cp3-readme-quickstart.txt`).
 > The macOS/Linux commands are the direct equivalents but were not run on macOS/Linux in that check.
@@ -76,9 +78,11 @@ cd ui
 npm run dev
 ```
 
-**Open the app.** The backend prints a box with `One-Time UI Access Link: http://localhost:5173/#token=…`.
-Open that link: the token is stored for the browser session and removed from the address bar. The
-same token is saved in `~/.agentos/api.token` if you need to paste it into the login screen.
+**Open the app** at http://localhost:5173/. On the first start there are no users yet, so the **setup page**
+asks for the local API token (the backend prints where it is stored, by default `~/.agentos/api.token`) and creates
+the first admin account; after that you log in with a username and password. Instead of the setup page you can also
+run `agentos users create-admin`. Add more people under **Settings → Users** with a role: viewer (read), approver
+(+ approve runs), builder (+ build, publish and run flows) or admin (everything).
 
 **First thing to try:** build and publish the use case 01 flow in the visual builder (**Flows → New
 flow**). The step-by-step walkthrough is in
@@ -112,6 +116,19 @@ passwords: keep them out of files you commit), then start the backend as in step
 > These are the scripts and compose files the CI `mongo-live` and `redis-live` jobs use; they were not
 > re-run for this README because Docker Desktop was not running.
 
+### Upgrading to 3.4: from the shared token to user accounts
+
+Before 3.4 everyone used one local API token (the `#token=` link). Now:
+1. Start the new version and open the UI. With no users yet you get the **setup page**: paste the local API token
+   (from `~/.agentos/api.token`, or `AGENTOS_API_TOKEN` if you set it) and create the first admin. Or run
+   `agentos users create-admin` on the machine.
+2. Create accounts for other people under **Settings → Users** and give each a role.
+3. Scripts keep working unchanged: the old token still works as a **legacy local token** with admin rights
+   (`send_webhook.py`, the demo script, CI). Better: give each script its own **API token** (Settings → API tokens,
+   `Authorization: Bearer <token>`); it acts with its owner's role and can be revoked on its own.
+4. When nothing uses the legacy token any more, an admin can **disable** or **rotate** it in **Settings → Legacy local
+   token** (both are audited). `/hooks/*` webhooks are unchanged: they still use only their HMAC signature.
+
 ### 6. Stopping everything
 
 - Press **Ctrl+C** in both terminals.
@@ -122,7 +139,10 @@ passwords: keep them out of files you commit), then start the backend as in step
 
 | Symptom | Cause and fix |
 |---|---|
-| `401 Unauthorized` / login screen keeps appearing | The token is missing or old. Open the newest one-time link from the backend output, or paste the contents of `~/.agentos/api.token`. |
+| `401 Unauthorized` / login screen keeps appearing | Your session ended (12 h without use, 7 days at most, logout, password change or account disabled). Log in again. Scripts: check the API token or the legacy token. |
+| `429 Too many failed logins` | Wrong passwords for that username from your address; wait the number of seconds shown. |
+| `403 Forbidden: requires the … permission` | Your role does not allow it (see Settings → Users); an admin can change your role. |
+| `403 Forbidden: CSRF check failed` | A browser request without the page's CSRF header or from another site. Reload the page; scripts should use an API token. |
 | `Invalid Host header` | The API only answers on `localhost` / `127.0.0.1` (DNS-rebinding protection). Open `http://localhost:5173`, not a LAN IP or another hostname. |
 | Runs stay `queued` forever | No worker is running. Start the backend with `AGENTOS_INPROCESS_WORKER=1`. |
 | An email step is refused with "untrusted body … external recipient" | No internal domain is trusted by default. Set `AGENTOS_INTERNAL_DOMAINS` (or `security.internal_domains` in `agentos.config.yaml`). |
@@ -193,6 +213,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 **Usage, cost and budgets** — *Works today (verified in MOCK, scripted token counts)*. Every model call records tokens and an estimated cost; per-run limits stop runaway runs (also on free models), and USD budgets (global, per flow, per provider) block a call before it is made, without silently falling back to another paid provider. See **Watch → Metrics** and [the 3.2 evidence](docs/evidence/3.2.md).
 
 **Alerts and notifications** — *Works today (verified in MOCK; real SMTP only against a local test server, Slack only against a local stand-in)*. Email (SMTP, TLS required) and Slack (incoming webhook) channels with write-only secrets in the vault; `send_email` sends through the email channel (simulated, and labelled so, when none is configured) and the new `send_slack` node escapes every message; alerts for blocked attacks, failed runs, long approvals, providers down, budgets and a broken audit chain are written by AgentOS from metadata only and delivered through a persistent outbox with retries. See **Watch → Alerts**, **Connect → Notification channels**, [use case 10](examples/usecases/10-alerts-notifications/README.md) and [the 3.3 evidence](docs/evidence/3.3.md). Demo with real email to a local test server: `python -m aiosmtpd -n -l 127.0.0.1:1025` in one terminal, then `UC07_SMTP=127.0.0.1:1025 python examples/usecases/07-support-desk-copilot/run.py`.
+
+**Users, login and roles** — *Works today (verified in MOCK; Mongo store has LIVE tests in the mongo-live CI job)*. Each person has an account with a role: viewer, approver, builder or admin. The server checks the role on every API route (a route without a declared permission is refused for everyone), the browser holds only an HttpOnly session cookie (12 h idle, 7 days at most) and every change also needs a per-session CSRF header, failed logins get one generic answer and back off, and scripts use personal API tokens (shown once, revocable). Runs record who started them and approvals who decided; the audit log names the user. Optional: whoever published a flow version cannot approve its runs (`security.separation_of_duties: true`). See **Settings**, [use case 11](examples/usecases/11-access-roles/README.md) and [the 3.4 evidence](docs/evidence/3.4.md).
 
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
@@ -293,6 +315,13 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   (Platform mode) do not raise alerts yet.
 - **fetch_url (3.3)** makes a real GET through the SSRF guard (100 KB, 10 s, no credentials); in MOCK mode it
   returns a canned body marked "mock".
+- **Access (3.4)**: the login rate limit and the session "last seen" throttle are in memory per server process
+  (Platform mode with several API processes does not share the limiter). There is no SSO / OIDC, no MFA and no
+  self-service password reset (an admin resets passwords). Roles are global (no per-flow permissions). The legacy
+  local token is an admin token until an admin disables it. Sessions are tested in MOCK; the Mongo user/session
+  store has LIVE tests in the mongo-live CI job only. Local Ollama health is a real reachability check (1.5 s).
+- **CrewAI telemetry (3.4)** is turned off by default (`CREWAI_DISABLE_TELEMETRY=true` unless you set it), so a
+  run makes no connection you did not configure.
 
 Limitations of the v1 Python API (UMB backends, LangGraph, federation, planner, router) are listed in
 [docs/v1/README_v1.md](docs/v1/README_v1.md#known-limitations-v1).

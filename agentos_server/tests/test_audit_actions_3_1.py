@@ -98,7 +98,8 @@ async def test_flow_lifecycle_and_run_start_are_audited(project):
 
     saves = await find(app, "flow.save", "ok")
     assert [e["target"]["id"] for e in saves][:2] == ["notify", "notify"] and saves[0]["details"]["created"] is True
-    assert saves[0]["source"] == "ui" and saves[0]["actor"] == "local-admin"
+    # 3.4: the actor is the caller (this test uses the legacy local token), no longer a fixed "local-admin"
+    assert saves[0]["source"] == "ui" and saves[0]["actor"] == "legacy-local-token"
     assert len(saves[0]["details"]["content_sha256"]) == 64
     assert [e["target"]["id"] for e in await find(app, "flow.save", "refused")] == ["broken"]
     pub = await find(app, "flow.publish", "ok")

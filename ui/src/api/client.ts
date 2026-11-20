@@ -6,71 +6,54 @@ import axios from 'axios'
 // 1. Auth Token & Interceptors
 // ---------------------------------------------------------------------------
 
-const TOKEN_STORAGE_KEY = 'agentos_api_token'
+// 3.4: the browser is logged in with an HttpOnly session cookie (the page never sees it). State-changing requests
+// also carry the per-session CSRF token from /api/v2/auth/me, kept only in memory (never in storage or the URL).
+// The legacy local API token is for scripts only; the UI no longer reads it from the URL or stores it.
+let csrfToken: string | null = null
+let onUnauthorized: (() => void) | null = null
 
-export function getAuthToken(): string | null {
-  // Check URL fragment first (e.g. #token=abc123)
-  if (typeof window !== 'undefined' && window.location.hash) {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-    const tokenFromHash = hashParams.get('token')
-    if (tokenFromHash && tokenFromHash.trim()) {
-      const cleanToken = tokenFromHash.trim()
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, cleanToken)
-      // Clear hash from address bar and history
-      try {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
-      } catch {
-        // Ignore if restricted
-      }
-      return cleanToken
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem(TOKEN_STORAGE_KEY)
-  }
-  return null
+export function setCsrfToken(token: string | null): void {
+  csrfToken = token
 }
 
-export function setAuthToken(token: string): void {
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, token.trim())
-  }
-}
-
-export function clearAuthToken(): void {
-  if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-  }
+/** Called once by the auth provider: a 401 from the API means the session ended (expired, revoked, logged out). */
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  onUnauthorized = fn
 }
 
 export const api = axios.create({
   baseURL: '/api',
+  withCredentials: true,
   // 3.1: tells the audit log that the action came from the UI (source "ui"; scripts are "api")
   headers: { 'Content-Type': 'application/json', 'X-AgentOS-Client': 'ui' },
 })
 
-// Attach token to every outgoing request
+const UNSAFE = new Set(['post', 'put', 'patch', 'delete'])
 api.interceptors.request.use(config => {
-  const token = getAuthToken()
-  if (token) {
-    config.headers.set('Authorization', `Bearer ${token}`)
-    config.headers.set('X-AgentOS-Token', token)
+  if (csrfToken && UNSAFE.has((config.method || 'get').toLowerCase())) {
+    config.headers.set('X-AgentOS-CSRF', csrfToken)
   }
   return config
 })
 
+api.interceptors.response.use(
+  r => r,
+  err => {
+    const url = String(err?.config?.url || '')
+    if (err?.response?.status === 401 && !url.startsWith('/v2/auth/') && onUnauthorized) onUnauthorized()
+    return Promise.reject(err)
+  },
+)
+
 // ---------------------------------------------------------------------------
-// 2. WebSocket Stream Helper (Sec-WebSocket-Protocol token auth)
+// 2. WebSocket Stream Helper (the session cookie authenticates the upgrade; Origin is checked server-side)
 // ---------------------------------------------------------------------------
 
 export function createRunStreamWebSocket(runId: string): WebSocket {
-  const token = getAuthToken() || ''
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
   const url = `${protocol}//${host}/api/runs/${runId}/stream`
-  // Pure ASGI WebSocket auth requires subprotocols: ['agentos.token.<token>', 'agentos.v1']
-  return new WebSocket(url, [`agentos.token.${token}`, 'agentos.v1'])
+  return new WebSocket(url, ['agentos.v1'])
 }
 
 // ---------------------------------------------------------------------------

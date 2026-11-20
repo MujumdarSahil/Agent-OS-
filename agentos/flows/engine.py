@@ -46,6 +46,11 @@ from agentos.flows.net_guard import SSRFBlockedError
 from agentos.storage.models import EventRecord, RunRecord
 from agentos.storage.ports import FencingTokenError, Storage
 
+# 3.4 Part 0a: CrewAI (behind the agent node) sends usage telemetry to telemetry.crewai.com by default. AgentOS
+# makes no outbound connection the operator did not configure, so it is off unless explicitly enabled
+# (CREWAI_DISABLE_TELEMETRY=false). CrewAI reads the variable on every telemetry call.
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+
 
 def execute_validator_runtime(
     node: NodeDefinition,
@@ -172,6 +177,8 @@ class FlowEngine:
             flow_version=existing.flow_version if existing else None,
             # 2.4d: keep what started the run (set by the route/webhook/scheduler that created it)
             trigger=(existing.trigger if existing and existing.trigger else trigger),
+            # 3.4: who started it ({user_id, username}, set by the route that created the run)
+            started_by=existing.started_by if existing else None,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )
@@ -185,6 +192,7 @@ class FlowEngine:
                 "entrypoint": self.flow.entrypoint,
                 "inputs": inputs,
                 "trigger": trigger,
+                **({"started_by": existing.started_by} if existing and existing.started_by else {}),
                 **({"input_labels": input_labels} if trigger == "subflow" and input_labels else {}),
             },
         )
@@ -295,8 +303,11 @@ class FlowEngine:
         transport = self.transport_registry.get(node.type)
         return transport is not None and not getattr(transport, "retry_safe", True)
 
-    async def approve(self, run_id: str, node_id: str, decision: Any) -> FlowRunState:
+    async def approve(self, run_id: str, node_id: str, decision: Any,
+                      actor: dict[str, Any] | None = None) -> FlowRunState:
         """Deliver operator approval decision and resume flow execution.
+
+        3.4: ``actor`` ({user_id, username}) is recorded as ``decided_by`` on the approval_decision event.
 
         Requirement 6:
         - Only for runs in waiting at the named approval node.
@@ -337,6 +348,7 @@ class FlowEngine:
                 "decision": is_approved,
                 "raw_decision": decision,
                 "arguments": shown_args,
+                **({"decided_by": actor} if actor else {}),
             },
         )
         state.apply_event(ev)
@@ -1218,9 +1230,11 @@ class FlowEngine:
                 task_desc = str(task_desc_val)
             # 2.3: per-node model choice (validated against enabled providers on save/publish)
             # 2.4c: real models through AgentOSRouterLLM (fallback chain, llm_call events, T-13).
-            # A custom LLM (tests/use cases) or MOCK mode keeps the previous behaviour exactly.
-            if self.custom_llm is not None or os.environ.get("AGENTOS_MOCK_LLM") == "1":
-                llm_to_use = self.custom_llm or node.config.get("model") or node.config.get("llm")
+            # 3.4 Part 0a: ALWAYS the router (never a raw model name handed to CrewAI, which would build its own
+            # provider client). In MOCK mode the router answers with the offline scripted model. Only an injected
+            # custom LLM (tests / use cases) replaces it.
+            if self.custom_llm is not None:
+                llm_to_use = self.custom_llm
             else:
                 agent_guard = await self._usage_guard(state)
                 llm_to_use = self._router_llm(state, node, effective_inbound, loop, guard=agent_guard)
@@ -1265,11 +1279,11 @@ class FlowEngine:
         # 6. LLM Node
         if node.type == "llm":
             prompt = inputs.get("prompt", "")
-            completion = f"Completion for: {prompt}"  # MOCK mode (unchanged)
             if self.custom_llm and hasattr(self.custom_llm, "call"):
                 completion = str(self.custom_llm.call([{"role": "user", "content": prompt}]))
-            elif os.environ.get("AGENTOS_MOCK_LLM") != "1":
-                # 2.4c: real call through the provider chain (runs in a thread; events via the loop).
+            else:
+                # 2.4c: call through the provider chain (runs in a thread; events via the loop).
+                # 3.4 Part 0a: also in MOCK mode, where the router answers with the offline scripted model.
                 router_llm = self._router_llm(state, node, effective_inbound, asyncio.get_running_loop(),
                                               guard=await self._usage_guard(state))
                 messages = [{"role": "user", "content": prompt if isinstance(prompt, str) else json.dumps(prompt)}]

@@ -3,10 +3,10 @@
 // undo/redo, Delete key, auto-layout, unsaved-changes warning.
 
 import { test, expect, type Page } from '@playwright/test'
-import { E2E_TOKEN } from '../playwright.builder.config'
+import { loginViaUi } from './login'
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 const node = (page: Page, id: string) => page.getByTestId(`flow-node-${id}`)
