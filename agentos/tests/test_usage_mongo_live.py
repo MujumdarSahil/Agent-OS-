@@ -14,7 +14,7 @@ import pytest_asyncio
 from agentos.storage.models import RunRecord
 from agentos.tests.test_storage_contract_1_2 import _live_mongo_storage
 from agentos.usage import UsageSettings, rebuild_rows, usage_stores_for
-from agentos.usage.ledger import COUNTERS, increments, row_key
+from agentos.usage.ledger import COUNTERS, increments, row_key, today_utc
 
 pytestmark = pytest.mark.asyncio
 
@@ -57,28 +57,49 @@ async def test_rows_query_by_day_window(mongo):
     assert all("_id" not in r for r in await ledger.rows())
 
 
-async def test_rebuild_from_events_equals_the_ledger(mongo):
-    ledger, _ = usage_stores_for(mongo)
+@pytest_asyncio.fixture(params=["file", "mongo"])
+async def any_storage(request, tmp_path):
+    """The rebuild check on both backends: file always runs (local evidence), mongo is LIVE."""
+    if request.param == "file":
+        from agentos.storage import open_storage
+
+        (tmp_path / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+        s = await open_storage(str(tmp_path), backend="file", vault_path=str(tmp_path / "vault.json"))
+        yield s
+        await s.close()
+        return
+    async for s in _live_mongo_storage():
+        yield s
+
+
+async def test_rebuild_from_events_equals_the_ledger(any_storage):
+    # ONE day for both sides: the UTC day the engine stamps on an llm_call when it is recorded (no fake dates)
+    day = today_utc()
+    ledger, _ = usage_stores_for(any_storage)
     records = [
         {"status": "ok", "provider": "p1", "model": "m1", "prompt_tokens": 100, "completion_tokens": 50,
-         "total_tokens": 150, "cost_usd": 0.0002, "latency_ms": 80.0, "day": "2026-11-18"},
+         "total_tokens": 150, "cost_usd": 0.0002, "latency_ms": 80.0, "day": day},
         {"status": "ok", "provider": "p2", "model": "m2", "prompt_tokens": 10, "completion_tokens": 5,
-         "total_tokens": 15, "cost_usd": None, "latency_ms": 40.0, "day": "2026-11-19",
+         "total_tokens": 15, "cost_usd": None, "latency_ms": 40.0, "day": day,
          "attempts": [{"provider": "p1", "model": "m1", "error_class": "RateLimitError"}]},
-        {"status": "failed", "day": "2026-11-19",
+        {"status": "failed", "day": day,
          "attempts": [{"provider": "p1", "model": "m1", "error_class": "Timeout"},
                       {"provider": "p2", "model": "m2", "error_class": "skipped (cooldown)"}]},
     ]
     for i, flow in enumerate(("flow_a", "flow_b")):
         run_id = f"run_live_{i}"
-        await mongo.runs.put(RunRecord(run_id=run_id, mission_name=flow, flow_id=flow, status="succeeded"))
+        await any_storage.runs.put(RunRecord(run_id=run_id, mission_name=flow, flow_id=flow, status="succeeded"))
         for rec in records:
-            await mongo.events.append(run_id=run_id, type="llm_call", data=rec)
-            await ledger.add(increments(rec, flow, rec["day"]))
+            await any_storage.events.append(run_id=run_id, type="llm_call", data=rec)
+            await ledger.add(increments(rec, flow, day))
     built = _by_key(await ledger.rows())
-    rebuilt = _by_key(await rebuild_rows(mongo))
-    assert built == rebuilt and len(built) == 4  # 2 flows x (p1/m1, p2/m2)
-    await ledger.replace(await rebuild_rows(mongo))
+    rebuilt = _by_key(await rebuild_rows(any_storage))
+    # 2 flows x 2 provider/model pairs (p1/m1, p2/m2) on one day = 4 rows
+    assert len(built) == 4 and {k.split("|")[0] for k in built} == {day}
+    assert built == rebuilt
+    p1 = built[row_key(day, "flow_a", "p1", "m1")]
+    assert (p1["calls"], p1["errors"]) == (3, 2)  # ok call + RateLimitError + Timeout (the cooldown skip is not a call)
+    await ledger.replace(await rebuild_rows(any_storage))
     assert _by_key(await ledger.rows()) == built
 
 
