@@ -64,6 +64,11 @@ _cooldowns: dict[str, tuple[float, str]] = {}
 _cooldown_lock = threading.Lock()
 
 
+def mock_mode() -> bool:
+    """MOCK mode (``AGENTOS_MOCK_LLM=1``): every model call is answered by agentos.llm.mock_model."""
+    return os.environ.get("AGENTOS_MOCK_LLM") == "1"
+
+
 def _env_float(name: str, default: float) -> float:
     try:
         return float(os.environ.get(name, "") or default)
@@ -214,6 +219,11 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
     # -------------------------------------------------------------- chain
 
     def chain(self) -> list[dict[str, Any]]:
+        if mock_mode():
+            # 3.4 Part 0a: MOCK mode never reaches a provider; the scripted model is the whole chain (local, $0).
+            from agentos.llm import mock_model
+
+            return [dict(mock_model.CHAIN_ENTRY)]
         chain = list(self._chain_override if self._chain_override is not None else default_chain())
         if self._preferred:
             first = [e for e in chain if self._preferred in (e["provider"], e["model"])]
@@ -223,6 +233,8 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
         return chain
 
     def supports_function_calling(self) -> bool:
+        if mock_mode():
+            return False  # the scripted model answers in ReAct text
         chain = self.chain()
         if not chain:
             return False
@@ -306,6 +318,14 @@ class AgentOSRouterLLM(CrewAIBaseLLM):
                                 "reason": str(rl), "latency_ms": round((time.perf_counter() - started) * 1000, 1),
                                 "mock": False})
                     raise
+            if entry["provider"] == "mock" and mock_mode():
+                from agentos.llm import mock_model
+
+                content = mock_model.complete(msgs)  # offline: no client, no key, no network
+                self._emit({"status": "ok", "provider": entry["provider"], "model": entry["model"],
+                            "attempts": attempts, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+                            "latency_ms": round((time.perf_counter() - started) * 1000, 1), "mock": True})
+                return content
             kwargs: dict[str, Any] = {"model": entry["model"], "messages": list(msgs),
                                       "timeout": float(entry.get("timeout") or default_timeout)}
             if entry.get("api_base"):

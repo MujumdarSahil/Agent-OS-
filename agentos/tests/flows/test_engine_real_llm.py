@@ -90,8 +90,14 @@ async def test_secret_input_refused_for_hosted_providers(storage, real_mode, mon
 
 
 @pytest.mark.asyncio
-async def test_mock_mode_unchanged(storage, monkeypatch):
+async def test_mock_mode_goes_through_router_offline(storage, monkeypatch):
+    # 3.4 Part 0a (behaviour change): MOCK mode goes through the router too (llm_call events, budgets, run
+    # limits), answered by the offline scripted model; LiteLLM is never called.
+    import agentos.llm.router_llm as rl
+
     monkeypatch.setenv("AGENTOS_MOCK_LLM", "1")
+    monkeypatch.setattr(rl, "_completion", lambda **kw: pytest.fail("MOCK mode called a provider"))
     st = await FlowEngine(llm_flow(), storage).run(run_id="r_mock", inputs={"text": "hi"})
-    assert st.status == RunStatus.SUCCEEDED and st.node_outputs["sum"]["completion"].startswith("Completion for:")
-    assert not [e for e in await storage.events.list("r_mock", after_seq=0) if e.type == "llm_call"]
+    assert st.status == RunStatus.SUCCEEDED and st.node_outputs["sum"]["completion"].startswith("Final Answer:")
+    calls = [e.data for e in await storage.events.list("r_mock", after_seq=0) if e.type == "llm_call"]
+    assert [(c["provider"], c["status"], c["mock"], c["cost_usd"]) for c in calls] == [("mock", "ok", True, 0.0)]

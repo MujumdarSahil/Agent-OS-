@@ -75,6 +75,8 @@ def price_for(provider: Optional[str], model: Optional[str], overrides: Optional
     registry's free-tier tag is ignored; None -> as before."""
     if plan == "free":
         return Price(0.0, 0.0, "plan_free")
+    if provider == "mock":  # 3.4 Part 0a: the offline scripted model of MOCK mode (no provider, nothing to pay)
+        return Price(0.0, 0.0, "mock")
     o = _override(overrides or {}, provider, model)
     if o is not None:
         return o

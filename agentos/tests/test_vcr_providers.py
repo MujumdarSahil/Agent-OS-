@@ -4,8 +4,8 @@ import os
 import re
 import pytest
 vcr = pytest.importorskip("vcr")
-from dotenv import load_dotenv
-load_dotenv()
+from agentos.core.dotenv_loader import load_env_files  # 3.4: the single loader (honours AGENTOS_SKIP_DOTENV)
+load_env_files()
 from unittest.mock import patch
 from agentos.llm.llm_client import LLMClient
 from agentos.llm.provider_registry import PROVIDER_REGISTRY

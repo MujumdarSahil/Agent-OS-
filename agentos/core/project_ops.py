@@ -285,11 +285,9 @@ def build_squad_from_project(
     cfg = load_project_config(project_path)
     tags = preferred_tags or cfg.preferred_tags or ["fast"]
 
-    # Load .env if present
-    dotenv_path = os.path.join(project_path, ".env")
-    if os.path.exists(dotenv_path):
-        from dotenv import load_dotenv
-        load_dotenv(dotenv_path)
+    # Load the project's .env if present (the single loader; honours AGENTOS_SKIP_DOTENV)
+    from agentos.core.dotenv_loader import load_env_files
+    load_env_files(project_path, include_repo_root=False)
 
     tool_registry = ToolRegistry()
 
