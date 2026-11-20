@@ -19,6 +19,13 @@ your machine except the model calls and one HTTP GET per ticket to a public test
 > page has loaded (the UI removes `#token=...` from the address bar once you are signed in). Never type
 > `$token` on its own in W3: that prints it.
 
+> **After 3.4 (users, login, roles) is merged:** there is no `#token=` link any more. W1 prints the UI address
+> and where the local token file is. On the first start the UI shows a **setup page**: paste the local token once
+> to create your admin user, then you log in with that username and password (later starts go straight to the
+> login page). The scripts in W3 (`send_webhook.py`, the `$token` header) keep working: the old token is now the
+> "legacy local token" (admin) shown in Settings. Nothing secret is in the address bar, so sharing the browser is
+> safe from the start. Steps below still describe the pre-3.4 link until the script is rewritten.
+
 ## Reset before the demo (5 min, do it before people join)
 
 Skip anything that does not apply on a fresh install.

@@ -162,7 +162,14 @@ Sub-milestones (each is one branch and one PR into `2.0`):
   (escaped, untrusted text only to internal channels), six alert rule types written from metadata only, persistent
   outbox with retries / dead letter, Watch > Alerts and Connect > Notification channels. Also: per-provider billing
   plan, live Mongo usage tests, real `fetch_url`. Design and gaps: `docs/evidence/3.3.md`.
-- **3.4 Access** (users, login, roles)
+- **3.4 Access (users, login, roles)**: **done** (MOCK-verified; the Mongo store has LIVE tests in the mongo-live CI
+  job, not run locally). Users with roles viewer / approver / builder / admin (scrypt passwords, generic login errors,
+  backoff), server-side sessions in an HttpOnly SameSite=Strict cookie with a per-session CSRF header, personal API
+  tokens, one declared capability for every `/api` route (undeclared = refused for everyone), a first-run setup page
+  that needs the local API token, `agentos users create-admin`, the old local token kept as a legacy admin token
+  (rotate/disable, audited), the caller as audit actor, `started_by` / `decided_by` on runs, and an optional
+  separation-of-duties flag. Also (Part 0): MOCK mode never reaches a model provider (one `.env` loader, agent nodes
+  always through the router). Design, permission matrix and gaps: `docs/evidence/3.4.md`.
 - **3.5 Sandbox for code tools**
 - **3.6 Review queue, trusted proxy, OTel export**
 
