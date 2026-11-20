@@ -42,10 +42,33 @@ class ApprovalRequestBody(BaseModel):
 # Flow CRUD & Publish & Versions
 # ---------------------------------------------------------------------------
 
+def _publish_digest(flow: FlowRecord) -> Optional[str]:
+    """The content_sha256 that publishing this record would store (same computation as publish_flow)."""
+    try:
+        fd = FlowDefinition(id=flow.id, name=flow.name, entrypoint=flow.entrypoint, nodes=flow.nodes,
+                            edges=flow.edges, loops=flow.loops)
+    except Exception:
+        return None
+    return hashlib.sha256(json.dumps(fd.model_dump(mode="json"), sort_keys=True).encode("utf-8")).hexdigest()
+
+
+async def _with_publish_view(storage: Any, flow: FlowRecord) -> FlowRecord:
+    """3.4 Part 0c: add published_version / unpublished_changes so the UI shows "published vN" or "draft"."""
+    versions = await storage.flows.list_versions(flow.id)
+    latest = versions[-1] if versions else None
+    if latest is None:
+        return flow.model_copy(update={"published_version": None, "unpublished_changes": True})
+    if flow.status == "published" and flow.version == latest.version:
+        changed = False
+    else:
+        changed = _publish_digest(flow) != latest.content_sha256
+    return flow.model_copy(update={"published_version": latest.version, "unpublished_changes": changed})
+
+
 @router.get("", response_model=List[FlowRecord])
 async def list_flows(request: Request) -> List[FlowRecord]:
     storage = request.app.state.storage
-    return await storage.flows.list_flows()
+    return [await _with_publish_view(storage, f) for f in await storage.flows.list_flows()]
 
 
 @router.post("", response_model=FlowRecord, status_code=201)
@@ -67,6 +90,8 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
     """3.1: validate (no side effect) -> audit flow.save (refused or ok; 503 if the entry cannot be written)
     -> apply. Details: counts and the content sha256 only (never node configs or prompts)."""
     storage = request.app.state.storage
+    # response-only / server-set fields are never taken from the client
+    flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None})
     details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
                "content_sha256": _flow_digest(flow)}
     try:
@@ -94,10 +119,10 @@ async def get_flow(flow_id: str, request: Request) -> FlowRecord:
     storage = request.app.state.storage
     draft = await storage.flows.get_draft(flow_id)
     if draft is not None:
-        return draft
+        return await _with_publish_view(storage, draft)
     versions = await storage.flows.list_versions(flow_id)
     if versions:
-        return versions[-1]
+        return await _with_publish_view(storage, versions[-1])
     raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} not found")
 
 
@@ -110,7 +135,7 @@ async def put_flow(flow_id: str, flow: FlowRecord, request: Request) -> FlowReco
     saved = await storage.flows.get_draft(flow_id)
     if saved is None:
         raise HTTPException(status_code=500, detail="Failed to save flow draft")
-    return saved
+    return await _with_publish_view(storage, saved)
 
 
 @router.delete("/{flow_id}")
@@ -240,7 +265,7 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         policy_hash=policy_hash,
         analysis=analyzer.summary(),
     )
-    return published
+    return await _with_publish_view(storage, published)
 
 
 MAX_SUBFLOW_DEPTH = 5

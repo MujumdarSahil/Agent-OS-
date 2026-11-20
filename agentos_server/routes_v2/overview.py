@@ -74,6 +74,21 @@ def _storage_mode(request: Request) -> str:
     return "platform" if (mongo or getattr(request.app.state, "redis", None) is not None) else "standalone"
 
 
+OLLAMA_CHECK_TIMEOUT_S = 1.5
+
+
+async def _ollama_reachable() -> bool:
+    """GET <OLLAMA_BASE_URL>/api/tags with a short timeout (in a thread: requests is blocking)."""
+    import asyncio
+
+    from agentos.llm.router_factory import check_ollama_reachable
+
+    try:
+        return await asyncio.to_thread(check_ollama_reachable, OLLAMA_CHECK_TIMEOUT_S)
+    except Exception:
+        return False
+
+
 async def _provider_rows(request: Request) -> tuple[List[Dict[str, Any]], bool]:
     """Fallback chain with health, and whether any non-local provider has a key (booleans only)."""
     from agentos.llm.router_llm import cooldown_snapshot
@@ -84,6 +99,8 @@ async def _provider_rows(request: Request) -> tuple[List[Dict[str, Any]], bool]:
     has_key = {p.name: bool(p.api_key_configured) for p in statuses}
     remote_key = any(p.api_key_configured and not p.is_local for p in statuses)
     cooling = cooldown_snapshot()
+    local = {p.name for p in statuses if p.is_local}
+    ollama_up: bool | None = None  # 3.4 Part 0c: checked at most once per request, only if a local row needs it
     rows: List[Dict[str, Any]] = []
     for item in policy:
         c = cooling.get(item.name)
@@ -93,6 +110,11 @@ async def _provider_rows(request: Request) -> tuple[List[Dict[str, Any]], bool]:
             state = "no_key"
         elif c:
             state = "cooling"
+        elif item.name in local:
+            # A local server is "healthy" only after a real reachability check (never assumed)
+            if ollama_up is None:
+                ollama_up = await _ollama_reachable()
+            state = "healthy" if ollama_up else "not_running"
         else:
             state = "healthy"
         rows.append({

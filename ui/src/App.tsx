@@ -117,7 +117,7 @@ function ModeCard({ version }: { version: string }) {
 }
 
 export default function App() {
-  const [version, setVersion] = useState('2.0.0')
+  const [version, setVersion] = useState('2.0.0a1')
   const [classicOpen, setClassicOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getAuthToken())
 

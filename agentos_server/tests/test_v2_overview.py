@@ -134,7 +134,8 @@ async def test_empty_database(client):
     assert body["getting_started"]["flow_published"] is False
     assert body["getting_started"]["webhook_created"] is False
     assert body["providers"], "the fallback chain is listed even with no runs"
-    assert all(p["state"] in ("healthy", "cooling", "disabled", "no_key") for p in body["providers"])
+    # 3.4: "not_running" = a local server failed its reachability check
+    assert all(p["state"] in ("healthy", "cooling", "disabled", "no_key", "not_running") for p in body["providers"])
 
 
 @pytest.mark.asyncio

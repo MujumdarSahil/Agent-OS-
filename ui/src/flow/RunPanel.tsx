@@ -340,12 +340,15 @@ export default function ResultsPanel({
   runId,
   onSelectRun,
   inspectNode,
+  inspectSeq = 0,
   onInspectNode,
   onStatuses,
   onClose,
   dock = 'bottom',
 }: {
   dock?: 'bottom' | 'right'
+  /** bumped on every selection, so re-selecting the same node scrolls and flashes again */
+  inspectSeq?: number
   flowId: string
   runId: string | null
   onSelectRun: (runId: string) => void
@@ -378,6 +381,16 @@ export default function ResultsPanel({
   const gaps = useMemo(() => missingSeqs(events), [events])
   const output = useMemo(() => finalOutput(events), [events])
   const io = useMemo(() => (inspectNode ? nodeIO(events, inspectNode) : undefined), [events, inspectNode])
+  // 3.4 Part 0c: every node selection (canvas or Steps row) brings the inspector into view and flashes it
+  const inspectorRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = inspectorRef.current
+    if (!inspectNode || !el) return
+    el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    el.classList.remove('inspector-highlight')
+    void el.offsetWidth // restart the animation on a repeated selection
+    el.classList.add('inspector-highlight')
+  }, [inspectNode, inspectSeq])
   const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
   const sends = events.filter(e => e.type === 'sink_committed').length
   // 3.3: a send with no configured channel is SIMULATED; say so (AgentOS-written reason from the sink result)
@@ -612,6 +625,7 @@ export default function ResultsPanel({
                 : { width: 340, borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 8, fontSize: 12 }}
               data-testid="node-inspector"
               data-node={inspectNode}
+              ref={inspectorRef}
             >
               <div className="flex items-center mb-1">
                 <strong className="font-mono">{inspectNode}</strong>

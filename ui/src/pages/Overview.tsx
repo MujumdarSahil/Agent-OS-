@@ -25,6 +25,7 @@ const HEALTH: Record<string, { text: (s: number | null) => string; color: string
   cooling: { text: s => `cooling ${Math.ceil(s ?? 0)}s`, color: 'var(--accent-amber)' },
   disabled: { text: () => 'disabled', color: 'var(--text-muted)' },
   no_key: { text: () => 'no key', color: 'var(--text-muted)' },
+  not_running: { text: () => 'not running', color: 'var(--accent-red)' }, // 3.4: local server failed the check
 }
 
 function when(ts: string | null): string {

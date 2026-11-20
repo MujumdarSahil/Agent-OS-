@@ -16,8 +16,8 @@ import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
 import type { RJSFSchema, UiSchema } from '@rjsf/utils'
 import {
-  PublishRefusedError, apiErrorMessage, createFlow, getFlow, getNodeSpecs, listVersions, publishFlow, saveFlow,
-  type FlowRecord, type JSONSchema, type LoopDef, type NodeSpecInfo, type Violation,
+  PublishRefusedError, apiErrorMessage, createFlow, flowStatusLabel, getFlow, getNodeSpecs, listVersions, publishFlow,
+  saveFlow, type FlowRecord, type JSONSchema, type LoopDef, type NodeSpecInfo, type Violation,
 } from '../api/flows'
 import {
   edgeId, fromCanvas, inputArgs, makeEdge, outputFields, pinnableArgs, specMap, toCanvas,
@@ -94,6 +94,10 @@ function Editor() {
   const [edges, setEdges] = useState<CanvasEdge[]>([])
   const [persisted, setPersisted] = useState(!isNew)
   const [status, setStatus] = useState<FlowRecord['status']>('draft')
+  // 3.4 Part 0c: latest published version and whether the saved draft differs from it (from the server)
+  const [pubView, setPubView] = useState<{ version: number | null; changed: boolean }>({ version: null, changed: true })
+  const takePubView = (f: FlowRecord) =>
+    setPubView({ version: f.published_version ?? null, changed: f.unpublished_changes ?? !f.published_version })
   const [dirty, setDirty] = useState(false)
   const [drawer, setDrawer] = useState<Drawer>(null)
   const [picker, setPicker] = useState<{ from: string; branch: string | null } | null>(null)
@@ -110,6 +114,11 @@ function Editor() {
   const [layoutDir, setLayoutDir] = useState<LayoutDir>('LR')
   const [panelDock, setPanelDock] = useState<'bottom' | 'right'>('bottom')
   const [inspectNode, setInspectNode] = useState<string | null>(null)
+  const [inspectSeq, setInspectSeq] = useState(0)
+  const inspect = useCallback((id: string | null) => {
+    setInspectNode(id)
+    if (id) setInspectSeq(s => s + 1)
+  }, [])
   const [runDialog, setRunDialog] = useState(false)
   const [showPalette, setShowPalette] = useState(isNew)
   const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
@@ -149,6 +158,7 @@ function Editor() {
     setEntrypoint(f.entrypoint)
     setLoops(f.loops ?? {})
     setStatus(f.status)
+    takePubView(f)
     setLoaded(true)
     setPendingFit(true)
   }, [loaded, isNew, specsQ.data, flowQ.data, specs])
@@ -434,6 +444,7 @@ function Editor() {
       const saved = persisted ? await saveFlow(flow) : await createFlow(flow)
       setPersisted(true)
       setStatus(saved.status)
+      takePubView(saved)
       setDirty(false)
       setMessage({ kind: 'ok', text: 'Saved draft.' })
     } catch (err) {
@@ -469,6 +480,7 @@ function Editor() {
     try {
       const pub = await publishFlow(flowId)
       setStatus(pub.status)
+      takePubView(pub)
       setMessage({ kind: 'ok', text: `Published version ${pub.version}.` })
       void versionsQ.refetch() // enables Run
     } catch (err) {
@@ -534,7 +546,8 @@ function Editor() {
         setInspectNode(null)
       }}
       inspectNode={inspectNode}
-      onInspectNode={setInspectNode}
+      inspectSeq={inspectSeq}
+      onInspectNode={inspect}
       onStatuses={onRunStatuses}
       onClose={() => setShowResults(false)}
     />
@@ -542,13 +555,17 @@ function Editor() {
 
   return (
     <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 48px)' }}>
-      <div className="flex items-center gap-3 flex-wrap">
-        <Link to="/flows" className="btn btn-ghost btn-sm">← Flows</Link>
-        <h2 className="font-bold font-mono" data-testid="flow-id">{flowId}</h2>
-        <input className="form-input" style={{ width: 220 }} aria-label="Flow name" value={name} onChange={e => { setName(e.target.value); markDirty() }} />
-        <span className="badge badge-default" data-testid="flow-status">{status}</span>
-        {dirty && <span className="text-muted" data-testid="unsaved">unsaved changes</span>}
-        <div className="ml-auto flex gap-2" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <div className="editor-toolbar" data-testid="editor-toolbar">
+        <div className="flex items-center gap-3" style={{ flex: 'none' }}>
+          <Link to="/flows" className="btn btn-ghost btn-sm">← Flows</Link>
+          <h2 className="font-bold font-mono" data-testid="flow-id">{flowId}</h2>
+          <input className="form-input" style={{ width: 200 }} aria-label="Flow name" value={name} onChange={e => { setName(e.target.value); markDirty() }} />
+          <span className="badge badge-default" data-testid="flow-status">
+            {flowStatusLabel({ status, published_version: pubView.version, unpublished_changes: pubView.changed || dirty })}
+          </span>
+          {dirty && <span className="text-muted" data-testid="unsaved">unsaved changes</span>}
+        </div>
+        <div className="editor-toolbar-tools">
           <button className="btn btn-ghost btn-sm" data-testid="undo" onClick={undo} disabled={!history.current.canUndo} title="Undo (Ctrl+Z)">Undo</button>
           <button className="btn btn-ghost btn-sm" data-testid="redo" onClick={redo} disabled={!history.current.canRedo} title="Redo (Ctrl+Y)">Redo</button>
           <button className="btn btn-ghost btn-sm" data-testid="auto-layout" onClick={() => doLayout()} disabled={!nodes.length}>Auto-layout</button>
@@ -584,6 +601,8 @@ function Editor() {
             {showResults ? 'Hide results' : 'Results'}
           </button>
           <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">Export JSON</button>
+        </div>
+        <div className="editor-toolbar-primary" data-testid="editor-primary-actions">
           <button className="btn btn-secondary" data-testid="save-flow" onClick={onSave} disabled={busy}>Save</button>
           <button
             className="btn btn-primary"
@@ -667,7 +686,7 @@ function Editor() {
                 if (ev) userMoved.current = true // user zoom/pan (programmatic fits have no event)
               }}
               onNodeClick={(_, n) => {
-                if (showResults && runId) setInspectNode(n.id)
+                if (showResults && runId) inspect(n.id)
               }}
               onNodeDoubleClick={(_, n) => setDrawer({ kind: 'node', id: n.id })}
               onEdgeClick={(_, e) => setDrawer({ kind: 'edge', id: e.id })}
