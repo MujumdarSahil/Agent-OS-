@@ -205,6 +205,40 @@ async def test_legacy_disable_needs_an_admin(svc):
     assert await svc.legacy_token_disabled()
 
 
+# ------------------------------------------------------------------ CLI
+
+
+def test_cli_users_create_admin(tmp_path):
+    import asyncio
+
+    from typer.testing import CliRunner
+
+    from agentos.access import access_store_for
+    from agentos.cli.main import app
+    from agentos.storage import open_storage
+
+    runner = CliRunner()
+    res = runner.invoke(app, ["users", "create-admin", "--project", str(tmp_path), "--username", "Root",
+                              "--password-stdin"], input=GOOD + "\n")
+    assert res.exit_code == 0, res.output
+    assert GOOD not in res.output
+    bad = runner.invoke(app, ["users", "create-admin", "--project", str(tmp_path), "--username", "root2",
+                              "--password-stdin"], input="short\n")
+    assert bad.exit_code == 1 and "at least 12" in bad.output
+
+    async def check():
+        storage = await open_storage(project_path=str(tmp_path))
+        try:
+            svc = AccessService(access_store_for(storage), b"k" * 32)
+            u = await svc.find_user("root")
+            return u, await svc.check_login("root", GOOD)
+        finally:
+            await storage.close()
+
+    u, logged_in = asyncio.run(check())
+    assert u["role"] == "admin" and logged_in is not None
+
+
 # ------------------------------------------------------------------ limiter
 
 
