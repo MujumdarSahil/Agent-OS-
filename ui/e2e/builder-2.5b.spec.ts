@@ -5,12 +5,13 @@
 // run panel label "trusted · declassified by extraction" next to the untrusted input shown as plain text.
 
 import { test, expect, type APIRequestContext } from '@playwright/test'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const AUTH = { Authorization: `Bearer ${E2E_TOKEN}` }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 async function seed(request: APIRequestContext, flow: Record<string, unknown>, publish = true) {

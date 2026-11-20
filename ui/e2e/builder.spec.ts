@@ -6,12 +6,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { E2E_TOKEN } from '../playwright.builder.config'
+import { loginViaUi } from './login'
 
 const UC05 = path.resolve(process.cwd(), '..', 'examples', 'usecases', '05-visual-builder', 'flows')
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 export async function dropNode(page: Page, type: string, x: number, y: number) {

@@ -6,12 +6,13 @@
 // - Watch > Metrics: the page, its cards and the budget bars.
 
 import { test, expect } from '@playwright/test'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const AUTH = { Authorization: `Bearer ${E2E_TOKEN}` }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 test('budgets editor saves (audited); Spend card and Metrics show the budget', async ({ page, request }) => {

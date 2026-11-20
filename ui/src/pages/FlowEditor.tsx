@@ -5,6 +5,7 @@
 // Delete key, auto-layout. Saving stays explicit; publish refusals highlight the violating path.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { needs, useAuth } from '../components/AuthContext'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -115,6 +116,7 @@ function Editor() {
   const [panelDock, setPanelDock] = useState<'bottom' | 'right'>('bottom')
   const [inspectNode, setInspectNode] = useState<string | null>(null)
   const [inspectSeq, setInspectSeq] = useState(0)
+  const canBuild = useAuth().can('build') // 3.4: display only; the server refuses other roles
   const inspect = useCallback((id: string | null) => {
     setInspectNode(id)
     if (id) setInspectSeq(s => s + 1)
@@ -602,24 +604,25 @@ function Editor() {
           </button>
           <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">Export JSON</button>
         </div>
-        <div className="editor-toolbar-primary" data-testid="editor-primary-actions">
-          <button className="btn btn-secondary" data-testid="save-flow" onClick={onSave} disabled={busy}>Save</button>
+        <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
+             title={canBuild ? undefined : needs('build')}>
+          <button className="btn btn-secondary" data-testid="save-flow" onClick={onSave} disabled={busy || !canBuild}>Save</button>
           <button
             className="btn btn-primary"
             data-testid="publish-flow"
             onClick={onPublish}
-            disabled={busy || dirty || !persisted}
-            title={dirty || !persisted ? 'Save before publishing' : 'Run the static security check and publish'}
+            disabled={busy || dirty || !persisted || !canBuild}
+            title={!canBuild ? needs('build') : dirty || !persisted ? 'Save before publishing' : 'Run the static security check and publish'}
           >
             Publish
           </button>
-          <span title={hasPublished ? 'Run the latest published version' : 'Publish the flow first: Run uses the latest published version'}>
+          <span title={!canBuild ? needs('build') : hasPublished ? 'Run the latest published version' : 'Publish the flow first: Run uses the latest published version'}>
             <button
               className="btn btn-primary"
               data-testid="run-open"
               onClick={() => setRunDialog(true)}
-              disabled={!hasPublished}
-              style={!hasPublished ? { pointerEvents: 'none' } : undefined}
+              disabled={!hasPublished || !canBuild}
+              style={!hasPublished || !canBuild ? { pointerEvents: 'none' } : undefined}
             >
               ▶ Run
             </button>

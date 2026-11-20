@@ -5,6 +5,7 @@
 
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
+import { loginViaUi } from './login'
 import { E2E_TOKEN } from '../playwright.builder.config'
 
 const AUTH = { Authorization: `Bearer ${E2E_TOKEN}` }
@@ -13,7 +14,7 @@ const python = process.env.AGENTOS_E2E_PYTHON ||
 const FIXTURE = path.resolve(process.cwd(), '..', 'agentos', 'tests', 'fixtures', 'mcp', 'good_tools.py')
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(token => sessionStorage.setItem('agentos_api_token', token), E2E_TOKEN)
+  await loginViaUi(page) // 3.4: log in through the login page
 })
 
 test('MCP server: enable shows the command, discover, review and approve, then the agent picker offers it', async ({ page, request }) => {
