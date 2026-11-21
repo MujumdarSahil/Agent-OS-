@@ -3,7 +3,8 @@
 - safe arithmetic: normal maths works; huge exponents/numbers, names, attributes, calls, strings refused;
 - NodeSpec contract; side effect NONE; output untrusted (tool output) through the agent proxy and as a flow
   node, with the input's confidentiality; publish and run time labels identical;
-- GET /api/v2/agents/tool-options lists only tools the save check accepts (no file_read/file_write).
+- GET /api/v2/agents/tool-options lists only tools the save check accepts (3.5: the sandbox tools only with a
+  backend that runs them; the backend state is pinned in the test, never taken from the machine).
 """
 
 from __future__ import annotations
@@ -123,21 +124,47 @@ async def test_flow_node_label_untrusted_keeps_confidentiality_and_matches_publi
     assert st2.node_output_labels["calc"]["result"].confidentiality == "secret"
 
 
+class _PinnedBackend:
+    """3.5: a sandbox backend with a fixed availability, so the expected tool list never depends on whether this
+    machine has Docker or the wasm runtime."""
+
+    def __init__(self, name: str, kinds: tuple[str, ...], available: bool) -> None:
+        self.name, self.kinds, self._ok = name, kinds, available
+
+    def available(self) -> bool:
+        return self._ok
+
+    def status(self) -> dict:
+        return {"available": self._ok, "detail": "pinned in test", "kinds": list(self.kinds)}
+
+
+BASE_TOOLS = ["calculator", "fetch_url", "send_email", "send_slack"]  # 3.3: send_slack
+
+
 @pytest.mark.asyncio
-async def test_tool_options_list_only_what_the_server_accepts(tmp_path, monkeypatch):
+@pytest.mark.parametrize("docker,wasm,sandbox_tools", [
+    (False, False, []),  # no backend: only the base tools
+    (False, True, ["python_exec", "file_read", "file_write"]),  # wasm: Python + file tools, no shell
+    (True, False, ["python_exec", "shell_exec", "file_read", "file_write"]),  # Docker: every sandbox tool
+], ids=["no-backend", "wasm", "docker"])
+async def test_tool_options_list_only_what_the_server_accepts(tmp_path, monkeypatch, docker, wasm, sandbox_tools):
     monkeypatch.setenv("AGENTOS_API_TOKEN", "test-token-tool-options")
     monkeypatch.delenv("AGENTOS_MONGO_URI", raising=False)
     (tmp_path / "agentos.config.yaml").write_text("preferred_tags: []\n", encoding="utf-8")
+    from agentos.flows.specs import AGENT_TOOL_TYPES
     from agentos_server.app import create_app
 
     app = create_app(project_path=str(tmp_path))
+    app.state.sandbox.docker = _PinnedBackend("docker", ("python", "shell"), docker)
+    app.state.sandbox.wasm = _PinnedBackend("wasm", ("python",), wasm)
+    # expected = the catalog's agent tools (catalog order) minus the sandbox tools this pinned backend cannot run
+    expected = [t for t in AGENT_TOOL_TYPES if t in BASE_TOOLS or t in sandbox_tools]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost",
                            headers={"Authorization": "Bearer test-token-tool-options", "Host": "localhost"}) as c:
         opts = (await c.get("/api/v2/agents/tool-options")).json()
         names = [o["name"] for o in opts]
-        assert names == ["calculator", "fetch_url", "send_email", "send_slack"]  # 3.3: send_slack
-        # 3.5: the sandbox tools are offered only with a usable backend (none in this test: no Docker, no wasm build)
-        assert "file_read" not in names and "file_write" not in names and "python_exec" not in names
+        assert names == expected
+        assert [n for n in names if n not in BASE_TOOLS] == [t for t in AGENT_TOOL_TYPES if t in sandbox_tools]
         for n in names:  # every option is accepted by the save check
             r = await c.post("/api/v2/agents", json={"name": f"a_{n}", "role": "r", "goal": "g", "backstory": "b",
                                                      "tools": [n]})

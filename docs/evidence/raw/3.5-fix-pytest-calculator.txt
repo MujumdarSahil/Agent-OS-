@@ -1,0 +1,68 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.1, pluggy-1.6.0 -- C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Scripts\python.exe
+agentos test home: C:\Users\mujum\AppData\Local\Temp\agentos-test-home-aisyid3a
+  Path.home()   -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-aisyid3a
+  vault         -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-aisyid3a\.agentos\vault.json
+  master key    -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-aisyid3a\.agentos\master.key
+  api token     -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-aisyid3a\.agentos\api.token
+  guard watches -> C:\Users\mujum\.agentos (size + mtime only)
+rootdir: C:\Users\mujum\OneDrive\Desktop\Agent OS
+configfile: pyproject.toml
+plugins: anyio-4.16.0, langsmith-0.9.3, asyncio-1.3.0, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 52 items
+
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[1 + 2 * 3-7] PASSED [  1%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[(1 + 2) * 3-9] PASSED [  3%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[7 / 2-3.5] PASSED [  5%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[7 // 2-3] PASSED [  7%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[7 % 4-3] PASSED [  9%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[-3 + +5-2] PASSED [ 11%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[2 ** 10-1024] PASSED [ 13%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[sqrt(16)-4.0] PASSED [ 15%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[abs(-2.5)-2.5] PASSED [ 17%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[round(2.567, 2)-2.57] PASSED [ 19%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[max(1, 9, 3)-9] PASSED [ 21%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[min(4, 2)-2] PASSED [ 23%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[floor(2.9) + ceil(2.1)-5] PASSED [ 25%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[log(1)-0.0] PASSED [ 26%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[exp(0)-1.0] PASSED [ 28%]
+agentos/tests/flows/test_calculator_3_1.py::test_normal_maths[  12.5e2  -1250.0] PASSED [ 30%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[10 ** 1000-exponent too large] PASSED [ 32%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[9 ** 9 ** 9-too large] PASSED [ 34%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[2 ** 65-exponent too large] PASSED [ 36%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[10000000 ** 5-exponent too large] PASSED [ 38%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[10 ** 60-number too large] PASSED [ 40%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[99999999999 * 99999999999-number too large] PASSED [ 42%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1e300 * 1e300-number too large] PASSED [ 44%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[10 ** 16-too large] PASSED [ 46%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1 / 0-division by zero] PASSED [ 48%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[sqrt(-1)-sqrt] PASSED [ 50%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[x + 1-names are not allowed] PASSED [ 51%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[__import__('os')-only these functions] PASSED [ 53%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[(1).__class__-attribute access] PASSED [ 55%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[abs.__self__-attribute access] PASSED [ 57%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[eval('1')-only these functions] PASSED [ 59%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[open('f')-only these functions] PASSED [ 61%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[[1, 2][0]-not allowed] PASSED [ 63%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused['a' * 3-only numbers] PASSED [ 65%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[True + 1-only numbers] PASSED [ 67%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[lambda: 1-not allowed] PASSED [ 69%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[[x for x in (1,)]-not allowed] PASSED [ 71%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[max(*[1, 2])-not allowed] PASSED [ 73%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[round(2.5, ndigits=1)-keyword] PASSED [ 75%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1 if 1 else 2-not allowed] PASSED [ 76%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1 < 2-not allowed] PASSED [ 78%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[import os-not a valid] PASSED [ 80%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1 +-not a valid] PASSED [ 82%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1-too long] PASSED [ 84%]
+agentos/tests/flows/test_calculator_3_1.py::test_refused[1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1-too complex] PASSED [ 86%]
+agentos/tests/flows/test_calculator_3_1.py::test_non_string_refused PASSED [ 88%]
+agentos/tests/flows/test_calculator_3_1.py::test_contract_spec PASSED    [ 90%]
+agentos/tests/flows/test_calculator_3_1.py::test_proxy_path_result_and_untrusted_output PASSED [ 92%]
+agentos/tests/flows/test_calculator_3_1.py::test_flow_node_label_untrusted_keeps_confidentiality_and_matches_publish PASSED [ 94%]
+agentos/tests/flows/test_calculator_3_1.py::test_tool_options_list_only_what_the_server_accepts[no-backend] PASSED [ 96%]
+agentos/tests/flows/test_calculator_3_1.py::test_tool_options_list_only_what_the_server_accepts[wasm] PASSED [ 98%]
+agentos/tests/flows/test_calculator_3_1.py::test_tool_options_list_only_what_the_server_accepts[docker] PASSED [100%]
+
+============================= 52 passed in 3.14s ==============================
