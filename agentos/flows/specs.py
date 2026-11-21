@@ -517,7 +517,52 @@ SEND_SLACK_SINK_SPEC = NodeSpec(
     },
 )
 
+# 3.5: sandbox code tools (agentos/sandbox; design docs/evidence/3.5.md). Side effect NONE: they reach no network
+# and no host file (only the run's sandbox workspace), so the code MAY be untrusted (LLM-written); every output is
+# UNTRUSTED with the confidentiality of everything that went in. Fail closed when no sandbox backend is available.
+_FILES_ARG = {"type": "object", "additionalProperties": {"type": "string"},
+              "description": "optional {relative path: text} written into the run's sandbox workspace first"}
+PYTHON_EXEC_TOOL_SPEC = NodeSpec(
+    type="python_exec",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={"type": "object", "properties": {"code": {"type": "string", "maxLength": 200_000},
+                                                   "files": _FILES_ARG}, "required": ["code"]},
+    output_schema={"type": "object", "properties": {"exit_code": {"type": "integer"}, "stdout": {"type": "string"},
+                                                    "stderr": {"type": "string"}, "files_out": {"type": "object"},
+                                                    "limit_hit": {"type": "string"}}},
+    side_effect=SideEffectClass.NONE,
+)
+SHELL_EXEC_TOOL_SPEC = NodeSpec(
+    type="shell_exec",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={"type": "object", "properties": {"command": {"type": "string", "maxLength": 100_000},
+                                                   "files": _FILES_ARG}, "required": ["command"]},
+    output_schema=PYTHON_EXEC_TOOL_SPEC.output_schema,
+    side_effect=SideEffectClass.NONE,
+)
+FILE_READ_TOOL_SPEC = NodeSpec(
+    type="file_read",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={"type": "object", "properties": {"path": {"type": "string", "maxLength": 255}}, "required": ["path"]},
+    output_schema={"type": "object", "properties": {"content": {"type": "string"}}},
+    side_effect=SideEffectClass.NONE,
+)
+FILE_WRITE_TOOL_SPEC = NodeSpec(
+    type="file_write",
+    config_schema={"type": "object", "additionalProperties": False, "properties": {}},
+    input_schema={"type": "object", "properties": {"path": {"type": "string", "maxLength": 255},
+                                                   "content": {"type": "string"}}, "required": ["path", "content"]},
+    output_schema={"type": "object", "properties": {"path": {"type": "string"}, "bytes": {"type": "integer"}}},
+    side_effect=SideEffectClass.NONE,
+)
+SANDBOX_TOOL_TYPES = ("python_exec", "shell_exec", "file_read", "file_write")
+AGENT_TOOL_TYPES = AGENT_TOOL_TYPES + SANDBOX_TOOL_TYPES
+
 BUILTIN_NODE_SPECS: dict[str, NodeSpec] = {
+    "python_exec": PYTHON_EXEC_TOOL_SPEC,
+    "shell_exec": SHELL_EXEC_TOOL_SPEC,
+    "file_read": FILE_READ_TOOL_SPEC,
+    "file_write": FILE_WRITE_TOOL_SPEC,
     "webhook_trigger": WEBHOOK_TRIGGER_SPEC,
     "manual_trigger": MANUAL_TRIGGER_SPEC,
     "llm": LLM_NODE_SPEC,

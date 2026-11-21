@@ -80,6 +80,8 @@ class RunGuard:
         self.run_id = run_id
         self.flow_id = flow_id
         self.max_calls, self.max_tokens = settings.limits_for(flow_id)
+        self.max_sandbox_calls = settings.sandbox_limit_for(flow_id)
+        self.sandbox_calls = 0
         self.budgets = settings.budgets
         self.loop = loop
         self.emit = emit
@@ -97,8 +99,20 @@ class RunGuard:
         self.tokens += int(record.get("total_tokens") or 0)
 
     # -------------------------------------------------------------- checks
+    def seed_sandbox(self, count: int) -> None:
+        """3.5: sandbox calls already made by a resumed run (from its sandbox events)."""
+        self.sandbox_calls = max(self.sandbox_calls, int(count))
+
+    def before_sandbox_call(self) -> None:
+        """3.5: max sandbox calls per run; exceeding it trips the guard (the run then fails like on other limits)."""
+        if self.tripped is not None:
+            raise self.tripped
+        if self.sandbox_calls >= self.max_sandbox_calls:
+            self._trip("sandbox_calls", self.sandbox_calls, self.max_sandbox_calls)
+        self.sandbox_calls += 1
+
     def _trip(self, kind: str, used: int, limit: int) -> None:
-        label = "model calls" if kind == "calls" else "total tokens"
+        label = {"calls": "model calls", "tokens": "total tokens", "sandbox_calls": "sandbox calls"}[kind]
         self.tripped = RunLimitExceeded(f"run limit exceeded: {label} {used}/{limit}")
         if self.emit:
             self.emit("run_limit_exceeded", {"limit": kind, "used": used, "max": limit})

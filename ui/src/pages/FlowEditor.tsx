@@ -781,7 +781,7 @@ function Palette({ specs, onAdd }: { specs: NodeSpecInfo[]; onAdd: (s: NodeSpecI
     <div className="card" style={{ width: 210, overflowY: 'auto', padding: 12 }} data-testid="palette">
       <div className="form-label">Node types (drag or click)</div>
       <div className="flex flex-col gap-1">
-        {specs.map(s => {
+        {specs.filter(s => !s.agent_tool_only).map(s => {
           const st = CATEGORY_STYLE[categoryOf(s.type)]
           const Icon = st.icon
           return (

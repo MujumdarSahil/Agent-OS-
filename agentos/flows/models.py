@@ -70,6 +70,13 @@ class FlowDefinition(BaseModel):
             spec = BUILTIN_NODE_SPECS.get(node.type)
             if not spec:
                 raise InvalidFlowConfigError(f"Unknown node type {node.type!r} on node {node_id!r}")
+            # 3.5: sandbox code tools run only as agent tools through the tool proxy (labels, limits, events)
+            from agentos.flows.specs import SANDBOX_TOOL_TYPES
+
+            if node.type in SANDBOX_TOOL_TYPES:
+                raise InvalidFlowConfigError(
+                    f"Node {node_id!r}: {node.type!r} is an agent tool, not a flow step; give it to an agent node "
+                    f"(fail closed)")
 
             # Validate node config against spec.config_schema via jsonschema
             if spec.config_schema:

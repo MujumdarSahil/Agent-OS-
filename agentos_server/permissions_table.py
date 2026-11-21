@@ -163,6 +163,12 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", f"{_V2}/access/legacy-token"): "admin",
     ("PUT", f"{_V2}/access/legacy-token"): "admin",
     ("POST", f"{_V2}/access/legacy-token/rotate"): "admin",
+    # ------------------------------------------------------------------ 3.5 sandbox (settings changes are audited)
+    ("GET", f"{_V2}/sandbox/status"): "read",
+    ("GET", f"{_V2}/sandbox/settings"): "admin",
+    ("PUT", f"{_V2}/sandbox/settings"): "admin",
+    ("POST", f"{_V2}/sandbox/test"): "admin",
+    ("POST", f"{_V2}/sandbox/wasm/install"): "admin",
 }
 
 

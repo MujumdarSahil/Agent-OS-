@@ -276,6 +276,8 @@ def create_app(
                 app.state.notify.store = notify_store_for(app.state.storage)
                 app.state.notify.storage = app.state.storage
                 app.state.notify.vault = app.state.vault
+                from agentos.sandbox.store import sandbox_settings_store_for
+                app.state.sandbox.settings_store = sandbox_settings_store_for(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
                 # Use Mongo server-time leader lock in Platform mode
@@ -367,6 +369,19 @@ def create_app(
             await notify.on_audit_verify(await app.state.audit.verify())
         except Exception as e:
             logger.warning("Startup audit verification failed: %s", type(e).__name__)
+
+        # 3.5: sandbox settings, leftover containers of a crashed server, old per-run workspaces
+        try:
+            await app.state.sandbox.get_settings()
+            import asyncio as _aio_sb
+
+            from agentos.sandbox.docker_backend import sweep_leftovers
+            removed = await _aio_sb.to_thread(sweep_leftovers)
+            swept = await _aio_sb.to_thread(app.state.sandbox.sweep)
+            if removed or swept:
+                logger.info("Sandbox: removed %d leftover container(s), %d old workspace(s)", removed, swept)
+        except Exception as e:
+            logger.warning("Sandbox start-up check failed: %s", type(e).__name__)
 
         # Opt-in in-process flow worker (Standalone): AGENTOS_INPROCESS_WORKER=1
         from agentos_server.inprocess_worker import InProcessFlowWorker, inprocess_worker_enabled
@@ -551,6 +566,13 @@ def create_app(
     )
     app.state.transport_registry = {"send_email": ChannelEmailTransport(app.state.notify),
                                     "send_slack": ChannelSlackTransport(app.state.notify)}
+
+    # 3.5: sandbox for the code tools (python_exec / shell_exec / file_*). Fail closed without a backend; nothing
+    # from this process (env, vault, keys) is passed into a sandbox. Settings follow the storage backend.
+    from agentos.core.locations import data_dir
+    from agentos.sandbox import SandboxService
+    from agentos.sandbox.store import sandbox_settings_store_for
+    app.state.sandbox = SandboxService(data_dir(), sandbox_settings_store_for(app.state.storage))
 
     # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
     # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.

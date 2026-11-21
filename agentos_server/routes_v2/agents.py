@@ -59,10 +59,21 @@ async def agent_tool_options(request: Request) -> List[Dict[str, Any]]:
     tools + approved MCP tools of enabled servers), so the UI never offers a tool the server would refuse."""
     from agentos.flows.tool_catalog import ToolCatalog
 
+    from agentos.flows.specs import SANDBOX_TOOL_TYPES
+
     storage = request.app.state.storage
     records = await storage.mcp_servers.list() if getattr(storage, "mcp_servers", None) is not None else []
+    # 3.5: code tools are offered only when a sandbox backend that supports them is available now
+    sandbox = getattr(request.app.state, "sandbox", None)
+    usable: set[str] = set()
+    if sandbox is not None:
+        import asyncio
+
+        usable = set(await asyncio.to_thread(sandbox.available_tools, await sandbox.get_settings()))
     out = []
     for e in ToolCatalog(records).agent_tool_options():
+        if e.name in SANDBOX_TOOL_TYPES and e.name not in usable:
+            continue
         out.append({
             "name": e.name,
             "kind": "mcp" if e.is_mcp else "builtin",

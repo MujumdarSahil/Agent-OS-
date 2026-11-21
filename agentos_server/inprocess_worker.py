@@ -65,6 +65,8 @@ class InProcessFlowWorker:
             mcp_manager=getattr(state, "mcp_manager", None),
             # 3.2: usage ledger, budgets and run limits
             usage=getattr(state, "usage", None),
+            # 3.5: sandbox for python_exec / shell_exec / file_* (fail closed without a backend)
+            sandbox=getattr(state, "sandbox", None),
         )
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="agentos-inprocess-flow-worker")

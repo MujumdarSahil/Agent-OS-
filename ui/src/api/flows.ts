@@ -31,6 +31,8 @@ export interface NodeSpecInfo {
   /** 2.5b quarantined_extraction only: the node declassifies, and the admin allowlist names (names only). */
   declassifies?: boolean
   allowlist_names?: string[]
+  /** 3.5: sandbox code tools are agent tools only (never a flow step); the palette hides them. */
+  agent_tool_only?: boolean
 }
 
 export interface FlowNodeDef {

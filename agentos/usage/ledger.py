@@ -126,16 +126,19 @@ class FileUsageLedger:
 
 DEFAULT_MAX_MODEL_CALLS = 50
 DEFAULT_MAX_TOTAL_TOKENS = 300_000
+DEFAULT_MAX_SANDBOX_CALLS = 20  # 3.5: python_exec / shell_exec / file_* calls per run
 
 
 class FlowRunLimits(BaseModel):
     max_model_calls: Optional[int] = Field(default=None, ge=1, le=100_000)
     max_total_tokens: Optional[int] = Field(default=None, ge=1, le=1_000_000_000)
+    max_sandbox_calls: Optional[int] = Field(default=None, ge=1, le=10_000)
 
 
 class RunLimits(BaseModel):
     max_model_calls: int = Field(default=DEFAULT_MAX_MODEL_CALLS, ge=1, le=100_000)
     max_total_tokens: int = Field(default=DEFAULT_MAX_TOTAL_TOKENS, ge=1, le=1_000_000_000)
+    max_sandbox_calls: int = Field(default=DEFAULT_MAX_SANDBOX_CALLS, ge=1, le=10_000)
     flows: Dict[str, FlowRunLimits] = Field(default_factory=dict)
 
 
@@ -159,6 +162,12 @@ class UsageSettings(BaseModel):
         calls = min(rl.max_model_calls, f.max_model_calls or rl.max_model_calls)
         tokens = min(rl.max_total_tokens, f.max_total_tokens or rl.max_total_tokens)
         return calls, tokens
+
+    def sandbox_limit_for(self, flow_id: str) -> int:
+        """3.5: sandbox calls per run; a per-flow value can only LOWER the global one."""
+        rl = self.run_limits
+        f = rl.flows.get(flow_id) or FlowRunLimits()
+        return min(rl.max_sandbox_calls, f.max_sandbox_calls or rl.max_sandbox_calls)
 
 
 class FileUsageSettings:

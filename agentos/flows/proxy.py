@@ -28,7 +28,7 @@ from agentos.flows.rules import (
     SinkRuleViolationError,
     evaluate_sink_argument_rule,
 )
-from agentos.flows.specs import SideEffectClass
+from agentos.flows.specs import SANDBOX_TOOL_TYPES, SideEffectClass
 from agentos.flows.tool_catalog import (
     BUILTIN_CATALOG,
     ToolCatalog,
@@ -63,6 +63,23 @@ async def transport_send(transport: Any, idempotency_key: str, args: dict[str, A
     if hasattr(transport, "asend"):
         return await transport.asend(idempotency_key=idempotency_key, **args)
     return transport.send(idempotency_key=idempotency_key, **args)
+
+
+def sandbox_result_text(kind: str, res: Any) -> str:
+    """What the model is told after python_exec / shell_exec (the stdout/stderr parts are UNTRUSTED sandbox output)."""
+    head = f"[sandbox {kind} via {res.backend}: exit code {res.exit_code}"
+    if res.limit_hit:
+        head += f", limit hit: {res.limit_hit}"
+    if res.error:
+        head += f", error: {res.error}"
+    parts = [head + "]", "stdout:", res.stdout + (" [truncated]" if res.stdout_truncated else "")]
+    if res.stderr:
+        parts += ["stderr:", res.stderr + (" [truncated]" if res.stderr_truncated else "")]
+    if res.files_out:
+        parts.append("workspace files: " + ", ".join(f"{k} ({len(v)} B)" for k, v in sorted(res.files_out.items())))
+    if res.refused_files:
+        parts.append("refused on copy-out: " + "; ".join(res.refused_files[:10]))
+    return "\n".join(parts)
 
 
 class MockTransport:
@@ -103,7 +120,13 @@ class AgentOSToolProxy:
         fencing_checker: Any | None = None,
         tool_catalog: ToolCatalog | None = None,
         mcp_manager: Any | None = None,
+        sandbox: Any | None = None,
+        usage_guard: Any | None = None,
     ) -> None:
+        # 3.5: sandbox service for python_exec / shell_exec / file_* (None: those tools refuse, fail closed) and the
+        # run guard that counts sandbox calls toward the 3.2 run limits
+        self.sandbox = sandbox
+        self.usage_guard = usage_guard
         # 2.5a: same tool-spec lookup as the static analyzer (built-ins + approved MCP tools)
         self.tool_catalog = tool_catalog or BUILTIN_CATALOG
         self.mcp_manager = mcp_manager
@@ -367,6 +390,9 @@ class AgentOSToolProxy:
                 ret_val = f"Calculator error: {err}"
         elif tool_name == "fetch_url":
             ret_val = await self._fetch_url(agent_node_id, final_args.get("url"))
+        elif tool_name in SANDBOX_TOOL_TYPES:
+            # 3.5: labels are applied inside (output = untrusted, confidentiality of everything that went in)
+            return await self._sandbox_call(agent_node_id, tool_name, final_args)
         else:
             ret_val = f"Executed {tool_name} successfully with args: {final_args}"
 
@@ -418,6 +444,92 @@ class AgentOSToolProxy:
             "redirects": len(res.get("redirects") or []),
         })
         return f"[HTTP {res.get('status')}] {body}" + (" [truncated]" if res.get("truncated") else "")
+
+    # ------------------------------------------------------------------ 3.5 sandbox tools
+    _SANDBOX_EVENTS = ("sandbox_exec", "sandbox_file")
+
+    async def _sandbox_state(self) -> tuple[int, Label | None]:
+        """(sandbox calls so far in this run, label of everything written into the run's workspace) from events,
+        so a resumed run and a later agent node see the same count and inherit the workspace label."""
+        count, label = 0, None
+        for e in await self.storage.events.list(self.run_id, after_seq=0):
+            if e.type in self._SANDBOX_EVENTS or (e.type == "tool_call_rejected"
+                                                  and (e.data or {}).get("sandbox_counted")):
+                count += 1
+            wl = (e.data or {}).get("workspace_label") if e.type in self._SANDBOX_EVENTS else None
+            if wl:
+                lbl = Label.from_dict(wl)
+                label = lbl if label is None else label.join(lbl)
+        return count, label
+
+    async def _sandbox_refuse(self, agent_node_id: str, tool_name: str, reason: str, counted: bool = True) -> None:
+        await self._append_event(type="tool_call_rejected", data={
+            "agent_node": agent_node_id, "tool_name": tool_name, "reason": reason[:400], "sandbox_counted": counted})
+        raise ValueError(reason)
+
+    async def _sandbox_call(self, agent_node_id: str, tool_name: str, args: dict[str, Any]) -> str:
+        from agentos.sandbox import SandboxError
+        from agentos.sandbox.paths import PathRefused
+        from agentos.usage.guard import RunLimitExceeded
+        from agentos.usage.ledger import DEFAULT_MAX_SANDBOX_CALLS
+
+        count, ws_label = await self._sandbox_state()
+        guard = self.usage_guard
+        if guard is not None and guard.tripped is not None:
+            raise guard.tripped
+        limit = getattr(guard, "max_sandbox_calls", DEFAULT_MAX_SANDBOX_CALLS)
+        if count >= limit:
+            msg = f"run limit exceeded: sandbox calls {count}/{limit}"
+            await self._append_event(type="run_limit_exceeded", data={"limit": "sandbox_calls", "used": count,
+                                                                       "max": limit})
+            err = RunLimitExceeded(msg)
+            if guard is not None:
+                guard.tripped = err  # sticky: the run then fails like on the other run limits
+            raise err
+        if guard is not None:
+            guard.sandbox_calls = count + 1
+        if self.sandbox is None:
+            await self._sandbox_refuse(agent_node_id, tool_name, f"{tool_name}: no sandbox is configured in this "
+                                       f"process; code tools are unavailable (fail closed, nothing was run)")
+        await self.sandbox.get_settings()
+
+        # Labels: what goes in is the agent context (and, for exec, the workspace); outputs are UNTRUSTED with the
+        # confidentiality of everything that went in (secret in -> secret out).
+        ctx = self.agent_context_label
+        inbound = ctx if ws_label is None else ctx.join(ws_label)
+        out_label = Label.untrusted(confidentiality=inbound.confidentiality, sources=inbound.sources | {tool_name})
+        base = {"agent_node": agent_node_id, "tool_name": tool_name, "label": out_label.to_dict()}
+        self._check_fencing()
+        try:
+            if tool_name in ("python_exec", "shell_exec"):
+                kind = "python" if tool_name == "python_exec" else "shell"
+                payload = args.get("code") if kind == "python" else args.get("command")
+                res = await asyncio.to_thread(self.sandbox.exec_in_run, self.run_id, kind,
+                                              payload if isinstance(payload, str) else "", args.get("files") or None)
+                summary = res.summary()
+                await self._append_event(type="sandbox_exec", data={
+                    **base, **summary, "stdout": res.stdout, "stderr": res.stderr,
+                    "workspace_label": inbound.to_dict(),
+                })
+                text = sandbox_result_text(kind, res)
+            elif tool_name == "file_write":
+                path, size = await asyncio.to_thread(self.sandbox.write_file, self.run_id, args.get("path"),
+                                                     args.get("content") if args.get("content") is not None else "")
+                await self._append_event(type="sandbox_file", data={**base, "op": "write", "path": path,
+                                                                    "bytes": size, "workspace_label": ctx.to_dict()})
+                text = f"file_write: wrote {size} bytes to {path} in the sandbox workspace"
+            else:
+                path, content, truncated = await asyncio.to_thread(self.sandbox.read_file, self.run_id,
+                                                                   args.get("path"))
+                await self._append_event(type="sandbox_file", data={**base, "op": "read", "path": path,
+                                                                    "bytes": len(content.encode("utf-8")),
+                                                                    "truncated": truncated})
+                text = content + ("\n[truncated]" if truncated else "")
+        except (SandboxError, PathRefused) as err:
+            await self._sandbox_refuse(agent_node_id, tool_name, f"{tool_name} refused: {err}")
+            raise  # unreachable (refuse raises)
+        self.agent_context_label = self.agent_context_label.join(out_label)
+        return text
 
     async def _invoke_mcp(self, agent_node_id: str, entry: ToolEntry, args: dict[str, Any]) -> str:
         """Call an approved MCP tool through the manager. Above read: sink_intent -> call -> sink_committed;

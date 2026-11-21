@@ -51,6 +51,9 @@ vector = ["faiss-cpu>=1.7.4"]
 postgres = ["psycopg2-binary>=2.9.0"]
 # Platform mode storage (MongoDB via PyMongo's async API; Motor is deprecated upstream) and Redis queue.
 platform = ["pymongo>=4.13,<5", "redis==5.2.1"]
+# 3.5 code sandbox, wasm backend (Python only; the pinned CPython WASI build is installed separately with
+# `agentos sandbox install-wasm`). The Docker backend needs only the Docker CLI.
+sandbox-wasm = ["wasmtime==50.0.1"]
 ui-legacy = ["streamlit>=1.40.0"]
 dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "flake8>=6.1.0", "vcrpy>=6.0.0", "fakeredis>=2.40.0", "lupa>=2.8", "aiosmtpd==1.4.6"]
 

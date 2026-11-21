@@ -1001,6 +1001,44 @@ def pack_install(
 
 
 # =====================================================================
+# SANDBOX (3.5)
+# =====================================================================
+
+sandbox_app = typer.Typer(help="Code sandbox for python_exec / shell_exec / file_* (3.5)")
+app.add_typer(sandbox_app, name="sandbox")
+
+
+@sandbox_app.command("status")
+def sandbox_status():
+    """Show which sandbox backends are available (Docker, wasm) and what the code tools would use."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox import SandboxService
+
+    st = SandboxService(data_dir()).status()
+    console.print(f"Sandbox: {st['summary']}")
+    console.print(f"  docker: {st['docker'].get('detail')} (client {st['docker'].get('client')}, "
+                  f"server {st['docker'].get('server')})")
+    console.print(f"  wasm:   {st['wasm'].get('detail')} (wasmtime {st['wasm'].get('wasmtime')}, "
+                  f"build {st['wasm'].get('build')})")
+
+
+@sandbox_app.command("install-wasm")
+def sandbox_install_wasm():
+    """Download the pinned CPython WASI build into the AgentOS data dir and verify its sha256 (explicit admin step)."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox.wasm_build import WASM_SHA256, WASM_SIZE, WASM_URL, WasmBuildError, install
+
+    d = data_dir()
+    console.print(f"Downloading {WASM_URL}\n  ({WASM_SIZE:,} bytes, sha256 {WASM_SHA256}) into {d}")
+    try:
+        path = install(d)
+    except (WasmBuildError, OSError) as e:
+        console.print(f"[bold red]Refused:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]OK[/green] verified and installed: {path}")
+
+
+# =====================================================================
 # PHASE 4 — WORKSTREAM B: Templates CLI
 # =====================================================================
 

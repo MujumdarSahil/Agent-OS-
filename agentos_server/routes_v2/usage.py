@@ -115,6 +115,7 @@ def _flat(s: UsageSettings) -> Dict[str, Any]:
     """One level of numbers for the audit entry (names and values only)."""
     out: Dict[str, Any] = {
         "max_model_calls": s.run_limits.max_model_calls, "max_total_tokens": s.run_limits.max_total_tokens,
+        "max_sandbox_calls": s.run_limits.max_sandbox_calls,
         "global_daily": s.budgets.global_daily, "global_monthly": s.budgets.global_monthly,
     }
     for f, v in sorted(s.budgets.flow_daily.items()):
