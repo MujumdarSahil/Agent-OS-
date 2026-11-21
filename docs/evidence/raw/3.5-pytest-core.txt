@@ -1,0 +1,327 @@
+﻿........s............................................................... [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+....................................................................ssss [ 30%]
+........s.s.s........................................................... [ 36%]
+......................................s................................. [ 42%]
+.............................s.......................................... [ 48%]
+................F....................................................... [ 54%]
+...............s.s.s.s.................................................. [ 60%]
+....................................ssssssssssssssss.................... [ 67%]
+...........s......................................................s.s.s. [ 73%]
+s...s.s.s.s.s.s.............s.........s.....s...s....................... [ 79%]
+.ss.ss...............s...................ssssssssss...ssssss.s..ssssss.. [ 85%]
+sss...................................s.s.s............................. [ 91%]
+........................s............................................... [ 97%]
+.............................                                            [100%]
+================================== FAILURES ===================================
+________________ test_T6_output_cap_and_slow_tool_timeout_kill ________________
+
+    async def stdout_reader() -> None:
+        assert process.stdout
+        try:
+            async with read_writer:
+                buffer = ""
+                async for chunk in TextReceiveStream(process.stdout, encoding="utf-8", errors="replace"):
+                    lines = (buffer + chunk).split("\n")
+                    buffer = lines.pop()
+                    if len(buffer) > max_message_bytes:
+                        await read_writer.send(MCPMessageTooLarge(f"message exceeds {max_message_bytes} bytes"))
+                        return
+                    for line in lines:
+                        if not line.strip():
+                            continue
+                        if len(line) > max_message_bytes:
+                            await read_writer.send(MCPMessageTooLarge(f"message exceeds {max_message_bytes} bytes"))
+                            return
+                        try:
+                            message = types.JSONRPCMessage.model_validate_json(line)
+                        except Exception as exc:
+                            await read_writer.send(exc)
+                            continue
+>                       await read_writer.send(SessionMessage(message))
+
+agentos\mcp\launcher.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+venv\Lib\site-packages\anyio\streams\memory.py:268: in send
+    self.send_nowait(item)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = MemoryObjectSendStream(_state=_MemoryObjectStreamState(max_buffer_size=0, buffer=deque([]), open_send_channels=0, open_receive_channels=0, waiting_receivers=OrderedDict(), waiting_senders=OrderedDict()), _closed=True, _waiters=None)
+item = SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=0, result={'protocolVersion': '2025-11-25...ged': False}, 'tools': {'listChanged': False}}, 'serverInfo': {'name': 'abuse', 'version': '1.30.0'}})), metadata=None)
+
+    def send_nowait(self, item: T_contra) -> None:
+        """
+        Send an item immediately if it can be done without waiting.
+    
+        :param item: the item to send
+        :raises ~anyio.ClosedResourceError: if this send stream has been closed
+        :raises ~anyio.BrokenResourceError: if the stream has been closed from the
+            receiving end
+        :raises ~anyio.WouldBlock: if the buffer is full and there are no tasks waiting
+            to receive
+    
+        """
+        if self._closed:
+            raise ClosedResourceError
+        if not self._state.open_receive_channels:
+>           raise BrokenResourceError
+E           anyio.BrokenResourceError
+
+venv\Lib\site-packages\anyio\streams\memory.py:239: BrokenResourceError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/mujum/AppData/Local/Temp/pytest-of-mujum/pytest-583/test_T6_output_cap_and_slow_to0')
+storage = Storage(backend='file', agents=<agentos.storage.file.FileAgentRepository object at 0x0000017F8CD565D0>, squads=<agento...cation='C:\\Users\\mujum\\AppData\\Local\\Temp\\pytest-of-mujum\\pytest-583\\test_T6_output_cap_and_slow_to0\\project')
+
+    @pytest.mark.asyncio
+    async def test_T6_output_cap_and_slow_tool_timeout_kill(tmp_path, storage):
+        m = MCPManager(project_path=str(tmp_path / "p"), storage=storage, idle_timeout_s=0, call_timeout_s=2,
+                       max_output_bytes=1000)
+        try:
+>           rec = await m.discover(record("abuse", "abuse.py"))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+agentos\tests\test_mcp_2_5a.py:439: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+agentos\mcp\manager.py:341: in discover
+    r = await self.ensure_started(record)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agentos.mcp.manager.MCPManager object at 0x0000017F8CD57D50>
+record = MCPServerRecord(name='abuse', transport='stdio', command='C:\\Users\\mujum\\OneDrive\\Desktop\\Agent OS\\venv\\Scripts...gentos\\tests\\fixtures\\mcp\\abuse.py'], url=None, env={}, secret_env={}, enabled=True, tools={}, last_discovery=None)
+
+    async def ensure_started(self, record: MCPServerRecord) -> _Running:
+        if not record.enabled:
+            raise MCPServerUnavailable(f"MCP server {record.name!r} is not enabled")
+        lock = self._locks.setdefault(record.name, asyncio.Lock())
+        async with lock:
+            r = self._running.get(record.name)
+            if r and r.session is not None and r.task and not r.task.done():
+                return r
+            r = _Running(sem=asyncio.Semaphore(self.max_concurrency))
+            self._running[record.name] = r
+            r.task = asyncio.get_running_loop().create_task(self._serve(record, r))
+            try:
+                await asyncio.wait_for(r.ready.wait(), timeout=self.start_timeout_s + 5)
+            except asyncio.TimeoutError:
+                await self.kill(record.name, "start timeout")
+                raise MCPTimeout(f"MCP server {record.name!r} did not start in time")
+            if r.session is None:
+                self._running.pop(record.name, None)
+                err = r.error
+                if isinstance(err, TimeoutError):
+                    raise MCPTimeout(f"MCP server {record.name!r} did not answer the handshake in time") from err
+>               raise MCPServerUnavailable(
+                    f"MCP server {record.name!r} failed to start: {type(err).__name__ if err else 'unknown'}: "
+                    f"{str(err)[:300] if err else ''}"
+                ) from err
+E               agentos.mcp.manager.MCPServerUnavailable: MCP server 'abuse' failed to start: BrokenResourceError:
+
+agentos\mcp\manager.py:295: MCPServerUnavailable
+============================== warnings summary ===============================
+agentos\tests\test_characterization_v1.py:25
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\agentos\tests\test_characterization_v1.py:25: DeprecationWarning: agentos.server is deprecated; import from agentos_server instead.
+    from agentos.server.run_manager import RunManager, RunState
+
+agentos\tests\test_scheduler_2_2.py:13
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\agentos\tests\test_scheduler_2_2.py:13: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+agentos/tests/flows/test_acceptance.py: 18 warnings
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos_server/tests/test_api.py: 12 warnings
+tests/ci/test_mock_no_egress.py: 3 warnings
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 36 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:455: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(
+
+agentos/tests/flows/test_acceptance.py: 18 warnings
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos_server/tests/test_api.py: 12 warnings
+tests/ci/test_mock_no_egress.py: 3 warnings
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 36 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:463: DeprecationWarning: deprecated
+    if self.allow_code_execution:
+
+agentos/tests/flows/test_acceptance.py: 18 warnings
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos_server/tests/test_api.py: 12 warnings
+tests/ci/test_mock_no_egress.py: 3 warnings
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 36 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:474: DeprecationWarning: deprecated
+    if self.reasoning and self.planning_config is None:
+
+agentos/tests/flows/test_acceptance.py: 6 warnings
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos_server/tests/test_api.py: 10 warnings
+tests/ci/test_mock_no_egress.py: 1 warning
+tests/ci/test_usecase_01.py: 2 warnings
+tests/ci/test_usecase_07.py: 8 warnings
+tests/ci/test_usecase_08.py: 3 warnings
+tests/ci/test_usecase_12.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:1375: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    function_calling_llm=self.function_calling_llm,
+
+agentos/tests/test_agent.py: 6 warnings
+agentos/tests/test_characterization_v1.py: 10 warnings
+agentos/tests/test_squad.py: 9 warnings
+agentos_server/tests/test_api.py: 25 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:661: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(self.function_calling_llm, LLM):
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_crash_and_resume
+agentos_server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crews\utils.py:372: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    crew.function_calling_llm,
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos_server/tests/test_api.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crews\utils.py:87: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if not agent.function_calling_llm:  # type: ignore[attr-defined]
+
+agentos/tests/test_agent.py: 4 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 2 warnings
+agentos_server/tests/test_api.py: 8 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1690: DeprecationWarning: deprecated
+    if hasattr(agent, "allow_code_execution") and getattr(
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_crash_and_resume
+agentos_server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1697: DeprecationWarning: deprecated
+    and hasattr(agent, "multimodal")
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_crash_and_resume
+agentos_server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1698: DeprecationWarning: deprecated
+    and getattr(agent, "multimodal", False)
+
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos_server/tests/test_api.py::test_mission_run_and_poll
+agentos_server/tests/test_api.py::test_crash_and_resume
+agentos_server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\pydantic\main.py:250: UserWarning: A function callback cannot be saved in a checkpoint; it is dropped and will not run after a restore. Use a module-level named function instead.
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] agentos\tests\flows\test_acceptance.py:498: LIVE MongoDB not configured (set AGENTOS_MONGO_URI)
+SKIPPED [1] agentos\tests\test_access_mongo_live.py:45: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_access_mongo_live.py:49: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_access_mongo_live.py:57: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_access_mongo_live.py:71: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_audit_3_1.py:53: LIVE: set AGENTOS_MONGO_URI to run the Mongo audit variant
+SKIPPED [1] agentos\tests\test_audit_3_1.py:68: LIVE: set AGENTOS_MONGO_URI to run the Mongo audit variant
+SKIPPED [1] agentos\tests\test_audit_3_1.py:75: LIVE: set AGENTOS_MONGO_URI to run the Mongo audit variant
+SKIPPED [1] agentos\tests\test_flow_api_and_approval_2_1.py:367: LIVE Mongo not configured
+SKIPPED [1] agentos\tests\test_home_guard_3_5.py:64: creating symlinks is not permitted here
+SKIPPED [1] agentos\tests\test_redis_queue_2_2.py:61: Skipping Redis LIVE tests: AGENTOS_REDIS_URI not set (use docker compose -f docker/compose.redis.yml up -d)
+SKIPPED [1] agentos\tests\test_redis_queue_2_2.py:95: Skipping Redis LIVE tests: AGENTOS_REDIS_URI not set (use docker compose -f docker/compose.redis.yml up -d)
+SKIPPED [1] agentos\tests\test_redis_queue_2_2.py:130: Skipping Redis LIVE tests: AGENTOS_REDIS_URI not set (use docker compose -f docker/compose.redis.yml up -d)
+SKIPPED [1] agentos\tests\test_redis_queue_2_2.py:142: Skipping Redis LIVE tests: AGENTOS_REDIS_URI not set (use docker compose -f docker/compose.redis.yml up -d)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:68: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:81: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:113: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [10] agentos\tests\test_sandbox_docker_3_5.py:143: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:154: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:160: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_docker_3_5.py:169: LIVE docker: the Docker daemon is not running (start Docker Desktop / dockerd)
+SKIPPED [1] agentos\tests\test_sandbox_paths_3_5.py:57: creating symlinks is not permitted here
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:110: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:129: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:148: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:160: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:186: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:197: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:212: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:227: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:241: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:252: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_storage_contract_1_2.py:387: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_transfer_1_3.py:143: LIVE Mongo not available: set AGENTOS_MONGO_URI (see docker/compose.mongo.yml)
+SKIPPED [1] agentos\tests\test_transfer_1_3.py:235: LIVE Mongo not available: set AGENTOS_MONGO_URI (see docker/compose.mongo.yml)
+SKIPPED [1] agentos\tests\test_transfer_1_3.py:309: LIVE Mongo not available: set AGENTOS_MONGO_URI (see docker/compose.mongo.yml)
+SKIPPED [1] agentos\tests\test_usage_mongo_live.py:37: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_usage_mongo_live.py:50: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_usage_mongo_live.py:75: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_usage_mongo_live.py:106: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI (see docker/mongo-init.ps1)
+SKIPPED [1] agentos\tests\test_vault_1_3.py:186: LIVE Mongo not available: set AGENTOS_MONGO_URI (see docker/compose.mongo.yml)
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openai_gpt4o.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\anthropic_claude_sonnet.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openai_gpt4o_mini.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openrouter_claude_sonnet.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openrouter_gpt4o.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\gemini_flash.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\deepseek_v4_flash.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\groq_gpt_oss_20b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\groq_qwen3_8_27b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\groq_gpt_oss_120b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\together_llama3_3_70b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\together_qwen2_5_72b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\fireworks_llama3_1_70b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\fireworks_qwen2_5_72b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\zai_glm_5_3.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openrouter_mistral_7b_free.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\zai_glm_4_7_flash.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:75: Nemotron 3 Nano Omni cassette recorded upstream 504 abort; marked unverified in README
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\huggingface_llama3_2_1b.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\openai_compatible.yaml
+SKIPPED [2] agentos\tests\test_vcr_providers.py:73: Skipping Ollama provider test (requires local service)
+SKIPPED [1] agentos\tests\test_vcr_providers.py:84: No cassette file found at agentos/tests/cassettes\omniroute.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:239: No tool cassette found at agentos/tests/cassettes\openrouter_glm_5_2_free_tool.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:239: No tool cassette found at agentos/tests/cassettes\zai_glm_4_7_flash_tool.yaml
+SKIPPED [1] agentos\tests\test_vcr_providers.py:239: No tool cassette found at agentos/tests/cassettes\zai_glm_5_3_tool.yaml
+SKIPPED [1] agentos_server\tests\test_approval_race_3_1.py:124: LIVE: set AGENTOS_MONGO_URI (docker/compose.mongo.yml) to run the Mongo variant
+SKIPPED [1] agentos_server\tests\test_approval_race_3_1.py:145: LIVE: set AGENTOS_MONGO_URI (docker/compose.mongo.yml) to run the Mongo variant
+SKIPPED [1] agentos_server\tests\test_approval_race_3_1.py:171: LIVE: set AGENTOS_MONGO_URI (docker/compose.mongo.yml) to run the Mongo variant
+SKIPPED [1] agentos_server\tests\test_v2_api.py:650: LIVE Mongo not available: run `docker compose -f docker/compose.mongo.yml up -d --wait` and set AGENTOS_MONGO_URI
+1 failed, 1100 passed, 80 skipped, 543 warnings in 554.49s (0:09:14)

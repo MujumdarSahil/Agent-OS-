@@ -116,6 +116,23 @@ passwords: keep them out of files you commit), then start the backend as in step
 > These are the scripts and compose files the CI `mongo-live` and `redis-live` jobs use; they were not
 > re-run for this README because Docker Desktop was not running.
 
+### Code sandbox (optional, 3.5): let agents run code safely
+
+Agents can be given `python_exec`, `shell_exec`, `file_read` and `file_write`; the code runs only in a sandbox
+(no network, no host files, no secrets), and with no sandbox available these tools refuse. Pick one backend:
+
+- **Docker** (strongest; the only one for `shell_exec`): have Docker running (Docker Desktop on Windows/macOS).
+  AgentOS pulls the allowlisted image `python:3.12-slim` pinned by digest on first use.
+- **wasm** (Python only; no Docker needed; works on Windows):
+  ```bash
+  ./venv/bin/python -m pip install -e ".[sandbox-wasm]"   # Windows: .\venv\Scripts\python.exe -m pip install -e ".[sandbox-wasm]"
+  agentos sandbox install-wasm                            # downloads the pinned CPython WASI build, checks its sha256
+  ```
+
+`agentos sandbox status` (or **Settings → Sandbox**, with a **Test sandbox** button) shows what is available.
+Limits (30 s, 512 MB, 1 CPU, 64 processes, 100 KB output, 50 MB workspace, 20 calls per run) and the image
+allowlist are admin settings; changes are audited. Example: `examples/usecases/12-data-analysis-sandbox`.
+
 ### Upgrading to 3.4: from the shared token to user accounts
 
 Before 3.4 everyone used one local API token (the `#token=` link). Now:
@@ -320,6 +337,13 @@ AgentOS 2.0 (flows, labels, approvals, providers, UI):
   self-service password reset (an admin resets passwords). Roles are global (no per-flow permissions). The legacy
   local token is an admin token until an admin disables it. Sessions are tested in MOCK; the Mongo user/session
   store has LIVE tests in the mongo-live CI job only. Local Ollama health is a real reachability check (1.5 s).
+- **Code sandbox (3.5)**: the wasm backend runs Python only (no `shell_exec`, no `fork`, no threads; packages beyond
+  the standard library are not available); its 50 MB workspace cap is enforced by a watcher and re-checked after the
+  run, so a burst of writes can briefly exceed it before the code is stopped. Container isolation is not a VM: a
+  Linux kernel escape would reach the host (Docker Desktop on Windows/macOS runs containers inside its own VM).
+  Docker on Windows needs Docker Desktop. A run's sandbox workspace lives on the worker that ran it, so in Platform
+  mode with several workers a resumed run starts with an empty workspace. Subflows have their own workspace and their
+  own sandbox call count. The Docker LIVE tests run in CI (`sandbox-docker`); locally they need Docker running.
 - **CrewAI telemetry (3.4)** is turned off by default (`CREWAI_DISABLE_TELEMETRY=true` unless you set it), so a
   run makes no connection you did not configure.
 
