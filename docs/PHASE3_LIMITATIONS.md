@@ -93,7 +93,7 @@ better results than smaller models.
 
 ## Frontend Build Requirement
 
-`python main.py --prod` auto-runs `npm run build` if `agentos/frontend/dist/`
+`python main.py --prod` auto-runs `npm run build` if `ui/dist/`
 is missing.  This requires Node.js ≥ 18 and write access to the project directory.
 
 **On CI/CD**: Always run `npm run build` explicitly before starting in prod mode.

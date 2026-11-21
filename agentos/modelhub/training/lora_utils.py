@@ -6,10 +6,12 @@ SAFETY: Training utilities only. No exploit or malicious model generation.
 
 import logging
 from typing import Dict, Any, List
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.lora_utils.LoRAUtils")
 class LoRAUtils:
     """
     LoRA Utils - Utilities for applying LoRA adapters.

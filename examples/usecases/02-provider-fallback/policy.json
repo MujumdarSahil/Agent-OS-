@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "name": "mock-primary",
+      "order": 1,
+      "enabled": true,
+      "timeout_s": 10.0,
+      "display_name": "Mock Primary Provider",
+      "litellm_model": "openai/mock-primary"
+    },
+    {
+      "name": "mock-fallback",
+      "order": 2,
+      "enabled": true,
+      "timeout_s": 15.0,
+      "display_name": "Mock Fallback Provider",
+      "litellm_model": "anthropic/mock-fallback"
+    },
+    {
+      "name": "mock-tertiary",
+      "order": 3,
+      "enabled": false,
+      "timeout_s": null,
+      "display_name": "Mock Disabled Tertiary",
+      "litellm_model": "groq/mock-tertiary"
+    }
+  ]
+}

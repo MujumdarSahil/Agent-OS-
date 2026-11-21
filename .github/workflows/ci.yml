@@ -5,6 +5,12 @@ on:
     branches: [ main, framework, "2.0" ]
   pull_request:
     branches: [ main, framework, "2.0" ]
+  workflow_dispatch: {}  # 3.5: lets a feature branch be checked before its PR is opened
+
+env:
+  # 3.5: pinned CPython WASI build for the wasm sandbox (verified by sha256 before use)
+  WASM_URL: https://github.com/vmware-labs/webassembly-language-runtimes/releases/download/python%2F3.12.0%2B20231211-040d5a6/python-3.12.0.wasm
+  WASM_SHA256: e5dc5a398b07b54ea8fdb503bf68fb583d533f10ec3f930963e02b9505f7a763
 
 jobs:
   python-ci:
@@ -23,27 +29,43 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-cov ruff pip-audit
-          pip install -e .
+          pip install pytest-cov ruff pip-audit cvss==3.6
+          pip install -e ".[sandbox-wasm]"
           pip install -e examples/external_plugin_demo
+
+      - name: Cache the pinned CPython WASI build (3.5 wasm sandbox)
+        uses: actions/cache@v4
+        with:
+          path: ~/wasm-build
+          key: cpython-wasi-${{ env.WASM_SHA256 }}
+
+      - name: Fetch and verify the CPython WASI build
+        run: |
+          mkdir -p ~/wasm-build
+          f=~/wasm-build/python-3.12.0.wasm
+          [ -f "$f" ] || curl -fsSL "$WASM_URL" -o "$f"
+          echo "$WASM_SHA256  $f" | sha256sum -c -
+          echo "AGENTOS_TEST_WASM_BUILD=$f" >> "$GITHUB_ENV"
 
       - name: Run Tests with Coverage
         env:
           AGENTOS_MOCK_LLM: "1"
+          AGENTOS_REQUIRE_WASM: "1"  # 3.5: LIVE wasm sandbox tests and use case 12 must run here (fail, not skip)
         run: |
-          pytest agentos/tests agentos/server/tests agentos/packaging/tests --cov=agentos --cov-report=json
+          # the LIVE Docker sandbox file runs in its own job (sandbox-docker), where a missing Docker fails
+          pytest agentos/tests agentos_server/tests agentos/packaging/tests tests/ci --cov=agentos --cov=agentos_server --cov-report=json --ignore=agentos/tests/test_sandbox_docker_3_5.py
 
       - name: Enforce Core & LLM Coverage
         run: |
-          python check_coverage.py
+          python scripts/check_coverage.py
 
       - name: Run Python Linter (ruff)
         run: |
-          ruff check agentos
+          ruff check agentos agentos_server
 
       - name: Run Dependency Audit (pip-audit check for HIGH/CRITICAL)
         run: |
-          python check_pip_audit.py
+          python scripts/check_pip_audit.py
 
   frontend-ci:
     runs-on: ubuntu-latest
@@ -56,20 +78,205 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: agentos/frontend/package-lock.json
+          cache-dependency-path: ui/package-lock.json
 
       - name: Install Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm install
 
       - name: Audit Frontend Dependencies
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm audit --audit-level=critical
 
       - name: Run ESLint
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run lint
 
       - name: Type Check and Build Frontend
-        working-directory: agentos/frontend
+        working-directory: ui
         run: npm run build
+
+  wheel-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI into agentos_server/static
+        working-directory: ui
+        run: |
+          npm install
+          npm run build:package
+
+      - name: Build wheel and install into a clean virtualenv
+        run: |
+          python -m pip install --upgrade pip build
+          python scripts/check_wheel_install.py
+
+  ui-e2e:
+    # 2.4 visual builder + run panel (MOCK): Playwright against a real uvicorn backend
+    # (FileStorage temp project, AGENTOS_MOCK_LLM=1, AGENTOS_INPROCESS_WORKER=1, MockTransport).
+    # Runs use case 05 (examples/usecases/05-visual-builder) specs: ui/e2e/builder*.spec.ts.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies and Chromium
+        working-directory: ui
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Builder e2e (MOCK)
+        working-directory: ui
+        env:
+          AGENTOS_E2E_PYTHON: python
+        run: npm run test:e2e:builder
+
+  sandbox-docker:
+    # 3.5: LIVE Docker sandbox (escapes, isolation flags, limits, container removal) and use case 12 on Docker.
+    # AGENTOS_REQUIRE_DOCKER=1: missing Docker FAILS here instead of skipping.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e . pytest pytest-asyncio psutil
+
+      - name: Docker version
+        run: docker version
+
+      - name: Run LIVE Docker sandbox tests and use case 12 (skips are failures here)
+        env:
+          AGENTOS_MOCK_LLM: "1"
+          AGENTOS_REQUIRE_DOCKER: "1"
+        run: pytest agentos/tests/test_sandbox_docker_3_5.py tests/ci/test_usecase_12.py -rs -v
+
+      - name: No sandbox containers left behind
+        if: always()
+        run: |
+          left="$(docker ps -aq --filter label=agentos.sandbox=1)"
+          if [ -n "$left" ]; then echo "::error::leftover sandbox containers: $left"; exit 1; fi
+
+  mongo-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS with Platform extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[platform]" pytest pytest-asyncio
+
+      - name: Print Kernel Version
+        run: uname -r
+
+      - name: Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)
+        run: |
+          URI="$(sh docker/mongo-init.sh)"
+          echo "::add-mask::$URI"
+          echo "AGENTOS_MONGO_URI=$URI" >> "$GITHUB_ENV"
+          docker compose -f docker/compose.mongo.yml up -d --wait
+
+      - name: Print MongoDB startup line
+        run: docker logs agentos-mongo 2>&1 | grep -i "Waiting for connections" | head -n 5
+
+      - name: Run LIVE Mongo storage tests (skips are failures here)
+        env:
+          AGENTOS_MOCK_LLM: "1"
+          AGENTOS_REQUIRE_LIVE_MONGO: "1"
+        run: pytest agentos/tests/test_storage_contract_1_2.py agentos/tests/test_vault_1_3.py agentos/tests/test_transfer_1_3.py agentos/tests/test_usage_mongo_live.py agentos/tests/test_access_mongo_live.py -rs
+
+      - name: Check MongoDB logs for crash or fatal errors
+        run: |
+          if docker logs agentos-mongo 2>&1 | grep -E 'SIGSEGV|Fatal|"s":"F"'; then
+            echo "::error::MongoDB logged fatal crash or failure status"
+            exit 1
+          fi
+
+      - name: MongoDB logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.mongo.yml logs mongo
+
+  redis-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install AgentOS with Platform extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[platform,dev]" pytest pytest-asyncio
+
+      - name: Start Redis container (password auth, 127.0.0.1 only, AOF)
+        run: |
+          URI="$(sh docker/redis-init.sh)"
+          echo "::add-mask::$URI"
+          echo "AGENTOS_REDIS_URI=$URI" >> "$GITHUB_ENV"
+          docker compose --env-file docker/.env.redis -f docker/compose.redis.yml up -d --wait
+
+      - name: Run LIVE Redis queue & nonce tests
+        env:
+          AGENTOS_MOCK_LLM: "1"
+          AGENTOS_REQUIRE_LIVE_REDIS: "1"
+        run: pytest agentos/tests/test_redis_queue_2_2.py -rs
+
+      - name: Redis logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.redis.yml logs redis

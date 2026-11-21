@@ -61,7 +61,8 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     {
         "name": "openrouter_claude_sonnet",
         "display_name": "Claude Sonnet (OpenRouter)",
-        "litellm_model": "openrouter/anthropic/claude-3.5-sonnet",
+        # 2.4c: anthropic/claude-3.5-sonnet is no longer listed by OpenRouter (checked 2026-11-17).
+        "litellm_model": "openrouter/anthropic/claude-sonnet-5.5",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
         "priority": 22,
@@ -82,16 +83,20 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "gemini/gemini-2.0-flash",
         "api_key_env": "GEMINI_API_KEY",
         "api_base_env": None,
+        # 2.4c: LIVE run returned NotFoundError for this id (raw/2.4c-live.txt). The replacement id is
+        # not verified here, so it is off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 30,
         "tags": ["paid", "fast", "gemini"]
     },
     # Phase 4: DeepSeek — strong coding/reasoning at competitive pricing
     # Docs: https://platform.deepseek.com/  LiteLLM prefix: deepseek/
-    # NOTE: deepseek-chat is scheduled for retirement Jul 24 2026; using deepseek-v4-flash as fallback name
+    # 2.4c: deepseek-chat is gone from DeepSeek's model list; the owner chose deepseek-flash from the
+    # provider's own list. Paid -> disabled by default.
     {
         "name": "deepseek_v4_flash",
-        "display_name": "DeepSeek Chat",
-        "litellm_model": "deepseek/deepseek-chat",
+        "display_name": "DeepSeek Flash",
+        "litellm_model": "deepseek/deepseek-flash",
         "api_key_env": "DEEPSEEK_API_KEY",
         "api_base_env": None,
         "priority": 33,
@@ -100,7 +105,37 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
     # Tier 2: Fast/cheap open-weight cloud providers
     # -------------------------------------------------------------------------
-    # Phase 4: Groq additional models (llama3.1 instant and gemma2)
+    # 2.4c: Groq models chosen by the owner from Groq's model page and the live model list.
+    {
+        "name": "groq_gpt_oss_20b",
+        "display_name": "GPT-OSS 20B (Groq)",
+        "litellm_model": "groq/openai/gpt-oss-20b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 38,
+        "tags": ["fast", "groq", "tools"]
+    },
+    {
+        "name": "groq_qwen3_8_27b",
+        "display_name": "Qwen 3.8 27B (Groq)",
+        "litellm_model": "groq/qwen/qwen3.8-27b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 39,
+        "tags": ["groq"]
+    },
+    {
+        "name": "groq_gpt_oss_120b",
+        "display_name": "GPT-OSS 120B (Groq)",
+        "litellm_model": "groq/openai/gpt-oss-120b",
+        "api_key_env": "GROQ_API_KEY",
+        "api_base_env": None,
+        "priority": 39,
+        "tags": ["groq", "heavy"]
+    },
+    # Deprecated Groq models (Groq docs; live calls return model_not_found). Kept as disabled aliases
+    # because the UI and recorded cassettes reference these names. qwen/qwen3-32b is not verified on
+    # Groq's current list here, so it is disabled too.
     {
         "name": "groq_llama3_3",
         "display_name": "Llama 3.3 70B",
@@ -170,6 +205,18 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "priority": 52,
         "tags": ["paid", "fast", "fireworks"]
     },
+    # Phase 2: Zhipu AI / Z.ai international API platform (https://docs.z.ai/)
+    # LiteLLM routes zai/ prefix to https://api.z.ai/api/paas/v4
+    # Requires ZAI_API_KEY in environment or credentials vault.
+    {
+        "name": "zai_glm_5_3",
+        "display_name": "GLM-5.3 (Z.ai)",
+        "litellm_model": "zai/glm-5.3",
+        "api_key_env": "ZAI_API_KEY",
+        "api_base_env": None,
+        "priority": 54,
+        "tags": ["paid", "zai", "flagship"]
+    },
     # Phase 4: OpenRouter free tier — great for "no API key" accessibility
     # Free models are rate-limited but require only an OpenRouter key.
     # NOTE: meta-llama/llama-3.1-8b-instruct:free was retired; mistral-7b-instruct:free is active (verified Jun 2026).
@@ -179,6 +226,8 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "openrouter/mistralai/mistral-7b-instruct:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: no longer listed by OpenRouter (checked 2026-11-17) -> off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 70,
         "tags": ["free-tier", "openrouter"]
     },
@@ -190,15 +239,34 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "litellm_model": "openrouter/poolside/laguna-s-2.1:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: no longer listed by OpenRouter (checked 2026-11-17) -> off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 72,
         "tags": ["free-tier", "openrouter"]
     },
+    # Zhipu AI / Z.ai free tier flash model via international API (https://docs.z.ai/).
+    # Requires ZAI_API_KEY in environment or credentials vault.
+    {
+        "name": "zai_glm_4_7_flash",
+        "display_name": "GLM-4.7 Flash (Z.ai Free)",
+        "litellm_model": "zai/glm-4.7-flash",
+        "api_key_env": "ZAI_API_KEY",
+        "api_base_env": None,
+        "priority": 71,
+        "tags": ["free-tier", "zai", "fast"]
+    },
+    # OpenRouter free tier for Zhipu AI GLM-5.2.
+    # Free endpoint subject to daily rate limits; prompts may be logged or used for training
+    # by upstream providers. Do NOT send secret-labelled data or sensitive internal information.
     {
         "name": "openrouter_glm_5_2_free",
         "display_name": "GLM-5.2 Free (OpenRouter)",
         "litellm_model": "openrouter/z-ai/glm-5.2:free",
         "api_key_env": "OPENROUTER_API_KEY",
         "api_base_env": None,
+        # 2.4c: the :free variant is no longer listed by OpenRouter (checked 2026-11-17; only paid
+        # z-ai/glm-5.2 remains). Off unless the fallback policy enables it.
+        "default_enabled": False,
         "priority": 73,
         "tags": ["free-tier", "openrouter"]
     },
@@ -267,6 +335,88 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
     },
 ]
 
+# 2.4c: OmniRoute gateway (UNVERIFIED). OpenAI-compatible; base URL from AGENTOS_OMNIROUTE_BASE_URL
+# (default http://127.0.0.1:20128/v1), model from AGENTOS_OMNIROUTE_MODEL, key OMNIROUTE_API_KEY (vault
+# or env). It relays to hosted models, so it never counts as a local provider (THREAT_MODEL T-13).
+# Run it on 127.0.0.1 with REQUIRE_API_KEY=true; upstream terms may forbid relaying; its request
+# logging can capture prompts.
+PROVIDER_REGISTRY.append({
+    "name": "omniroute",
+    "display_name": "OmniRoute gateway (UNVERIFIED)",
+    "litellm_model": "openai/auto",
+    "api_key_env": "OMNIROUTE_API_KEY",
+    "api_base_env": "AGENTOS_OMNIROUTE_BASE_URL",
+    "priority": 90,
+    "hosted_relay": True,
+    "tags": ["unverified", "openai-compatible", "gateway"],
+})
+
+# 2.4c owner decision: default fallback order for a fresh workspace. Every other entry is disabled
+# by default (enable it on the Fallback page). A user-saved fallback policy overrides both the order
+# and the enabled flags.
+DEFAULT_FREE_ORDER = [
+    "groq_gpt_oss_20b",
+    "zai_glm_4_7_flash",
+    "openrouter_gemma_4_31b_free",
+    "openrouter_nemotron_3_nano_omni_free",
+    "groq_qwen3_8_27b",
+]
+# Deprecated per Groq's docs (live calls return model_not_found); kept as disabled aliases.
+DEPRECATED_MODEL_IDS = {"groq_llama3_3", "groq_llama3_1_instant"}
+# Bring-your-own endpoints are not catalogue picks: each is used only when the user configures it
+# (its own key / local service), as before. They keep their previous behaviour (pending owner confirmation).
+SELF_HOSTED = {"openai_compatible", "omniroute", "ollama_qwen", "ollama_llama"}
+
+for _i, _name in enumerate(DEFAULT_FREE_ORDER, start=1):
+    _prov = next(p for p in PROVIDER_REGISTRY if p["name"] == _name)
+    _prov["priority"] = _i
+    _prov["default_enabled"] = True
+for _prov in PROVIDER_REGISTRY:
+    if _prov["name"] not in DEFAULT_FREE_ORDER and _prov["name"] not in SELF_HOSTED:
+        _prov["default_enabled"] = False
+    if _prov["name"] in DEPRECATED_MODEL_IDS:
+        _prov["deprecated"] = True
+
+
+async def export_vault_provider_keys(vault: Any) -> List[str]:
+    """Load vault secrets named like a provider key variable (e.g. GROQ_API_KEY) into this process's
+    environment (in memory only, never written). Vault values take precedence over env ("vault first").
+    Returns the variable names loaded (never the values)."""
+    wanted = {p["api_key_env"] for p in PROVIDER_REGISTRY if p.get("api_key_env")}
+    loaded: List[str] = []
+    for info in await vault.list():
+        name = getattr(info, "name", None)
+        if name in wanted:
+            try:
+                os.environ[name] = (await vault.reveal(name)).strip()
+                loaded.append(name)
+            except Exception:
+                continue
+    return sorted(loaded)
+
+
+def enabled_model_ids(policy_configs: Any = None) -> set:
+    """Model identifiers a flow node may select (2.3 per-node model choice).
+
+    A provider counts as enabled when it is available (key configured or local) - or every registry
+    provider in MOCK mode (AGENTOS_MOCK_LLM=1) - and it is not disabled in the fallback policy.
+    Both the provider name and its LiteLLM model string are accepted.
+    """
+    disabled = {
+        c.get("name")
+        for c in (policy_configs or [])
+        if isinstance(c, dict) and c.get("enabled", True) is False
+    }
+    providers = PROVIDER_REGISTRY if os.environ.get("AGENTOS_MOCK_LLM") == "1" else get_available_providers()
+    ids: set = set()
+    for prov in providers:
+        if prov["name"] in disabled:
+            continue
+        ids.add(prov["name"])
+        ids.add(prov["litellm_model"])
+    return ids
+
+
 def get_available_providers() -> List[Dict[str, Any]]:
     """
     Returns a list of LLM providers whose required environment variables are set.
@@ -275,6 +425,8 @@ def get_available_providers() -> List[Dict[str, Any]]:
     """
     available = []
     for prov in PROVIDER_REGISTRY:
+        if prov.get("default_enabled", True) is False:
+            continue  # outdated model id: only an explicit fallback-policy entry re-enables it (router_factory)
         if prov["api_key_env"] is None:
             # Always considered available structurally; connectivity check is done in router_factory
             available.append(prov)

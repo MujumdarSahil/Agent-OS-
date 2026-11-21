@@ -6,10 +6,12 @@ SAFETY: Training utilities only. No private human datasets included.
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.rlhf_or_dpo.RLHFOrDPO")
 class RLHFOrDPO:
     """
     RLHF/DPO - Manages RLHF and DPO training workflows.

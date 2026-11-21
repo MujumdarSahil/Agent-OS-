@@ -54,7 +54,20 @@ def main_callback(
         is_eager=True,
     ),
 ):
-    pass
+    # 3.5 (0a): with AGENTOS_FORBID_REAL_HOME=1, refuse at start any configured AgentOS path (and the current
+    # folder) inside the real ~/.agentos; default paths are checked by their resolvers when used.
+    from agentos.core.home_guard import RealHomeForbidden, check_path, guard_enabled
+
+    if guard_enabled():
+        try:
+            check_path(os.getcwd(), "current folder")
+            for var in ("AGENTOS_PROJECT", "AGENTOS_VAULT_PATH", "AGENTOS_MASTER_KEY_FILE", "AGENTOS_API_TOKEN_FILE",
+                        "AGENTOS_DATA_DIR"):
+                if os.environ.get(var):
+                    check_path(os.environ[var], var)
+        except RealHomeForbidden as e:
+            console.print(f"[bold red]Refused:[/bold red] {e}")
+            raise typer.Exit(code=2)
 
 
 def to_camel_case(snake_str: str) -> str:
@@ -661,11 +674,246 @@ def build_crew(
 
 
 # =====================================================================
+# STORAGE TRANSFER COMMANDS (2.0, sub-milestone 1.3)
+# =====================================================================
+
+def _print_transfer_report(report, title: str) -> None:
+    table = Table(title=title)
+    table.add_column("Entity", style="cyan")
+    table.add_column("Count", justify="right")
+    for kind, n in sorted(report.counts.items()):
+        table.add_row(kind, str(n))
+    console.print(table)
+    if report.secrets_imported:
+        console.print(f"[green]Encrypted into the vault:[/green] {', '.join(report.secrets_imported)}")
+    for line in report.skipped:
+        console.print(f"[yellow]Skipped:[/yellow] {line}")
+
+
+async def _open_transfer_storage(backend: str, mongo_uri: Optional[str], db: Optional[str], directory: Optional[str]):
+    from agentos.storage import open_storage
+
+    if backend == "file":
+        if not directory:
+            console.print("[bold red]Error:[/bold red] --dir is required with the file backend.")
+            raise typer.Exit(code=1)
+        return await open_storage(directory, backend="file")
+    return await open_storage(backend=backend, mongo_uri=mongo_uri, db_name=db)
+
+
+@app.command("import")
+def import_cmd(
+    project_path: str,
+    to: str = typer.Option("mongo", "--to", help="Target backend: mongo or file"),
+    mongo_uri: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_URI", show_default=False,
+                                            help="MongoDB URI (prefer the AGENTOS_MONGO_URI env var)"),
+    db: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_DB", help="MongoDB database name"),
+    target_dir: Optional[str] = typer.Option(None, "--dir", help="Target project directory for --to file"),
+    no_env: bool = typer.Option(False, "--no-env", help="Do not import provider keys from the project's .env"),
+):
+    """Import a v1 YAML project into a storage backend; .env provider keys go into the encrypted vault."""
+    import asyncio
+    from agentos.security.vault import MasterKey, Vault
+    from agentos.storage.transfer import import_project
+
+    async def _run():
+        target = await _open_transfer_storage(to, mongo_uri, db, target_dir)
+        try:
+            vault = None if no_env else Vault(target.credentials, MasterKey.load())
+            return await import_project(project_path, target, vault=vault, import_env=not no_env)
+        finally:
+            await target.close()
+
+    try:
+        report = asyncio.run(_run())
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    _print_transfer_report(report, f"Imported {project_path} into {to}")
+
+
+@app.command("export")
+def export_cmd(
+    out_dir: str,
+    source: str = typer.Option("mongo", "--from", help="Source backend: mongo or file"),
+    mongo_uri: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_URI", show_default=False,
+                                            help="MongoDB URI (prefer the AGENTOS_MONGO_URI env var)"),
+    db: Optional[str] = typer.Option(None, envvar="AGENTOS_MONGO_DB", help="MongoDB database name"),
+    source_dir: Optional[str] = typer.Option(None, "--dir", help="Source project directory for --from file"),
+):
+    """Export a storage backend to a v1-compatible project directory. Credentials are never exported."""
+    import asyncio
+    from agentos.storage.transfer import export_project
+
+    async def _run():
+        src = await _open_transfer_storage(source, mongo_uri, db, source_dir)
+        try:
+            return await export_project(src, out_dir)
+        finally:
+            await src.close()
+
+    try:
+        report = asyncio.run(_run())
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    _print_transfer_report(report, f"Exported {source} to {out_dir}")
+
+
+# =====================================================================
 # PACKAGING COMMANDS (Phase 3)
 # =====================================================================
 
 pack_app = typer.Typer(help="Build, sign, verify, and install .agentpack bundles")
 app.add_typer(pack_app, name="pack")
+
+# =====================================================================
+# AUDIT LOG (3.1)
+# =====================================================================
+
+audit_app = typer.Typer(help="Verify or export the tamper-evident audit log")
+app.add_typer(audit_app, name="audit")
+
+usage_app = typer.Typer(help="Usage ledger (3.2)")
+app.add_typer(usage_app, name="usage")
+
+
+@usage_app.command("rebuild")
+def usage_rebuild(project: Optional[str] = typer.Option(None, help="Project directory (default: current)")):
+    """Recompute the usage ledger from every run's llm_call events (the events are the source of truth)."""
+    import asyncio
+
+    from agentos.storage import open_storage
+    from agentos.usage import rebuild_rows, usage_stores_for
+
+    async def _run():
+        storage = await open_storage(project_path=project)
+        try:
+            rows = await rebuild_rows(storage)
+            ledger, _ = usage_stores_for(storage)
+            await ledger.replace(rows)
+            return rows
+        finally:
+            await storage.close()
+
+    rows = asyncio.run(_run())
+    cost = round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
+    console.print(f"[green]OK[/green] ledger rebuilt: {len(rows)} rows, {sum(r['calls'] for r in rows)} calls, "
+                  f"{cost} USD (estimate)")
+
+
+# =====================================================================
+# USERS (3.4)
+# =====================================================================
+
+users_app = typer.Typer(help="User accounts (3.4)")
+app.add_typer(users_app, name="users")
+
+
+@users_app.command("create-admin")
+def users_create_admin(
+    project: Optional[str] = typer.Option(None, help="Project directory (default: current)"),
+    username: Optional[str] = typer.Option(None, help="Admin username (prompted if missing)"),
+    display_name: Optional[str] = typer.Option(None, help="Display name (default: the username)"),
+    password_stdin: bool = typer.Option(False, "--password-stdin", help="Read the password from stdin (scripts)"),
+):
+    """Create an admin user in the project's storage (works with or without existing users).
+
+    Whoever can run this already controls the AgentOS files (vault, token, data), so it needs no login.
+    The password is prompted without echo (or read from stdin) and is never printed or logged.
+    """
+    import asyncio
+    import sys
+
+    from agentos.access import AccessError, AccessService, access_store_for
+    from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
+    from agentos.core.locations import describe_data_location, open_app_storage, resolve_project_dir
+    from agentos.security.vault import MasterKey
+
+    # 3.5 (0b): the SAME project and storage as the server (main.py / create_app): --project, AGENTOS_PROJECT,
+    # the current folder with agentos.config.yaml, else the default workspace; Mongo iff AGENTOS_MONGO_URI.
+    project_dir = resolve_project_dir(project)
+    console.print(f"Data location: {describe_data_location(project_dir)}")
+
+    name = username or typer.prompt("Admin username")
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
+    else:
+        password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+
+    async def _run():
+        storage = await open_app_storage(project_dir)
+        try:
+            key = MasterKey.load(create=True).key
+            svc = AccessService(access_store_for(storage), key)
+            AccessService.validate_new_user(name, display_name, "admin", password)
+            log = AuditLog(audit_store_for(storage), key, anchor=audit_anchor_for(storage))
+            await log.record("user.create", "user", name.strip().lower(), details={"role": "admin", "via": "cli"},
+                             actor="cli", source="cli")
+            return await svc.create_user(name, display_name, "admin", password)
+        finally:
+            await storage.close()
+
+    try:
+        user = asyncio.run(_run())
+    except AccessError as e:
+        console.print(f"[red]Not created:[/red] {e}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]OK[/green] admin user {user['username']!r} created; log in on the AgentOS page.")
+
+
+async def _open_audit_log(project: Optional[str]):
+    """Same store and key as the server: the configured storage backend and the vault master key."""
+    from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
+    from agentos.security.vault import MasterKey
+    from agentos.storage import open_storage
+
+    storage = await open_storage(project_path=project)
+    return storage, AuditLog(audit_store_for(storage), MasterKey.load(create=False).key,
+                             anchor=audit_anchor_for(storage))
+
+
+@audit_app.command("verify")
+def audit_verify(project: Optional[str] = typer.Option(None, help="Project directory (default: current)")):
+    """Walk the audit chain; exit code 1 if it is broken."""
+    import asyncio
+
+    async def _run():
+        storage, log = await _open_audit_log(project)
+        try:
+            return await log.verify()
+        finally:
+            await storage.close()
+
+    res = asyncio.run(_run())
+    console.print_json(json.dumps(res))
+    if res["status"] == "broken":
+        raise typer.Exit(code=1)
+
+
+@audit_app.command("export")
+def audit_export(
+    project: Optional[str] = typer.Option(None, help="Project directory (default: current)"),
+    out: Optional[str] = typer.Option(None, help="Write JSONL to this file (default: stdout)"),
+):
+    """Export the audit chain as JSONL, exactly as stored."""
+    import asyncio
+    import sys
+
+    async def _run():
+        storage, log = await _open_audit_log(project)
+        try:
+            return await log.export_jsonl()
+        finally:
+            await storage.close()
+
+    body = asyncio.run(_run())
+    if out:
+        with open(out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        console.print(f"[green]OK[/green] {body.count(chr(10))} entries written to {out}")
+    else:
+        sys.stdout.write(body)
 
 
 @app.command("keygen")
@@ -750,6 +998,44 @@ def pack_install(
         raise typer.Exit(code=1)
 
 
+
+
+# =====================================================================
+# SANDBOX (3.5)
+# =====================================================================
+
+sandbox_app = typer.Typer(help="Code sandbox for python_exec / shell_exec / file_* (3.5)")
+app.add_typer(sandbox_app, name="sandbox")
+
+
+@sandbox_app.command("status")
+def sandbox_status():
+    """Show which sandbox backends are available (Docker, wasm) and what the code tools would use."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox import SandboxService
+
+    st = SandboxService(data_dir()).status()
+    console.print(f"Sandbox: {st['summary']}")
+    console.print(f"  docker: {st['docker'].get('detail')} (client {st['docker'].get('client')}, "
+                  f"server {st['docker'].get('server')})")
+    console.print(f"  wasm:   {st['wasm'].get('detail')} (wasmtime {st['wasm'].get('wasmtime')}, "
+                  f"build {st['wasm'].get('build')})")
+
+
+@sandbox_app.command("install-wasm")
+def sandbox_install_wasm():
+    """Download the pinned CPython WASI build into the AgentOS data dir and verify its sha256 (explicit admin step)."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox.wasm_build import WASM_SHA256, WASM_SIZE, WASM_URL, WasmBuildError, install
+
+    d = data_dir()
+    console.print(f"Downloading {WASM_URL}\n  ({WASM_SIZE:,} bytes, sha256 {WASM_SHA256}) into {d}")
+    try:
+        path = install(d)
+    except (WasmBuildError, OSError) as e:
+        console.print(f"[bold red]Refused:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]OK[/green] verified and installed: {path}")
 
 
 # =====================================================================

@@ -1,0 +1,34 @@
+{
+  "id": "email_summary_exfil_flow",
+  "entrypoint": "webhook_in",
+  "nodes": {
+    "webhook_in": {
+      "id": "webhook_in",
+      "type": "webhook_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "agent_node": {
+      "id": "agent_node",
+      "type": "agent",
+      "config": {
+        "role": "Support Summarizer",
+        "goal": "Summarize customer feedback and send email to internal support team",
+        "backstory": "Internal customer support triage agent",
+        "tools": ["send_email"]
+      },
+      "pinned_args": {
+        "send_email.to": "support@corp.local"
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "webhook_in",
+      "target": "agent_node",
+      "arg_mapping": {
+        "task": "payload"
+      }
+    }
+  ]
+}

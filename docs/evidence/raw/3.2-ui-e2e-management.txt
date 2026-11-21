@@ -1,0 +1,28 @@
+﻿node.exe : [WebServer] (node:4780) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] (no... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 12 tests using 1 worker
+
+(node:19868) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1/12] [chromium] › e2e\management.spec.ts:420:3 › AgentOS 2.0 UI Core Resource Management › 1. Auth Gate blocks unauthenticated users and unlocks via token
+[2/12] [chromium] › e2e\management.spec.ts:443:3 › AgentOS 2.0 UI Core Resource Management › 2. Token from URL fragment (#token=...) automatically authenticates
+[3/12] [chromium] › e2e\management.spec.ts:455:3 › AgentOS 2.0 UI Core Resource Management › 3. Agents page (v2) creates and lists agents with NodeSpec tools
+[4/12] [chromium] › e2e\management.spec.ts:476:3 › AgentOS 2.0 UI Core Resource Management › 4. Tools page (v2) displays project vs stored tools
+[5/12] [chromium] › e2e\management.spec.ts:493:3 › AgentOS 2.0 UI Core Resource Management › 5. Squads page (v2) assigns member roles
+[6/12] [chromium] › e2e\management.spec.ts:505:3 › AgentOS 2.0 UI Core Resource Management › 6. External MCP Servers page (v2): disabled by default, enabling shows the exact command first
+[7/12] [chromium] › e2e\management.spec.ts:533:3 › AgentOS 2.0 UI Core Resource Management › 12. MCP tool review: untrusted text as plain text, changed state, approve sends the reviewed hash
+[8/12] [chromium] › e2e\management.spec.ts:558:3 › AgentOS 2.0 UI Core Resource Management › 7. Providers & Vault page (v2) masks secrets and manages fallback policy
+[9/12] [chromium] › e2e\management.spec.ts:581:3 › AgentOS 2.0 UI Core Resource Management › 8. Sidebar is grouped by purpose; Classic (v1) is collapsed and its pages still open
+[10/12] [chromium] › e2e\management.spec.ts:600:3 › AgentOS 2.0 UI Core Resource Management › 9. Overview: needs-you bar, KPIs with 24 h / 7 d, runs, approval card, attacks, model chain, checklist
+[11/12] [chromium] › e2e\management.spec.ts:654:3 › AgentOS 2.0 UI Core Resource Management › 10. Overview hides the needs-you bar when nothing needs you
+[12/12] [chromium] › e2e\management.spec.ts:664:3 › AgentOS 2.0 UI Core Resource Management › 11. Runs (filters), Approvals, Triggers and Security log list pages
+  12 passed (15.0s)

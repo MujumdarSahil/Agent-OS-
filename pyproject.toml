@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentos"
-version = "0.2.0"
+# Single version source: agentos/__version__.py (see [tool.setuptools.dynamic]).
+dynamic = ["version"]
 description = "A production-grade multi-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,9 +20,45 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 
-# NOTE: keep setup.py temporarily in place for editable install compatibility.
-# pyproject.toml is the authoritative metadata source going forward.
-# The console_scripts entry point is duplicated here from setup.py.
+# Runtime dependencies of the wheel. requirements.txt stays the full dev/CI set.
+# Heavy or optional backends are extras (spec principle 7); their adapters import
+# them lazily and fall back with a warning when missing.
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.0.0",
+    "jsonschema>=4.20.0",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "crewai>=1.15,<2",
+    "litellm<2",
+    "langchain-core>=0.1.30",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "cryptography>=41.0.0",
+    "requests>=2.31.0",
+    # http_request node: connects to the SSRF-checked IP while keeping the hostname (SNI/Host).
+    "httpx>=0.27,<1.0",
+    "pyyaml>=6.0",
+    "croniter==6.0.0",
+    # 2.5a: official MCP SDK; exact pin, same version crewai 1.15.41 requires (mcp>=1.30.0,<2)
+    "mcp==1.30.0",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.0.0", "transformers>=4.35.0", "peft>=0.7.0", "bitsandbytes>=0.41.0"]
+vector = ["faiss-cpu>=1.7.4"]
+postgres = ["psycopg2-binary>=2.9.0"]
+# Platform mode storage (MongoDB via PyMongo's async API; Motor is deprecated upstream) and Redis queue.
+platform = ["pymongo>=4.13,<5", "redis==5.2.1"]
+# 3.5 code sandbox, wasm backend (Python only; the pinned CPython WASI build is installed separately with
+# `agentos sandbox install-wasm`). The Docker backend needs only the Docker CLI.
+sandbox-wasm = ["wasmtime==50.0.1"]
+ui-legacy = ["streamlit>=1.40.0"]
+dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "flake8>=6.1.0", "vcrpy>=6.0.0", "fakeredis>=2.40.0", "lupa>=2.8", "aiosmtpd==1.4.6"]
+
+# pyproject.toml is the single packaging metadata source (setup.py removed in the 2.0 cleanup;
+# wheel and editable installs verified without it).
 
 [project.scripts]
 agentos = "agentos.app:main"
@@ -45,9 +82,16 @@ ScriptAuthorAgent = "agentos.agents.script_author_agent:ScriptAuthorAgent"
 # (project-local mcp_plugins/ scanning is the primary mechanism;
 #  installed packages can register here for global availability)
 
+[tool.setuptools.dynamic]
+version = { attr = "agentos.__version__.__version__" }
+
 [tool.setuptools.packages.find]
 where = [".", "SWE"]
-include = ["agentos*", "agentos_swe*"]
+include = ["agentos*", "agentos_server*", "agentos_swe*"]
+
+# Built React UI ships inside agentos_server (copied by `npm run build:package` in ui/).
+[tool.setuptools.package-data]
+agentos_server = ["static/*", "static/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "SWE"]

@@ -1,0 +1,118 @@
+﻿........................................................................ [ 38%]
+........................................................................ [ 77%]
+..sssssss...sssss...sssss.................                               [100%]
+============================== warnings summary ===============================
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos/server/tests/test_api.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:358: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos/server/tests/test_api.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:366: DeprecationWarning: deprecated
+    if self.allow_code_execution:
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_maturity.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos/server/tests/test_api.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:377: DeprecationWarning: deprecated
+    if self.reasoning and self.planning_config is None:
+
+agentos/tests/test_agent.py: 6 warnings
+agentos/tests/test_characterization_v1.py: 10 warnings
+agentos/tests/test_squad.py: 9 warnings
+agentos/server/tests/test_api.py: 25 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:635: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(self.function_calling_llm, LLM):
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 2 warnings
+agentos/tests/test_squad.py: 3 warnings
+agentos/server/tests/test_api.py: 8 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\telemetry\telemetry.py:431: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if getattr(agent, "function_calling_llm", None)
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 2 warnings
+agentos/tests/test_squad.py: 3 warnings
+agentos/server/tests/test_api.py: 8 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\telemetry\telemetry.py:438: DeprecationWarning: deprecated
+    "allow_code_execution?": getattr(
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_crash_and_resume
+agentos/server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crews\utils.py:362: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    crew.function_calling_llm,
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos/server/tests/test_api.py: 12 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crews\utils.py:104: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if not agent.function_calling_llm:  # type: ignore[attr-defined]
+
+agentos/tests/test_agent.py: 2 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 4 warnings
+agentos/server/tests/test_api.py: 10 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:1115: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    function_calling_llm=self.function_calling_llm,
+
+agentos/tests/test_agent.py: 4 warnings
+agentos/tests/test_characterization_v1.py: 4 warnings
+agentos/tests/test_squad.py: 2 warnings
+agentos/server/tests/test_api.py: 8 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1633: DeprecationWarning: deprecated
+    if hasattr(agent, "allow_code_execution") and getattr(
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_crash_and_resume
+agentos/server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1640: DeprecationWarning: deprecated
+    and hasattr(agent, "multimodal")
+
+agentos/tests/test_agent.py::test_agent_execute
+agentos/tests/test_agent.py::test_agent_memory_update
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_crash_and_resume
+agentos/server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\crew.py:1641: DeprecationWarning: deprecated
+    and getattr(agent, "multimodal", False)
+
+agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+agentos/tests/test_squad.py::test_squad_start_mission
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_mission_run_and_poll
+agentos/server/tests/test_api.py::test_crash_and_resume
+agentos/server/tests/test_api.py::test_crash_and_resume
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\pydantic\main.py:250: UserWarning: function callbacks cannot be serialized and will prevent checkpointing. Use a module-level named function instead.
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+169 passed, 17 skipped, 252 warnings in 15.47s

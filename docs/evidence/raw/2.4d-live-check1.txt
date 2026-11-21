@@ -1,0 +1,10 @@
+﻿prefilled_urgent: true
+run_id: run_129f5c895353
+settled: {"status":"waiting","waitedMs":2566}
+duration: 2.08 s
+steps: [{"node":"ticket","status":"succeeded","duration":"10 ms"},{"node":"triage","status":"succeeded","duration":"1.18 s","llm":"groq_gpt_oss_20b · groq/openai/gpt-oss-20b · 587 tokens · groq_gpt_oss_20b: ok (groq/openai/gpt-oss-20b) · 1059.2 ms"},{"node":"lookup","status":"succeeded","duration":"619 ms"},{"node":"is_urgent","status":"succeeded","duration":"12 ms"},{"node":"oncall_approval","status":"waiting","duration":"13 ms"}]
+decision: URGENT (approval path)
+steps_vs_logs: {"step_rows":5,"log_rows":19,"steps_have_durations":true}
+unpublished_create_http: 201
+unpublished_run_disabled: true
+unpublished_tooltip: Publish the flow first: Run uses the latest published version

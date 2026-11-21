@@ -1,0 +1,35 @@
+[WebServer] INFO:     Started server process [7344]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] 2026-11-17 10:24:23,770 [WARNING] agentos_server.inprocess_worker: In-process flow worker: no transport registry configured; using MockTransport for send_email (MOCK: nothing is delivered).
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+
+Running 7 tests using 1 worker
+
+[WebServer] INFO:     127.0.0.1:5623 - "WebSocket /api/v2/flows/uc05_notify_run/runs/run_bbc8f23215c6/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 1 [chromium] › e2e\builder-run.spec.ts:43:1 › benign run: live node status -> succeeded, 1 send (6.7s)
+[WebServer] INFO:     127.0.0.1:5643 - "WebSocket /api/v2/flows/uc05_approval_ok/runs/run_50c8756c6dfe/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 2 [chromium] › e2e\builder-run.spec.ts:56:1 › approval: exact sink args shown with untrusted marking -> approve -> succeeded (4.5s)
+[WebServer] INFO:     127.0.0.1:5666 - "WebSocket /api/v2/flows/uc05_approval_reject/runs/run_b16a66f44e26/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 3 [chromium] › e2e\builder-run.spec.ts:87:1 › approval: reject -> failed with 0 sends (3.5s)
+[WebServer] INFO:     127.0.0.1:5687 - "WebSocket /api/v2/flows/uc05_approval_reconnect/runs/run_36372b432637/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 10:24:48 am [vite] (client) [Unhandled error] Error: ResizeObserver loop completed with undelivered notifications.
+[WebServer]  > ../../../../../../@vite/client:531:50
+[WebServer] 
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     127.0.0.1:5690 - "WebSocket /api/v2/flows/uc05_approval_reconnect/runs/run_36372b432637/events?after_seq=8" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 4 [chromium] › e2e\builder-run.spec.ts:102:1 › WebSocket reconnect replays missed events with after_seq (no gaps, no duplicates) (4.4s)
+  ok 5 [chromium] › e2e\builder-run.spec.ts:130:1 › MOCK-UI: blocked call shows reason and provenance chain (synthetic stream) (2.8s)
+  ok 6 [chromium] › e2e\builder.spec.ts:70:1 › use case 01 benign flow: build -> save -> publish OK (7.8s)
+  ok 7 [chromium] › e2e\builder.spec.ts:89:1 › use case 01 exfiltration variant: publish refused, agent node highlighted (4.9s)
+
+  7 passed (1.3m)

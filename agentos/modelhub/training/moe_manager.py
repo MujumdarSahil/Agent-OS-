@@ -4,10 +4,12 @@ MoE Manager - Mixture-of-Experts routing simulation
 
 import logging
 from typing import Dict, Any, List
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.moe_manager.MoEManager")
 class MoEManager:
     """
     MoE Manager - Manages Mixture-of-Experts routing.

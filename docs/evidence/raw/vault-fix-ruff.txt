@@ -1,0 +1,2 @@
+$ ruff check agentos agentos_server conftest.py
+All checks passed!

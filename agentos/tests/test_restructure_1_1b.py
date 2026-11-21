@@ -1,0 +1,319 @@
+"""
+test_restructure_1_1b.py - Guards for the 2.0 server package move (sub-milestone 1.1b).
+
+Pins:
+  - Import matrix: every v1 ``agentos.server.*`` path resolves to the identical
+    ``agentos_server.*`` module object and warns once per process.
+  - The v1 ``/api/*`` route table is unchanged.
+  - Boundary: the core ``agentos`` package never imports ``agentos_server`` or
+    any web framework.
+
+All tests run offline with mock LLM [MOCK].
+"""
+
+import ast
+import importlib
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+AGENTOS_DIR = REPO_ROOT / "agentos"
+
+ROUTE_MODULES = [
+    "agents", "builder", "checkpoints", "crews", "federation", "governance", "health",
+    "mcp_plugins", "missions", "packaging", "providers", "runs", "templates", "tools",
+]
+SERVER_MODULES = ["", ".app", ".models", ".run_manager", ".routes"] + [f".routes.{m}" for m in ROUTE_MODULES]
+
+# v1 /api route table as of 2.0 / 1.1a. Changing it is a public API break (CLAUDE.md rule 3).
+V1_API_ROUTES = sorted([
+    ("/api/agent-types", "GET"), ("/api/agents", "GET"), ("/api/agents", "POST"),
+    ("/api/agents/{name}", "DELETE"), ("/api/agents/{name}", "GET"), ("/api/agents/{name}", "PUT"),
+    ("/api/builder/agent", "POST"), ("/api/builder/agent/confirm", "POST"),
+    ("/api/builder/crew", "POST"), ("/api/builder/crew/confirm", "POST"),
+    ("/api/builder/tool", "POST"), ("/api/builder/tool/confirm", "POST"),
+    ("/api/checkpoints", "GET"), ("/api/checkpoints/{mission_name}", "GET"),
+    ("/api/crews", "GET"), ("/api/crews", "POST"), ("/api/crews/{name}", "GET"),
+    ("/api/federation/missions", "GET"), ("/api/federation/missions", "POST"),
+    ("/api/federation/missions/{name}/run", "POST"), ("/api/federation/runs/{run_id}/status", "GET"),
+    ("/api/governance/policies", "GET"), ("/api/governance/policies", "POST"),
+    ("/api/governance/policies/{policy_id}", "DELETE"), ("/api/health", "GET"),
+    ("/api/mcp-plugins", "GET"), ("/api/mcp-plugins", "POST"),
+    ("/api/missions", "GET"), ("/api/missions", "POST"), ("/api/missions/{name}", "GET"),
+    ("/api/missions/{name}/run", "POST"),
+    ("/api/packaging/build", "POST"), ("/api/packaging/install", "POST"),
+    ("/api/packaging/sign", "POST"), ("/api/packaging/verify", "POST"),
+    ("/api/providers", "GET"), ("/api/providers/fallback-chain", "GET"),
+    ("/api/providers/keys", "POST"), ("/api/providers/keys/{provider_name}", "DELETE"),
+    ("/api/providers/test/{provider_name}", "POST"),
+    ("/api/runs/{run_id}/status", "GET"), ("/api/runs/{run_id}/stream", "WS"),
+    ("/api/templates", "GET"), ("/api/templates/{name}/install", "POST"),
+    ("/api/tool-types", "GET"), ("/api/tools", "GET"), ("/api/tools", "POST"),
+])
+
+# v2 /api/v2 route table for core resource management (1.4) and flows (2.1).
+V2_API_ROUTES = sorted([
+    # 3.4: access (auth, users, API tokens, legacy token)
+    ("/api/v2/auth/status", "GET"), ("/api/v2/auth/setup", "POST"), ("/api/v2/auth/login", "POST"),
+    ("/api/v2/auth/logout", "POST"), ("/api/v2/auth/me", "GET"), ("/api/v2/auth/password", "POST"),
+    ("/api/v2/auth/tokens", "GET"), ("/api/v2/auth/tokens", "POST"), ("/api/v2/auth/tokens/{token_id}", "DELETE"),
+    ("/api/v2/users", "GET"), ("/api/v2/users", "POST"), ("/api/v2/users/{user_id}", "PUT"),
+    ("/api/v2/users/{user_id}/password", "POST"), ("/api/v2/users/{user_id}/tokens", "GET"),
+    ("/api/v2/users/{user_id}/tokens/{token_id}", "DELETE"),
+    ("/api/v2/access/legacy-token", "GET"), ("/api/v2/access/legacy-token", "PUT"),
+    ("/api/v2/access/legacy-token/rotate", "POST"),
+    ("/api/v2/agents", "GET"),
+    ("/api/v2/agents", "POST"),
+    ("/api/v2/agents/tool-options", "GET"),  # 3.1: tools the agent picker may offer
+    ("/api/v2/alerts", "GET"),  # 3.3: alerts, rules, notification channels, billing plan
+    ("/api/v2/alerts/rules", "GET"),
+    ("/api/v2/alerts/rules/{rule_id}", "PUT"),
+    ("/api/v2/alerts/{alert_id}/acknowledge", "POST"),
+    ("/api/v2/notify/channels", "GET"),
+    ("/api/v2/notify/channels", "POST"),
+    ("/api/v2/notify/channels/{name}", "PUT"),
+    ("/api/v2/notify/channels/{name}", "DELETE"),
+    ("/api/v2/notify/channels/{name}/test", "POST"),
+    ("/api/v2/providers/{name}/billing-plan", "PUT"),
+    ("/api/v2/audit", "GET"),  # 3.1: audit log (read-only)
+    ("/api/v2/audit/export", "GET"),
+    ("/api/v2/audit/verify", "GET"),
+    ("/api/v2/budgets", "GET"),  # 3.2: usage, cost and budgets
+    ("/api/v2/budgets", "PUT"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/usage", "GET"),
+    ("/api/v2/usage", "GET"),
+    ("/api/v2/agents/{name}", "DELETE"),
+    ("/api/v2/agents/{name}", "GET"),
+    ("/api/v2/flows", "GET"),
+    ("/api/v2/flows", "POST"),
+    ("/api/v2/flows/{flow_id}", "DELETE"),
+    ("/api/v2/flows/{flow_id}", "GET"),
+    ("/api/v2/flows/{flow_id}", "PUT"),
+    ("/api/v2/flows/{flow_id}/archive", "POST"),
+    ("/api/v2/flows/{flow_id}/publish", "POST"),
+    ("/api/v2/flows/{flow_id}/runs", "GET"),
+    ("/api/v2/flows/{flow_id}/runs", "POST"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}", "GET"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/approve", "POST"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "GET"),
+    ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "WS"),
+    ("/api/v2/flows/{flow_id}/versions", "GET"),
+    ("/api/v2/flows/{flow_id}/versions/{version}", "GET"),
+    ("/api/v2/mcp-servers", "GET"),
+    ("/api/v2/mcp-servers", "POST"),
+    ("/api/v2/mcp-servers/{name}", "DELETE"),
+    ("/api/v2/mcp-servers/{name}", "GET"),
+    # 2.5a: MCP discovery and review (additive)
+    ("/api/v2/mcp-servers/{name}/discover", "POST"),
+    ("/api/v2/mcp-servers/{name}/enable", "POST"),
+    ("/api/v2/mcp-servers/{name}/launch-preview", "GET"),
+    ("/api/v2/mcp-servers/{name}/tools/{tool}/approve", "POST"),
+    ("/api/v2/mcp-servers/{name}/tools/{tool}/revoke", "POST"),
+    ("/api/v2/node-specs", "GET"),
+    ("/api/v2/overview", "GET"),  # 2.4e: read-only Overview aggregate (additive)
+    ("/api/v2/providers", "GET"),
+    ("/api/v2/providers/fallback", "GET"),
+    ("/api/v2/providers/fallback", "PUT"),
+    ("/api/v2/providers/test-connection", "POST"),
+    ("/api/v2/sandbox/settings", "GET"),  # 3.5: sandbox (additive)
+    ("/api/v2/sandbox/settings", "PUT"),
+    ("/api/v2/sandbox/status", "GET"),
+    ("/api/v2/sandbox/test", "POST"),
+    ("/api/v2/sandbox/wasm/install", "POST"),
+    ("/api/v2/schedules", "GET"),
+    ("/api/v2/schedules", "POST"),
+    ("/api/v2/schedules/{schedule_id}", "DELETE"),
+    ("/api/v2/schedules/{schedule_id}", "GET"),
+    ("/api/v2/schedules/{schedule_id}", "PUT"),
+    ("/api/v2/squads", "GET"),
+    ("/api/v2/squads", "POST"),
+    ("/api/v2/squads/{name}", "DELETE"),
+    ("/api/v2/squads/{name}", "GET"),
+    ("/api/v2/tools", "GET"),
+    ("/api/v2/tools", "POST"),
+    ("/api/v2/tools/{name}", "DELETE"),
+    ("/api/v2/tools/{name}", "GET"),
+    ("/api/v2/vault/keys", "GET"),
+    ("/api/v2/vault/keys", "POST"),
+    ("/api/v2/vault/keys/{name}", "DELETE"),
+    ("/api/v2/webhooks", "GET"),
+    ("/api/v2/webhooks", "POST"),
+    ("/api/v2/webhooks/{webhook_id}", "DELETE"),
+    ("/api/v2/webhooks/{webhook_id}", "GET"),
+    ("/api/v2/webhooks/{webhook_id}", "PUT"),
+    ("/api/v2/webhooks/{webhook_id}/rotate", "POST"),
+])
+
+FORBIDDEN_IN_CORE = {"agentos_server", "fastapi", "starlette", "uvicorn"}
+
+
+def _run_python(code: str) -> subprocess.CompletedProcess:
+    env = {**os.environ, "AGENTOS_MOCK_LLM": "1", "PYTHONIOENCODING": "utf-8"}
+    return subprocess.run(
+        [sys.executable, "-c", code], cwd=REPO_ROOT, env=env,
+        capture_output=True, text=True, timeout=180,
+    )
+
+
+def _iter_routes(routes, prefix=""):
+    for r in routes:
+        if hasattr(r, "original_router"):
+            p = prefix + getattr(getattr(r, "include_context", None), "prefix", "")
+            yield from _iter_routes(r.original_router.routes, p)
+        elif hasattr(r, "routes"):
+            p = prefix + getattr(r, "path", "")
+            yield from _iter_routes(r.routes, p)
+        else:
+            yield prefix, r
+
+
+def _route_table(app):
+    table = set()
+    for prefix, route in _iter_routes(app.routes):
+        raw_path = getattr(route, "path", "")
+        path = prefix + raw_path if not raw_path.startswith(prefix) else raw_path
+        if not path.startswith("/api") or path.startswith("/api/v2"):
+            continue
+        methods = getattr(route, "methods", None)
+        if not methods:
+            table.add((path, "WS"))
+        else:
+            for method in sorted(methods):
+                if method != "HEAD":
+                    table.add((path, method))
+    return sorted(table)
+
+
+def _v2_route_table(app):
+    table = set()
+    for prefix, route in _iter_routes(app.routes):
+        raw_path = getattr(route, "path", "")
+        path = prefix + raw_path if not raw_path.startswith(prefix) else raw_path
+        if not path.startswith("/api/v2"):
+            continue
+        methods = getattr(route, "methods", None)
+        if not methods:
+            table.add((path, "WS"))
+        else:
+            for method in sorted(methods):
+                if method != "HEAD":
+                    table.add((path, method))
+    return sorted(table)
+
+
+# ---------------------------------------------------------------------------
+# Import matrix
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("suffix", SERVER_MODULES)
+def test_old_import_path_is_same_module(suffix):
+    new = importlib.import_module("agentos_server" + suffix)
+    old = importlib.import_module("agentos.server" + suffix)
+    if suffix:
+        assert old is new
+    else:
+        # The package itself is the shim; its submodules are aliases.
+        assert old.__name__ == "agentos.server"
+
+
+def test_old_from_imports_return_same_objects():
+    from agentos.server.app import create_app as old_create_app
+    from agentos.server.run_manager import RunManager as OldRunManager
+    from agentos_server.app import create_app
+    from agentos_server.run_manager import RunManager
+
+    assert old_create_app is create_app
+    assert OldRunManager is RunManager
+
+
+def test_shim_warns_exactly_once_per_process():
+    proc = _run_python(
+        "import warnings\n"
+        "with warnings.catch_warnings(record=True) as caught:\n"
+        "    warnings.simplefilter('always')\n"
+        "    import agentos.server.app\n"
+        "    import agentos.server.routes.runs\n"
+        "    from agentos.server import models\n"
+        "msgs = [str(w.message) for w in caught if 'agentos.server is deprecated' in str(w.message)]\n"
+        "print(len(msgs), all(issubclass(w.category, DeprecationWarning) for w in caught\n"
+        "      if 'agentos.server is deprecated' in str(w.message)))\n"
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == "1 True"
+
+
+def test_importing_shim_package_is_lazy():
+    proc = _run_python(
+        "import sys, agentos.server\n"
+        "print('agentos_server' in sys.modules)\n"
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == "False"
+
+
+def test_old_uvicorn_factory_path_resolves():
+    # uvicorn resolves "module:attr" via importlib; this is the same lookup.
+    module_name, attr = "agentos.server.app:create_app".split(":")
+    factory = getattr(importlib.import_module(module_name), attr)
+    from agentos_server.app import create_app
+    assert factory is create_app
+
+
+# ---------------------------------------------------------------------------
+# /api route table
+# ---------------------------------------------------------------------------
+
+def test_v1_api_route_table_unchanged(tmp_path):
+    from agentos_server.app import create_app
+    assert _route_table(create_app(str(tmp_path))) == V1_API_ROUTES
+
+
+def test_v2_api_route_table(tmp_path):
+    from agentos_server.app import create_app
+    assert _v2_route_table(create_app(str(tmp_path))) == V2_API_ROUTES
+
+
+def test_api_route_table_same_via_old_path(tmp_path):
+    from agentos.server.app import create_app as old_create_app
+    from agentos_server.app import create_app
+    assert _route_table(old_create_app(str(tmp_path))) == _route_table(create_app(str(tmp_path)))
+    assert _v2_route_table(old_create_app(str(tmp_path))) == _v2_route_table(create_app(str(tmp_path)))
+
+
+# ---------------------------------------------------------------------------
+# Boundary: agentos never imports agentos_server or a web framework
+# ---------------------------------------------------------------------------
+
+def _imported_top_level_names(path: Path):
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                yield node.lineno, alias.name.split(".")[0]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            yield node.lineno, node.module.split(".")[0]
+
+
+def test_core_source_has_no_server_or_web_framework_imports():
+    offenders = []
+    for path in AGENTOS_DIR.rglob("*.py"):
+        # Test suites may import the server to exercise it; only library code is bound.
+        if any(part in {"__pycache__", "frontend", "node_modules", "tests"} for part in path.parts):
+            continue
+        for lineno, name in _imported_top_level_names(path):
+            if name in FORBIDDEN_IN_CORE:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno} imports {name}")
+    assert offenders == []
+
+
+def test_importing_agentos_does_not_load_agentos_server():
+    # Note: fastapi itself IS loaded at runtime, transitively by crewai
+    # (crewai/a2a/auth/server_schemes.py). That is a third-party import and is
+    # covered by the AST check above for our own code.
+    proc = _run_python("import sys, agentos; print('agentos_server' in sys.modules)")
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == "False"

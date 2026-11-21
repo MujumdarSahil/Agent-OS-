@@ -1,0 +1,8 @@
+﻿[PASS] publish check: violations=0
+[PASS] normal: status=succeeded outbox=['support-queue@corp.local'] http_requests=1
+[PASS] urgent: waited_for_approval=True after_approve=succeeded outbox=['oncall@corp.local']
+[PASS] injection: waited_for_approval=True body_label=untrusted after_reject=failed outbox=0 to_attacker=False
+[PASS] injection approved anyway: card to=oncall@corp.local (pinned, trusted) outbox=['oncall@corp.local'] to_attacker=False
+[PASS] unpinned recipient: publish refused=True reasons=["Sink node 'page_oncall' requires trusted argument 'to', but received u"]
+[PASS] support_desk_unsafe.flow.json: publish refused, untrusted 'to' on ['page_oncall', 'queue_note'] (source ticket -> triage)
+Use case 07: ALL PASS

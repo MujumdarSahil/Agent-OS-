@@ -6,10 +6,12 @@ SAFETY: Quantization utilities only. No model modification for malicious purpose
 
 import logging
 from typing import Dict, Any, Optional
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.quantize_utils.QuantizeUtils")
 class QuantizeUtils:
     """
     Quantize Utils - Utilities for model quantization.
