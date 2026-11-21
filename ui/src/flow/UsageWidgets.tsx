@@ -114,6 +114,11 @@ export function BudgetsEditor() {
           <input id="rl-tokens" className="form-input" type="number" min={1} data-testid="limit-max-tokens"
             value={rl.max_total_tokens} onChange={e => setRL({ max_total_tokens: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })} />
         </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="rl-sandbox">Max sandbox calls per run</label>
+          <input id="rl-sandbox" className="form-input" type="number" min={1} data-testid="limit-max-sandbox-calls"
+            value={rl.max_sandbox_calls ?? 20} onChange={e => setRL({ max_sandbox_calls: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })} />
+        </div>
       </div>
       <div className="form-label">Per flow daily (USD)</div>
       {Object.entries(b.flow_daily).map(([f, v]) => (

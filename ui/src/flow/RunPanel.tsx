@@ -17,6 +17,7 @@ import {
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
 import { declassificationText, declassifiedBy, visibleSources } from './ExtractionConfig'
+import { SandboxCalls } from './SandboxWidgets'
 
 type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'finished'
 type Tab = 'output' | 'steps' | 'logs' | 'security'
@@ -612,6 +613,8 @@ export default function ResultsPanel({
                     ))}
                   </tbody>
                 </table>
+                {/* 3.5: sandbox calls (code, exit code, limit hit, stdout/stderr and files: UNTRUSTED) */}
+                <SandboxCalls events={events} />
                 </>
               )}
               {tab === 'logs' && (

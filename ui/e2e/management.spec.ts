@@ -469,6 +469,29 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ schedule_id: 's_1', name: 'daily', flow_id: 'uc07_support_desk', cron_expression: '0 8 * * *', timezone: 'UTC', inputs: {}, misfire_policy: 'skip', enabled: true, last_run_at: null, next_run_at: '2026-11-19T08:00:00Z', created_at: 'x', updated_at: 'x' }]) })
       }
 
+      // 3.5: sandbox status (no backend here: the code tools are unavailable and refuse)
+      if (url.includes('/api/v2/sandbox/status')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          mode: 'auto', summary: 'none: code tools are unavailable and refuse every call',
+          docker: { available: false, detail: 'the Docker daemon is not running', kinds: ['python', 'shell'], client: '27.0.1', server: null },
+          wasm: { available: false, detail: 'the CPython WASI build is not installed', kinds: ['python'], wasmtime: '50.0.1', build: 'missing' },
+          effective: { python: null, shell: null }, tools: [],
+          limits: { timeout_s: 30, memory_mb: 512, cpus: 1, pids: 64, stdout_kb: 100, stderr_kb: 100, workspace_mb: 50, file_mb: 10 },
+          images: [{ ref: 'python:3.12-slim@sha256:' + '5'.repeat(64), note: 'default' }], default_image: 'python:3.12-slim@sha256:' + '5'.repeat(64),
+        }) })
+      }
+      if (url.includes('/api/v2/sandbox/settings')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          backend: 'auto',
+          limits: { timeout_s: 30, memory_mb: 512, cpus: 1, pids: 64, stdout_kb: 100, stderr_kb: 100, workspace_mb: 50, file_mb: 10 },
+          images: [{ ref: 'python:3.12-slim@sha256:' + '5'.repeat(64), note: 'default' }], default_image: 'python:3.12-slim@sha256:' + '5'.repeat(64),
+        }) })
+      }
+      if (url.includes('/api/v2/sandbox/test')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          ok: false, backend: null, error: 'no sandbox backend is available for python code; the code was NOT run' }) })
+      }
+
       if (url.includes('/api/v2/providers') || url.includes('/api/providers')) {
         return route.fulfill({
           status: 200,
@@ -765,6 +788,24 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
     await page.getByTestId('nav-security').click()
     await expect(page.getByTestId('security-log-page').getByTestId('blocked-call')).toHaveCount(1)
     await expect(page.getByTestId('security-log-note')).toContainText('3.1 audit log')
+  })
+
+  test('3.5 Settings > Sandbox: backend status, versions, limits, allowlist; Test sandbox shows the fail-closed refusal', async ({ page }) => {
+    await loginUi(page)
+    await page.click('a[href="/settings"]')
+    const card = page.getByTestId('sandbox-settings')
+    await expect(card).toBeVisible()
+    await expect(page.getByTestId('sandbox-summary')).toContainText('none')
+    await expect(page.getByTestId('sandbox-status')).toHaveAttribute('data-python', 'none')
+    await expect(page.getByTestId('sandbox-docker')).toHaveText('not available')
+    await expect(page.getByTestId('sandbox-wasm')).toHaveText('not available')
+    await expect(card).toContainText('wasmtime 50.0.1')
+    await expect(page.getByTestId('sandbox-tools')).toContainText('none')
+    await expect(page.getByTestId('sandbox-limit-timeout_s')).toHaveValue('30')
+    await expect(page.getByTestId('sandbox-image-row')).toHaveCount(1)
+    await page.getByTestId('sandbox-test').click()
+    await expect(page.getByTestId('sandbox-test-result')).toHaveAttribute('data-ok', 'false')
+    await expect(page.getByTestId('sandbox-test-result')).toContainText('NOT run')
   })
 
   test('3.3 Alerts and notification channels: delivery status, acknowledge, write-only secrets, AgentOS errors', async ({ page }) => {
