@@ -33,7 +33,9 @@ export interface UsageSettings {
   run_limits: {
     max_model_calls: number
     max_total_tokens: number
-    flows: Record<string, { max_model_calls?: number | null; max_total_tokens?: number | null }>
+    /** 3.5: python_exec / shell_exec / file_* calls per run */
+    max_sandbox_calls?: number
+    flows: Record<string, { max_model_calls?: number | null; max_total_tokens?: number | null; max_sandbox_calls?: number | null }>
   }
   budgets: {
     global_daily: number | null

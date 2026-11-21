@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
 
-from agentos.flows.specs import BUILTIN_NODE_SPECS, NodeSpec
+from agentos.flows.specs import BUILTIN_NODE_SPECS, SANDBOX_TOOL_TYPES, NodeSpec
 
 router = APIRouter(prefix="/node-specs", tags=["v2-node-specs"])
 
@@ -49,5 +49,7 @@ async def list_node_specs(request: Request) -> List[Dict[str, Any]]:
             # 2.5b: both declassify; the shared field builder offers admin allowlists by NAME only (no entries)
             d["declassifies"] = True
             d["allowlist_names"] = sorted((getattr(policy, "allowlists", None) or {}).keys())
+        if t in SANDBOX_TOOL_TYPES:
+            d["agent_tool_only"] = True  # 3.5: given to agents, never a flow step (the palette hides it)
         out.append(d)
     return out

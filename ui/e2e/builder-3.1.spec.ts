@@ -1,5 +1,6 @@
 // 3.1 e2e (MOCK: real uvicorn backend from playwright.builder.config.ts, per-run temp home, no keys).
-// - Agents: the tool picker lists only tools the server resolves (no file_read/file_write); an agent with the
+// - Agents: the tool picker lists only tools the server resolves (3.5: sandbox tools only when the server reports a
+//   sandbox backend for them); an agent with the
 //   calculator tool is saved.
 // - Govern > Audit log: entries for a save, a published flow and a refused publish; filter by outcome; detail
 //   drawer shows details as plain text; chain badge "Verified"; Overview footer "Audit chain verified".
@@ -24,8 +25,13 @@ test('agent tool picker shows only server tools; an agent with calculator is sav
     els => els.map(e => (e.getAttribute('data-testid') || '').replace('tool-option-', '')))
   expect(offered.length).toBeGreaterThan(0)
   for (const name of offered) expect(serverNames).toContain(name)  // nothing the server would refuse
-  expect(offered).not.toContain('file_read')
-  expect(offered).not.toContain('file_write')
+  // 3.5: sandbox tools appear only when the server itself reports a backend that runs them (the machine decides:
+  // Docker, the wasm runtime, or none), so compare against the server's own sandbox status, never a fixed list
+  const sandbox = (await (await request.get('/api/v2/sandbox/status', { headers: AUTH })).json()) as { tools: string[] }
+  for (const tool of ['python_exec', 'shell_exec', 'file_read', 'file_write']) {
+    expect(serverNames.includes(tool), `server tool-options vs sandbox status for ${tool}`).toBe(sandbox.tools.includes(tool))
+    expect(offered.includes(tool), `picker vs sandbox status for ${tool}`).toBe(sandbox.tools.includes(tool))
+  }
   await page.fill('#agent-name', 'calc_agent_e2e')
   await page.fill('#agent-role', 'Calculator')
   await page.fill('#agent-goal', 'Add numbers')

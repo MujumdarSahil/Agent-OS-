@@ -93,10 +93,13 @@ class FlowEngine:
         mcp_manager: Any | None = None,
         expected_mcp_hashes: dict[str, str] | None = None,
         usage: Any | None = None,
+        sandbox: Any | None = None,
     ) -> None:
         # 3.2: usage ledger, budgets and run limits (default: built-in run limits, no budgets, no ledger)
         from agentos.usage.guard import UsageContext
 
+        # 3.5: sandbox service for the code tools (None: python_exec / shell_exec / file_* refuse, fail closed)
+        self.sandbox = sandbox
         self.usage = usage or UsageContext.default()
         self._guards: dict[str, Any] = {}
         # 2.5a: MCP tools run through this manager; hashes recorded at publish are re-checked per run
@@ -1214,6 +1217,8 @@ class FlowEngine:
                 fencing_checker=self.fencing_checker,
                 tool_catalog=catalog,
                 mcp_manager=self.mcp_manager,
+                sandbox=self.sandbox,
+                usage_guard=await self._usage_guard(state),
             )
 
             # Wrap tools
@@ -1340,6 +1345,9 @@ class FlowEngine:
             await self.storage.runs.put(record)
             record.outputs = state.node_outputs
             await self.storage.runs.put(record)
+        # 3.5: the run's sandbox workspace is deleted when the run ends (a WAITING run keeps it)
+        if self.sandbox is not None and status in (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED):
+            self.sandbox.cleanup_run(state.run_id)
 
     async def _save_checkpoint(self, state: FlowRunState) -> None:
         """Save optional snapshot checkpoint verified against current event seq."""

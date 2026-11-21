@@ -1,4 +1,5 @@
 import { BudgetsEditor } from '../flow/UsageWidgets'
+import { SandboxSettingsCard } from '../flow/SandboxWidgets'
 import AccessSettings from './AccessSettings'
 import { useState, useEffect } from 'react'
 import {
@@ -146,6 +147,8 @@ export default function Settings() {
         <AccessSettings />
         {/* 3.2: budgets and run limits (audited) */}
         <BudgetsEditor />
+        {/* 3.5: code sandbox status, limits, image allowlist, test (admin changes audited) */}
+        <SandboxSettingsCard />
         {/* Section 1: LLM Providers Registry */}
         <div className="card">
           <div className="flex items-center gap-2 mb-4">

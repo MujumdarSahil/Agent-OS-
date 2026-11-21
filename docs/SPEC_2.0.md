@@ -170,7 +170,17 @@ Sub-milestones (each is one branch and one PR into `2.0`):
   (rotate/disable, audited), the caller as audit actor, `started_by` / `decided_by` on runs, and an optional
   separation-of-duties flag. Also (Part 0): MOCK mode never reaches a model provider (one `.env` loader, agent nodes
   always through the router). Design, permission matrix and gaps: `docs/evidence/3.4.md`.
-- **3.5 Sandbox for code tools**
+- **3.5 Sandbox for code tools**: **done** (MOCK model; the sandbox is LIVE-verified on the wasm backend locally; the
+  Docker backend's LIVE tests run in the new `sandbox-docker` CI job and were not run locally because Docker was not
+  running). Agent tools `python_exec` (Docker or wasm), `shell_exec` (Docker only), `file_read` / `file_write` (the
+  run's sandbox workspace only), through the tool proxy. Docker: no network, read-only root, tmpfs workspace (no host
+  mount), all capabilities dropped, no-new-privileges, non-root, pids/memory/cpu limits, default seccomp, image
+  pinned by digest from an admin allowlist, always removed. wasm: pinned CPython WASI build (URL + sha256, verified
+  on install and on every load) in wasmtime, only the workspace preopened, empty environment, memory and time
+  limits. No backend: the tools refuse (never a host subprocess). Outputs are UNTRUSTED with the confidentiality of
+  everything that went in; `sandbox_exec` events; settings audited; 20 sandbox calls per run as a run limit. Also
+  (Part 0): `AGENTOS_FORBID_REAL_HOME` guard and one data-location resolver for the CLI and the server. Design and
+  gaps: `docs/evidence/3.5.md`.
 - **3.6 Review queue, trusted proxy, OTel export**
 
 Scope notes from the original plan:

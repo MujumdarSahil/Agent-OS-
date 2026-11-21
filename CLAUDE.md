@@ -71,6 +71,9 @@ Frontend: `ui/` (npm; moved from `agentos/frontend` in 1.1b). Server package: `a
     or ~/.agentos), not even read-only, outside the isolated test home. Any ad-hoc script or server
     that builds the app must first point the vault, master key, token and data paths at a temporary
     directory.
+    Claude Code runs with AGENTOS_FORBID_REAL_HOME=1 (set in .claude/settings.json env): create_app, the CLI,
+    main.py and every vault/master-key/token/storage/data-dir resolver then refuse any path inside the real
+    ~/.agentos (agentos/core/home_guard.py). The pytest conftest sets it for every test session.
 
 ## Baseline (2.0 after 1.3 + audit-fail-closed)
 - agentos/tests + agentos_server/tests + agentos/packaging/tests + tests/ci: 280 passed, 17 skipped with LIVE Mongo (265 passed, 32 skipped without Mongo).

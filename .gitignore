@@ -92,3 +92,6 @@ docker/.env.redis
 # Crash dumps
 *.stackdump
 
+
+# Claude Code local worktrees (never committed; .claude/settings.json is)
+.claude/worktrees/

@@ -58,7 +58,10 @@ class VaultFileError(VaultError):
 
 
 def default_master_key_path() -> Path:
-    return Path(os.environ.get("AGENTOS_MASTER_KEY_FILE") or Path.home() / ".agentos" / "master.key")
+    from agentos.core.home_guard import checked
+
+    return checked(Path(os.environ.get("AGENTOS_MASTER_KEY_FILE") or Path.home() / ".agentos" / "master.key"),
+                   "master key file")
 
 
 @dataclass(frozen=True)
@@ -97,7 +100,12 @@ class MasterKey:
         env = os.environ.get("AGENTOS_MASTER_KEY")
         if env:
             return cls.from_b64(env)
-        path = Path(path) if path else default_master_key_path()
+        if path:
+            from agentos.core.home_guard import checked
+
+            path = checked(Path(path), "master key file")
+        else:
+            path = default_master_key_path()
         if path.exists():
             try:
                 return cls.from_b64(path.read_text(encoding="ascii"))

@@ -652,11 +652,18 @@ class FileScheduleRepository:
 
 
 def default_vault_path() -> Path:
-    return Path(os.environ.get("AGENTOS_VAULT_PATH") or Path.home() / ".agentos" / "vault.json")
+    from agentos.core.home_guard import checked
+
+    return checked(Path(os.environ.get("AGENTOS_VAULT_PATH") or Path.home() / ".agentos" / "vault.json"), "vault file")
 
 
 def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> Storage:
+    from agentos.core.home_guard import check_path
+
     project_path = os.path.abspath(project_path)
+    check_path(project_path, "project folder")  # 3.5 (0a): refused inside the real ~/.agentos when the guard is on
+    if vault_path:
+        check_path(vault_path, "vault file")
     meta = Path(project_path) / ".agentos"
     return Storage(
         backend="file",

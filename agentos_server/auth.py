@@ -45,10 +45,12 @@ def get_public_hosts() -> set[str]:
 
 def default_token_path() -> Path:
     """Return the filesystem location where the local API token is stored."""
+    from agentos.core.home_guard import checked
+
     override = os.environ.get("AGENTOS_API_TOKEN_FILE")
     if override:
-        return Path(override)
-    return Path.home() / ".agentos" / "api.token"
+        return checked(Path(override), "API token file")
+    return checked(Path.home() / ".agentos" / "api.token", "API token file")
 
 
 def get_or_create_api_token() -> str:

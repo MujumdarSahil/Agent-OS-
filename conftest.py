@@ -35,6 +35,8 @@ ISOLATED_ENV: Dict[str, str] = {
     "AGENTOS_MASTER_KEY_FILE": str(_TEST_HOME / ".agentos" / "master.key"),
     "AGENTOS_API_TOKEN_FILE": str(_TEST_HOME / ".agentos" / "api.token"),
     "AGENTOS_DATA_DIR": str(_TEST_HOME / "data"),
+    # 3.5 (0a): hard guard; every AgentOS resolver refuses a path inside the REAL ~/.agentos for the whole session
+    "AGENTOS_FORBID_REAL_HOME": "1",
 }
 if os.name == "nt":
     # Windows shell-folder lookups (appdirs, used by CrewAI at import) need these to exist under the

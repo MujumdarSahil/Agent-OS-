@@ -1,0 +1,5 @@
+{
+  "env": {
+    "AGENTOS_FORBID_REAL_HOME": "1"
+  }
+}

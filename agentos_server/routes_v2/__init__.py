@@ -15,6 +15,7 @@ from agentos_server.routes_v2.node_specs import router as node_specs_router
 from agentos_server.routes_v2.notify import router as notify_router
 from agentos_server.routes_v2.overview import router as overview_router
 from agentos_server.routes_v2.providers import router as providers_router
+from agentos_server.routes_v2.sandbox import router as sandbox_router
 from agentos_server.routes_v2.schedules import router as schedules_router
 from agentos_server.routes_v2.squads import router as squads_router
 from agentos_server.routes_v2.tools import router as tools_router
@@ -39,3 +40,4 @@ router.include_router(audit_router)
 router.include_router(usage_router)
 router.include_router(notify_router)
 router.include_router(access_router)  # 3.4: auth, users, API tokens, legacy token
+router.include_router(sandbox_router)  # 3.5: sandbox status and admin settings

@@ -38,7 +38,9 @@ class FlowWorker:
         secret_resolver: Any | None = None,
         mcp_manager: Any | None = None,
         usage: Any | None = None,
+        sandbox: Any | None = None,
     ) -> None:
+        self.sandbox = sandbox  # 3.5: sandbox service for the code tools (None: they refuse, fail closed)
         self.usage = usage  # 3.2: ledger, budgets, run limits (shared by every engine of this server)
         self.mcp_manager = mcp_manager  # 2.5a: runs approved MCP tools for agent nodes
         # 2.3: resolves {"vault": name} credential headers for http_request (e.g. Vault.reveal)
@@ -136,6 +138,7 @@ class FlowWorker:
                 # hashes of the MCP tools approved when this version was published (re-checked per run)
                 expected_mcp_hashes=(flow_record.analysis or {}).get("mcp_tools") or {},
                 usage=self.usage,
+                sandbox=self.sandbox,
             )
 
             # 3. Requirement 3: Decide run vs resume strictly from event log

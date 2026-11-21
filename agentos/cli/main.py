@@ -54,7 +54,20 @@ def main_callback(
         is_eager=True,
     ),
 ):
-    pass
+    # 3.5 (0a): with AGENTOS_FORBID_REAL_HOME=1, refuse at start any configured AgentOS path (and the current
+    # folder) inside the real ~/.agentos; default paths are checked by their resolvers when used.
+    from agentos.core.home_guard import RealHomeForbidden, check_path, guard_enabled
+
+    if guard_enabled():
+        try:
+            check_path(os.getcwd(), "current folder")
+            for var in ("AGENTOS_PROJECT", "AGENTOS_VAULT_PATH", "AGENTOS_MASTER_KEY_FILE", "AGENTOS_API_TOKEN_FILE",
+                        "AGENTOS_DATA_DIR"):
+                if os.environ.get(var):
+                    check_path(os.environ[var], var)
+        except RealHomeForbidden as e:
+            console.print(f"[bold red]Refused:[/bold red] {e}")
+            raise typer.Exit(code=2)
 
 
 def to_camel_case(snake_str: str) -> str:
@@ -814,8 +827,13 @@ def users_create_admin(
 
     from agentos.access import AccessError, AccessService, access_store_for
     from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
+    from agentos.core.locations import describe_data_location, open_app_storage, resolve_project_dir
     from agentos.security.vault import MasterKey
-    from agentos.storage import open_storage
+
+    # 3.5 (0b): the SAME project and storage as the server (main.py / create_app): --project, AGENTOS_PROJECT,
+    # the current folder with agentos.config.yaml, else the default workspace; Mongo iff AGENTOS_MONGO_URI.
+    project_dir = resolve_project_dir(project)
+    console.print(f"Data location: {describe_data_location(project_dir)}")
 
     name = username or typer.prompt("Admin username")
     if password_stdin:
@@ -824,7 +842,7 @@ def users_create_admin(
         password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
 
     async def _run():
-        storage = await open_storage(project_path=project)
+        storage = await open_app_storage(project_dir)
         try:
             key = MasterKey.load(create=True).key
             svc = AccessService(access_store_for(storage), key)
@@ -980,6 +998,44 @@ def pack_install(
         raise typer.Exit(code=1)
 
 
+
+
+# =====================================================================
+# SANDBOX (3.5)
+# =====================================================================
+
+sandbox_app = typer.Typer(help="Code sandbox for python_exec / shell_exec / file_* (3.5)")
+app.add_typer(sandbox_app, name="sandbox")
+
+
+@sandbox_app.command("status")
+def sandbox_status():
+    """Show which sandbox backends are available (Docker, wasm) and what the code tools would use."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox import SandboxService
+
+    st = SandboxService(data_dir()).status()
+    console.print(f"Sandbox: {st['summary']}")
+    console.print(f"  docker: {st['docker'].get('detail')} (client {st['docker'].get('client')}, "
+                  f"server {st['docker'].get('server')})")
+    console.print(f"  wasm:   {st['wasm'].get('detail')} (wasmtime {st['wasm'].get('wasmtime')}, "
+                  f"build {st['wasm'].get('build')})")
+
+
+@sandbox_app.command("install-wasm")
+def sandbox_install_wasm():
+    """Download the pinned CPython WASI build into the AgentOS data dir and verify its sha256 (explicit admin step)."""
+    from agentos.core.locations import data_dir
+    from agentos.sandbox.wasm_build import WASM_SHA256, WASM_SIZE, WASM_URL, WasmBuildError, install
+
+    d = data_dir()
+    console.print(f"Downloading {WASM_URL}\n  ({WASM_SIZE:,} bytes, sha256 {WASM_SHA256}) into {d}")
+    try:
+        path = install(d)
+    except (WasmBuildError, OSError) as e:
+        console.print(f"[bold red]Refused:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]OK[/green] verified and installed: {path}")
 
 
 # =====================================================================
