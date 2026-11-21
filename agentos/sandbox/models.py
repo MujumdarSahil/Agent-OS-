@@ -81,9 +81,16 @@ class SandboxSettings(BaseModel):
         return self
 
     def flat(self) -> dict[str, object]:
-        """One level of values for the audit entry."""
-        out: dict[str, object] = {"backend": self.backend, "default_image": self.default_image,
-                                  "images": ",".join(i.ref for i in self.images)[:1000]}
+        """One level of values for the audit entry. The audit log only accepts long hex strings under keys that end
+        in 'digest' (anti key-material rule), so each image is recorded as name + digest."""
+        def split(ref: str) -> tuple[str, str]:
+            name, _, digest = ref.partition("@")
+            return name, digest
+
+        out: dict[str, object] = {"backend": self.backend}
+        out["default_image"], out["default_image.digest"] = split(self.default_image)
+        for n, img in enumerate(self.images):
+            out[f"image{n}"], out[f"image{n}.digest"] = split(img.ref)
         out.update({f"limits.{k}": v for k, v in self.limits.model_dump().items()})
         return out
 
