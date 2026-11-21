@@ -71,6 +71,10 @@ async def test_node_specs_lists_all_builtin_specs(client):
     for s in body:
         # 2.5b: additive keys for the declassifying nodes only (badge + allowlist names for the field builder)
         extra = {"declassifies", "allowlist_names"} if s["type"] in ("quarantined_extraction", "validator") else set()
+        # 3.5: additive key for the sandbox code tools (agent tools only; the palette hides them)
+        if s["type"] in ("python_exec", "shell_exec", "file_read", "file_write"):
+            extra = {"agent_tool_only"}
+            assert s["agent_tool_only"] is True
         assert set(s) == SPEC_KEYS | extra
         assert s["side_effect"] in {"none", "read", "write", "external_send", "destructive"}
     by_type = {s["type"]: s for s in body}

@@ -119,6 +119,11 @@ V2_API_ROUTES = sorted([
     ("/api/v2/providers/fallback", "GET"),
     ("/api/v2/providers/fallback", "PUT"),
     ("/api/v2/providers/test-connection", "POST"),
+    ("/api/v2/sandbox/settings", "GET"),  # 3.5: sandbox (additive)
+    ("/api/v2/sandbox/settings", "PUT"),
+    ("/api/v2/sandbox/status", "GET"),
+    ("/api/v2/sandbox/test", "POST"),
+    ("/api/v2/sandbox/wasm/install", "POST"),
     ("/api/v2/schedules", "GET"),
     ("/api/v2/schedules", "POST"),
     ("/api/v2/schedules/{schedule_id}", "DELETE"),

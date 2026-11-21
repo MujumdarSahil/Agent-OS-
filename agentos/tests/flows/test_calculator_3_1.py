@@ -136,12 +136,13 @@ async def test_tool_options_list_only_what_the_server_accepts(tmp_path, monkeypa
         opts = (await c.get("/api/v2/agents/tool-options")).json()
         names = [o["name"] for o in opts]
         assert names == ["calculator", "fetch_url", "send_email", "send_slack"]  # 3.3: send_slack
-        assert "file_read" not in names and "file_write" not in names
+        # 3.5: the sandbox tools are offered only with a usable backend (none in this test: no Docker, no wasm build)
+        assert "file_read" not in names and "file_write" not in names and "python_exec" not in names
         for n in names:  # every option is accepted by the save check
             r = await c.post("/api/v2/agents", json={"name": f"a_{n}", "role": "r", "goal": "g", "backstory": "b",
                                                      "tools": [n]})
             assert r.status_code == 200, r.text
-        for bad in ("file_read", "file_write"):
+        for bad in ("file_delete", "shell"):  # 3.5: file_read / file_write are real (sandboxed) tools now
             r = await c.post("/api/v2/agents", json={"name": "bad", "role": "r", "goal": "g", "backstory": "b",
                                                      "tools": [bad]})
             assert r.status_code == 400 and "fail closed" in r.json()["detail"]
