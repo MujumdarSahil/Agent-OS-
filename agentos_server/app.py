@@ -226,6 +226,22 @@ def create_app(
         project_path = os.environ.get("AGENTOS_PROJECT", os.getcwd())
     project_path = os.path.abspath(project_path)
 
+    # 3.5 (0a): with AGENTOS_FORBID_REAL_HOME=1, never start on a path inside the real ~/.agentos
+    from agentos.core.home_guard import check_path, guard_enabled
+    if guard_enabled():
+        check_path(project_path, "project folder")
+        from agentos.security.vault import default_master_key_path
+        from agentos_server.auth import default_token_path
+        if not os.environ.get("AGENTOS_MASTER_KEY"):
+            default_master_key_path()
+        if not os.environ.get("AGENTOS_API_TOKEN"):
+            default_token_path()
+        if storage is None:
+            from agentos.storage.file import default_vault_path
+            default_vault_path()
+        if os.environ.get("AGENTOS_DATA_DIR"):
+            check_path(os.environ["AGENTOS_DATA_DIR"], "AGENTOS_DATA_DIR")
+
     # Load API keys from .env (repo root first, then project directory overrides), in the one place that does
     # it. AGENTOS_SKIP_DOTENV=1 (e2e / screenshot servers): never load the developer's .env keys.
     from agentos.core.dotenv_loader import load_env_files
@@ -241,8 +257,9 @@ def create_app(
         mongo_uri = os.environ.get("AGENTOS_MONGO_URI")
         if mongo_uri and getattr(app.state, "_storage_explicit", False) is False:
             try:
-                from agentos.storage.mongo import open_mongo_storage
-                app.state.storage = await open_mongo_storage(mongo_uri)
+                # 3.5 (0b): same resolver as the CLI (honours AGENTOS_MONGO_DB)
+                from agentos.core.locations import open_app_storage
+                app.state.storage = await open_app_storage(project_path)
                 from agentos.security.vault import Vault
                 app.state.vault = Vault(app.state.storage.credentials, app.state.master_key)
                 if getattr(app.state, "mcp_manager", None) is not None:

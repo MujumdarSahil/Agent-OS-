@@ -45,21 +45,20 @@ def parse_args(argv=None):
 
 
 def resolve_project(project_arg: str | None) -> str:
-    if project_arg:
-        path = os.path.abspath(project_arg)
-        if not os.path.isdir(path):
-            print(f"ERROR: Project path does not exist: {path}", file=sys.stderr)
-            sys.exit(1)
-        return path
-    cwd = os.getcwd()
-    if os.path.exists(os.path.join(cwd, "agentos.config.yaml")):
-        return cwd
-    DEFAULT_WORKSPACE.mkdir(parents=True, exist_ok=True)
-    cfg = DEFAULT_WORKSPACE / "agentos.config.yaml"
-    if not cfg.exists():
-        cfg.write_text("preferred_tags: []\n", encoding="utf-8")
-        print(f"Created default workspace: {DEFAULT_WORKSPACE}")
-    return str(DEFAULT_WORKSPACE)
+    """3.5 (0b): the shared resolver (agentos.core.locations), so the CLI finds the same data as the server.
+    The launcher passes the result to the server as AGENTOS_PROJECT. With AGENTOS_FORBID_REAL_HOME=1 a project
+    inside the real ~/.agentos (e.g. the default workspace) is refused."""
+    from agentos.core.home_guard import RealHomeForbidden
+    from agentos.core.locations import resolve_project_dir
+
+    if project_arg and not os.path.isdir(os.path.abspath(project_arg)):
+        print(f"ERROR: Project path does not exist: {os.path.abspath(project_arg)}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        return resolve_project_dir(project_arg, create_default=True)
+    except RealHomeForbidden as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
 
 def npm_cmd() -> str | None:
