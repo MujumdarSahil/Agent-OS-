@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Bot, Wrench, Users, Target, Wand2, Shield, Package, Cpu, LayoutGrid,
   Settings as SettingsIcon, Server, Key, Lock, LogOut, Workflow, Gauge, ListChecks, Hand,
-  Zap, ShieldAlert, ChevronDown, ChevronRight, Bell, Mail,
+  Zap, ShieldAlert, ChevronDown, ChevronRight, Bell, Mail, ClipboardCheck,
 } from 'lucide-react'
 import { getHealth } from './api/client'
 import { getOverview } from './api/flows'
@@ -29,6 +29,7 @@ import FlowEditor from './pages/FlowEditor'
 import Overview from './pages/Overview'
 import Runs from './pages/Runs'
 import Approvals from './pages/Approvals'
+import ReviewQueue from './pages/ReviewQueue'
 import Triggers from './pages/Triggers'
 import SecurityLog from './pages/SecurityLog'
 import AuditLog from './pages/AuditLog'
@@ -49,6 +50,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [
     { to: '/runs', icon: <ListChecks size={15}/>, label: 'Runs' },
     { to: '/approvals', icon: <Hand size={15}/>, label: 'Approvals' },
+    { to: '/review', icon: <ClipboardCheck size={15}/>, label: 'Review queue' },
   ] },
   { title: 'Build', items: [
     { to: '/flows', icon: <Workflow size={15}/>, label: 'Flows' },
@@ -215,6 +217,7 @@ function Shell() {
             <Route path="/" element={<Overview />} />
             <Route path="/runs" element={<Runs />} />
             <Route path="/approvals" element={<Approvals />} />
+            <Route path="/review" element={<ReviewQueue />} />
             <Route path="/triggers" element={<Triggers />} />
             <Route path="/security" element={<SecurityLog />} />
             <Route path="/audit" element={<AuditLog />} />

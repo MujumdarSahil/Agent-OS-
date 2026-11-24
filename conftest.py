@@ -37,6 +37,8 @@ ISOLATED_ENV: Dict[str, str] = {
     "AGENTOS_DATA_DIR": str(_TEST_HOME / "data"),
     # 3.5 (0a): hard guard; every AgentOS resolver refuses a path inside the REAL ~/.agentos for the whole session
     "AGENTOS_FORBID_REAL_HOME": "1",
+    "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+    "AGENTOS_MOCK_LLM": "1",
 }
 if os.name == "nt":
     # Windows shell-folder lookups (appdirs, used by CrewAI at import) need these to exist under the
@@ -44,6 +46,23 @@ if os.name == "nt":
     for _sub, _var in (("AppData/Local", "LOCALAPPDATA"), ("AppData/Roaming", "APPDATA")):
         (_TEST_HOME / _sub).mkdir(parents=True, exist_ok=True)
         ISOLATED_ENV[_var] = str(_TEST_HOME / _sub)
+    try:
+        import appdirs
+        _orig_get_win = getattr(appdirs, "_get_win_folder", None)
+        def _safe_get_win(csidl_name: str) -> str:
+            if "LOCAL" in csidl_name and os.environ.get("LOCALAPPDATA"):
+                return os.environ["LOCALAPPDATA"]
+            if os.environ.get("APPDATA"):
+                return os.environ["APPDATA"]
+            try:
+                if _orig_get_win is not None:
+                    return _orig_get_win(csidl_name)
+            except Exception:
+                pass
+            return str(_TEST_HOME)
+        appdirs._get_win_folder = _safe_get_win
+    except ImportError:
+        pass
 os.environ.update(ISOLATED_ENV)
 
 Snapshot = Dict[str, Optional[Tuple[int, int]]]
@@ -57,12 +76,15 @@ def snapshot_home(home: Path) -> Snapshot:
     base = home / ".agentos"
     out: Snapshot = {}
     for folder in (base, base / "keys"):
-        if not folder.is_dir():
+        try:
+            if not folder.is_dir():
+                continue
+            for entry in os.scandir(folder):
+                if entry.is_file(follow_symlinks=False):
+                    st = entry.stat(follow_symlinks=False)
+                    out[str(Path(entry.path).relative_to(home))] = (st.st_size, st.st_mtime_ns)
+        except (PermissionError, OSError):
             continue
-        for entry in os.scandir(folder):
-            if entry.is_file(follow_symlinks=False):
-                st = entry.stat(follow_symlinks=False)
-                out[str(Path(entry.path).relative_to(home))] = (st.st_size, st.st_mtime_ns)
     return out
 
 

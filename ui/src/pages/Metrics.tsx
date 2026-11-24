@@ -2,10 +2,11 @@
 // by cost, p50 / p95 latency per provider, error and fallback rate, budget bars. Data: GET /api/v2/usage (the
 // usage ledger) and GET /api/v2/budgets. Costs are estimates from the price table.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getBudgets, getUsage, usd, type UsageRow } from '../api/usage'
 import { BudgetBars } from '../flow/UsageWidgets'
+import { listReviewItems } from '../api/review'
 
 const WINDOWS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90 }
 const dayMinus = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
@@ -120,7 +121,86 @@ export default function Metrics() {
           <div className="ov-card-title">Budgets</div>
           <BudgetBars budgets={budgets.data?.budgets ?? []} />
         </div>
+        <ReviewQualityCard />
       </div>
+    </div>
+  )
+}
+
+function ReviewQualityCard() {
+  const reviewsQ = useQuery({ queryKey: ['all-review-items'], queryFn: () => listReviewItems({ limit: 1000 }) })
+  const items = reviewsQ.data?.items ?? []
+
+  const byFlow = useMemo(() => {
+    const map = new Map<string, { total: number; good: number; bad: number; reasons: Record<string, number> }>()
+    for (const item of items) {
+      if (item.status !== 'reviewed') continue
+      if (!map.has(item.flow_id)) map.set(item.flow_id, { total: 0, good: 0, bad: 0, reasons: {} })
+      const m = map.get(item.flow_id)!
+      m.total++
+      if (item.verdict === 'good') m.good++
+      if (item.verdict === 'bad') {
+        m.bad++
+        for (const r of item.reasons || []) {
+          m.reasons[r] = (m.reasons[r] || 0) + 1
+        }
+      }
+    }
+    return [...map.entries()]
+      .map(([flowId, data]) => ({
+        flowId,
+        total: data.total,
+        good: data.good,
+        pctGood: data.total > 0 ? (data.good / data.total) * 100 : 0,
+        topReasons: Object.entries(data.reasons)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([r, c]) => `${r} (${c})`),
+      }))
+      .sort((a, b) => b.total - a.total)
+  }, [items])
+
+  return (
+    <div className="card ov-span-12" data-testid="metrics-review-quality">
+      <div className="ov-card-title">Flow quality &amp; human reviews</div>
+      {byFlow.length === 0 ? (
+        <div className="text-muted" style={{ fontSize: 12 }} data-testid="metrics-quality-empty">
+          No reviews recorded yet. Use Work &gt; Review queue to assess run outputs.
+        </div>
+      ) : (
+        <table style={{ width: '100%', fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>Flow</th>
+              <th>Reviewed</th>
+              <th>Good %</th>
+              <th style={{ textAlign: 'left' }}>Top bad reasons</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byFlow.map(f => (
+              <tr key={f.flowId} data-testid="quality-flow-row" data-flow={f.flowId}>
+                <td className="font-mono"><strong>{f.flowId}</strong></td>
+                <td>{f.total}</td>
+                <td>
+                  <span
+                    className="badge"
+                    style={{
+                      background: f.pctGood >= 80 ? 'rgba(45,212,191,0.15)' : 'rgba(239,68,68,0.15)',
+                      color: f.pctGood >= 80 ? 'var(--accent-teal)' : 'var(--accent-red)',
+                    }}
+                  >
+                    {Math.round(f.pctGood)}%
+                  </span>
+                </td>
+                <td>
+                  {f.topReasons.length > 0 ? f.topReasons.join(', ') : <span className="text-muted">none</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

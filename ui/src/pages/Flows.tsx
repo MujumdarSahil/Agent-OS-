@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage, archiveFlow, flowStatusLabel, listFlows, listVersions } from '../api/flows'
+import { getReviewMetrics } from '../api/review'
+import FlowSettingsModal from '../flow/FlowSettingsModal'
 
 export default function Flows() {
   const qc = useQueryClient()
@@ -107,19 +109,46 @@ function FlowRow(props: {
   onToggleVersions: () => void
   onArchive: () => void
 }) {
+  const [showSettings, setShowSettings] = useState(false)
   const versionsQ = useQuery({ queryKey: ['flow-versions', props.id], queryFn: () => listVersions(props.id), enabled: props.showVersions })
+  const metricsQ = useQuery({ queryKey: ['flow-review-metrics', props.id, props.version], queryFn: () => getReviewMetrics(props.id, props.version ?? undefined) })
+  const metrics = metricsQ.data
+
   return (
     <>
       <tr data-testid={`flow-row-${props.id}`}>
         <td className="font-mono"><Link to={`/flows/${encodeURIComponent(props.id)}`}>{props.id}</Link></td>
-        <td>{props.name}</td>
+        <td>
+          {props.name}
+          {metrics && metrics.total_reviewed > 0 && (
+            <span
+              className="badge"
+              data-testid={`quality-badge-${props.id}`}
+              style={{
+                marginLeft: 8,
+                background: metrics.pct_good >= 80 ? 'rgba(45,212,191,0.15)' : 'rgba(239,68,68,0.15)',
+                color: metrics.pct_good >= 80 ? 'var(--accent-teal)' : 'var(--accent-red)',
+              }}
+              title={`Reviewed: ${metrics.total_reviewed} (${metrics.good_count} good, ${metrics.bad_count} bad)`}
+            >
+              {Math.round(metrics.pct_good)}% good ({metrics.total_reviewed})
+            </span>
+          )}
+        </td>
         <td><span className="badge badge-default">{props.status}</span></td>
         <td>{props.version ?? '-'}</td>
         <td className="flex gap-2">
+          <button className="btn btn-ghost btn-sm" data-testid={`settings-${props.id}`} onClick={() => setShowSettings(true)}>Settings</button>
           <button className="btn btn-ghost btn-sm" data-testid={`versions-${props.id}`} onClick={props.onToggleVersions}>Versions</button>
           <button className="btn btn-danger btn-sm" data-testid={`archive-${props.id}`} disabled={props.status === 'archived'} onClick={props.onArchive}>Archive</button>
         </td>
       </tr>
+      {showSettings && (
+        <FlowSettingsModal
+          flowId={props.id}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       {props.showVersions && (
         <tr>
           <td colSpan={5} data-testid={`versions-list-${props.id}`}>

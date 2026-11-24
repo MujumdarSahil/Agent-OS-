@@ -278,6 +278,8 @@ def create_app(
                 app.state.notify.vault = app.state.vault
                 from agentos.sandbox.store import sandbox_settings_store_for
                 app.state.sandbox.settings_store = sandbox_settings_store_for(app.state.storage)
+                from agentos.review.store import review_store_for
+                app.state.review = review_store_for(app.state.storage)
                 if hasattr(app.state.storage.events, "_fencing_checker"):
                     app.state.storage.events._fencing_checker = app.state.queue.validate_lease
                 # Use Mongo server-time leader lock in Platform mode
@@ -573,6 +575,10 @@ def create_app(
     from agentos.sandbox import SandboxService
     from agentos.sandbox.store import sandbox_settings_store_for
     app.state.sandbox = SandboxService(data_dir(), sandbox_settings_store_for(app.state.storage))
+
+    # 3.6a: review queue and sampling store
+    from agentos.review.store import review_store_for
+    app.state.review = review_store_for(app.state.storage)
 
     # 2.5a: MCP servers (started on first use, stopped when idle and on shutdown). Secrets for a
     # server's secret_env come from the vault, resolved per server; http URLs use the admin allowlist.

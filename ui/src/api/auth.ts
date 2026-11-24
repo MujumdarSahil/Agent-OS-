@@ -4,7 +4,7 @@
 import { api } from './client'
 
 export type Role = 'viewer' | 'approver' | 'builder' | 'admin'
-export type Capability = 'self' | 'read' | 'approve' | 'build' | 'admin'
+export type Capability = 'self' | 'read' | 'review' | 'approve' | 'build' | 'admin'
 export const ROLES: Role[] = ['viewer', 'approver', 'builder', 'admin']
 
 export interface AuthStatus {

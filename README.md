@@ -233,6 +233,8 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 
 **Users, login and roles** — *Works today (verified in MOCK; Mongo store has LIVE tests in the mongo-live CI job)*. Each person has an account with a role: viewer, approver, builder or admin. The server checks the role on every API route (a route without a declared permission is refused for everyone), the browser holds only an HttpOnly session cookie (12 h idle, 7 days at most) and every change also needs a per-session CSRF header, failed logins get one generic answer and back off, and scripts use personal API tokens (shown once, revocable). Runs record who started them and approvals who decided; the audit log names the user. Optional: whoever published a flow version cannot approve its runs (`security.separation_of_duties: true`). See **Settings**, [use case 11](examples/usecases/11-access-roles/README.md) and [the 3.4 evidence](docs/evidence/3.4.md).
 
+**Human review queue (3.6a)** — *Works today (verified in MOCK; Mongo store in mongo-live CI job)*. People review AI outputs at selected nodes, mark good/bad verdicts with reasons, and record corrected outputs for testing (never fed back to live runs); includes configurable flow sampling policies, quality scores (% good, top bad reasons), JSONL dataset export with secret redaction, and keyboard-driven review. See **Work → Review queue** and [the 3.6a evidence](docs/evidence/3.6a.md).
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.

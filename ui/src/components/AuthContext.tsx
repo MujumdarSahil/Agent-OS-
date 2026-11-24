@@ -52,6 +52,7 @@ export function needs(cap: Capability): string {
   const who: Record<Capability, string> = {
     self: 'a logged-in user',
     read: 'the Viewer role or higher',
+    review: 'the Approver, Builder, or Admin role',
     approve: 'the Approver or Admin role',
     build: 'the Builder or Admin role',
     admin: 'the Admin role',
