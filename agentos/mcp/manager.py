@@ -232,11 +232,12 @@ class MCPManager:
                 def on_tools_changed() -> None:
                     r.tools_dirty = True
 
-                async with _RecordingSession(read, write, read_timeout_seconds=timedelta(seconds=self.call_timeout_s),
+                async with _RecordingSession(read, write, read_timeout_seconds=timedelta(seconds=self.start_timeout_s),
                                              on_refused=on_refused, on_tools_changed=on_tools_changed) as session:
                     with anyio.fail_after(self.start_timeout_s):
                         await session.initialize()
                         r.live = await self._list(session)
+                    session._session_read_timeout_seconds = timedelta(seconds=self.call_timeout_s)
                     r.session = session
                     started = True
                     await self.event(name, "mcp_server_started", {
@@ -290,7 +291,9 @@ class MCPManager:
             if r.session is None:
                 self._running.pop(record.name, None)
                 err = r.error
-                if isinstance(err, TimeoutError):
+                if isinstance(err, TimeoutError) or (
+                    isinstance(err, McpError) and getattr(getattr(err, "error", None), "code", None) == 408
+                ):
                     raise MCPTimeout(f"MCP server {record.name!r} did not answer the handshake in time") from err
                 raise MCPServerUnavailable(
                     f"MCP server {record.name!r} failed to start: {type(err).__name__ if err else 'unknown'}: "
@@ -360,6 +363,11 @@ class MCPManager:
         except TimeoutError as e:
             await self.kill(name, "list timeout")
             raise MCPTimeout(f"MCP server {name!r} did not list its tools in time") from e
+        except McpError as e:
+            if getattr(getattr(e, "error", None), "code", None) == 408:
+                await self.kill(name, "list timeout")
+                raise MCPTimeout(f"MCP server {name!r} did not list its tools in time") from e
+            raise
 
     async def call_tool(
         self,
@@ -393,6 +401,9 @@ class MCPManager:
                 await self.kill(record.name, "call timeout")
                 raise MCPTimeout(f"tool {server_tool_name!r} on {record.name!r} timed out after {timeout:g}s") from e
             except McpError as e:
+                if getattr(getattr(e, "error", None), "code", None) == 408:
+                    await self.kill(record.name, "call timeout")
+                    raise MCPTimeout(f"tool {server_tool_name!r} on {record.name!r} timed out after {timeout:g}s") from e
                 # the server closed the connection (crashed, or a message exceeded max_message_bytes)
                 await self.kill(record.name, "connection closed")
                 raise MCPServerUnavailable(

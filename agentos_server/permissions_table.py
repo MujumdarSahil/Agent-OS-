@@ -169,6 +169,16 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("PUT", f"{_V2}/sandbox/settings"): "admin",
     ("POST", f"{_V2}/sandbox/test"): "admin",
     ("POST", f"{_V2}/sandbox/wasm/install"): "admin",
+    # ------------------------------------------------------------------ 3.6a review queue
+    ("GET", f"{_V2}/review/items"): "read",
+    ("GET", f"{_V2}/review/items/{{item_id}}"): "read",
+    ("POST", f"{_V2}/review/items/{{item_id}}/verdict"): "review",
+    ("POST", f"{_V2}/review/items/{{item_id}}/skip"): "review",
+    ("GET", f"{_V2}/review/sampling/{{flow_id}}"): "read",
+    ("PUT", f"{_V2}/review/sampling/{{flow_id}}"): "build",
+    ("POST", f"{_V2}/review/send-to-review"): "build",
+    ("GET", f"{_V2}/review/metrics/{{flow_id}}"): "read",
+    ("GET", f"{_V2}/review/export"): "admin",
 }
 
 

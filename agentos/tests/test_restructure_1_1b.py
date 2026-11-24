@@ -119,6 +119,16 @@ V2_API_ROUTES = sorted([
     ("/api/v2/providers/fallback", "GET"),
     ("/api/v2/providers/fallback", "PUT"),
     ("/api/v2/providers/test-connection", "POST"),
+    # 3.6a: review queue (additive)
+    ("/api/v2/review/export", "GET"),
+    ("/api/v2/review/items", "GET"),
+    ("/api/v2/review/items/{item_id}", "GET"),
+    ("/api/v2/review/items/{item_id}/skip", "POST"),
+    ("/api/v2/review/items/{item_id}/verdict", "POST"),
+    ("/api/v2/review/metrics/{flow_id}", "GET"),
+    ("/api/v2/review/sampling/{flow_id}", "GET"),
+    ("/api/v2/review/sampling/{flow_id}", "PUT"),
+    ("/api/v2/review/send-to-review", "POST"),
     ("/api/v2/sandbox/settings", "GET"),  # 3.5: sandbox (additive)
     ("/api/v2/sandbox/settings", "PUT"),
     ("/api/v2/sandbox/status", "GET"),

@@ -30,6 +30,7 @@ import {
   NODE_H, NODE_W, READABLE_ZOOM, fitZoom, type GraphState, type LayoutDir,
 } from '../flow/builderModel'
 import ResultsPanel, { RunDialog } from '../flow/RunPanel'
+import FlowSettingsModal from '../flow/FlowSettingsModal'
 import {
   ExtractionConfigForm, ValidatorConfigForm, defaultExtractionConfig, defaultValidatorConfig,
   type ExtractionConfig, type ValidatorConfig,
@@ -122,6 +123,7 @@ function Editor() {
     if (id) setInspectSeq(s => s + 1)
   }, [])
   const [runDialog, setRunDialog] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showPalette, setShowPalette] = useState(isNew)
   const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
   const hasPublished = (versionsQ.data?.length ?? 0) > 0
@@ -602,6 +604,7 @@ function Editor() {
           <button className="btn btn-ghost" data-testid="toggle-run-panel" aria-pressed={showResults} onClick={() => setShowResults(v => !v)}>
             {showResults ? 'Hide results' : 'Results'}
           </button>
+          <button className="btn btn-ghost" data-testid="flow-settings-btn" onClick={() => setShowSettingsModal(true)} title="Flow settings and review sampling rules">Settings</button>
           <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">Export JSON</button>
         </div>
         <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
@@ -640,6 +643,13 @@ function Editor() {
             setInspectNode(null)
             setShowResults(true)
           }}
+        />
+      )}
+      {showSettingsModal && (
+        <FlowSettingsModal
+          flowId={flowId}
+          availableNodes={nodes.map(n => ({ id: n.id }))}
+          onClose={() => setShowSettingsModal(false)}
         />
       )}
 

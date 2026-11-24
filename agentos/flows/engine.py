@@ -1348,6 +1348,124 @@ class FlowEngine:
         # 3.5: the run's sandbox workspace is deleted when the run ends (a WAITING run keeps it)
         if self.sandbox is not None and status in (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED):
             self.sandbox.cleanup_run(state.run_id)
+        # 3.6a: evaluate review queue sampling when run completes
+        if status in (RunStatus.SUCCEEDED, RunStatus.FAILED):
+            try:
+                await self._maybe_sample_for_review(state, status)
+            except Exception:
+                pass
+
+    async def _maybe_sample_for_review(self, state: FlowRunState, status: RunStatus) -> None:
+        if not getattr(self, "storage", None) or not getattr(self, "flow", None):
+            return
+        from agentos.review.models import ReviewItem
+        from agentos.review.store import review_store_for
+
+        review_store = review_store_for(self.storage)
+        config = await review_store.get_sampling_config(self.flow.id)
+        if config.mode == "off":
+            return
+
+        should_queue = False
+        if config.mode == "all":
+            if status == RunStatus.SUCCEEDED:
+                should_queue = True
+        elif config.mode == "percentage":
+            import random
+            should_queue = random.randint(1, 100) <= config.percentage
+        elif config.mode == "rules":
+            events = await self.storage.events.list(state.run_id, after_seq=0)
+            event_types = {e.type for e in events}
+            event_datas = [e.data or {} for e in events]
+
+            for rule in config.rules:
+                if rule == "failed" and status == RunStatus.FAILED:
+                    should_queue = True
+                    break
+                elif rule == "fallback_used":
+                    if bool(getattr(state, "handled_failures", None)):
+                        should_queue = True
+                        break
+                    if any(len(d.get("attempts", [])) > 0 for d in event_datas if d.get("attempts")):
+                        should_queue = True
+                        break
+                elif rule == "rejected_input":
+                    if "extraction_rejected" in event_types or "validator_rejected" in event_types:
+                        should_queue = True
+                        break
+                elif rule == "approval_rejected":
+                    if "approval_rejected" in event_types or getattr(state, "error", None) == "rejected_by_operator":
+                        should_queue = True
+                        break
+                elif rule == "sink_blocked":
+                    if "tool_call_rejected" in event_types or "sink_rule_violated" in event_types:
+                        should_queue = True
+                        break
+                    err_msg = str(getattr(state, "error", "") or "")
+                    if "SinkRuleViolationError" in err_msg or ("sink" in err_msg.lower() and "violat" in err_msg.lower()):
+                        should_queue = True
+                        break
+
+        if not should_queue:
+            return
+
+        target_nodes = []
+        if config.nodes and config.nodes != ["*"] and config.nodes != ["__final__"]:
+            target_nodes = [nid for nid in config.nodes if nid in self.flow.nodes]
+        else:
+            targets = [nid for nid in self.flow.nodes if not any(e.source == nid for e in self.flow.edges)]
+            if targets:
+                target_nodes = targets
+            elif state.node_outputs:
+                target_nodes = [list(state.node_outputs.keys())[-1]]
+
+        if not target_nodes and self.flow.entrypoint:
+            target_nodes = [self.flow.entrypoint]
+
+        flow_ver = getattr(self.flow, "version", 1)
+        for nid in target_nodes:
+            lbl_dict = state.node_output_labels.get(nid, {})
+            label_names = set()
+            for k, lbl in lbl_dict.items():
+                if getattr(lbl, "integrity", None) == "untrusted":
+                    label_names.add("UNTRUSTED")
+                if getattr(lbl, "confidentiality", None) == "secret":
+                    label_names.add("SECRET")
+                elif getattr(lbl, "confidentiality", None) == "confidential":
+                    label_names.add("CONFIDENTIAL")
+
+            in_lbls = {
+                k: {
+                    "confidentiality": getattr(lbl, "confidentiality", "public"),
+                    "integrity": getattr(lbl, "integrity", "untrusted"),
+                    "sources": getattr(lbl, "sources", []),
+                }
+                for k, lbl in state.node_input_labels.get(nid, {}).items()
+            }
+            out_lbls = {
+                k: {
+                    "confidentiality": getattr(lbl, "confidentiality", "public"),
+                    "integrity": getattr(lbl, "integrity", "untrusted"),
+                    "sources": getattr(lbl, "sources", []),
+                }
+                for k, lbl in state.node_output_labels.get(nid, {}).items()
+            }
+
+            item = ReviewItem(
+                run_id=state.run_id,
+                flow_id=self.flow.id,
+                flow_version=flow_ver,
+                node_id=nid,
+                status="pending",
+                inputs=state.node_inputs.get(nid) or {},
+                input_labels=in_lbls,
+                outputs=state.node_outputs.get(nid) or {},
+                output_labels=out_lbls,
+                input_data=state.node_inputs.get(nid),
+                output_data=state.node_outputs.get(nid),
+                labels=sorted(label_names),
+            )
+            await review_store.put_item(item)
 
     async def _save_checkpoint(self, state: FlowRunState) -> None:
         """Save optional snapshot checkpoint verified against current event seq."""

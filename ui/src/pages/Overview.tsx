@@ -14,6 +14,7 @@ import { getOverview, type OverviewData, type OverviewWindow } from '../api/flow
 import { formatMs } from '../flow/runModel'
 import { runHref } from '../flow/allRuns'
 import { DecisionNotice, RunApproval, RunBlocked, useDecisionNotice } from '../flow/RunWidgets'
+import { listReviewItems } from '../api/review'
 
 const STATUS_COLOR: Record<string, string> = {
   succeeded: 'var(--accent-teal)', failed: 'var(--accent-red)', waiting: 'var(--accent-amber)',
@@ -134,6 +135,7 @@ export default function Overview() {
             />
 
             <SpendCard />
+            <ReviewQualityOverview />
             <div className="card ov-span-8" data-testid="recent-runs">
               <div className="ov-card-title">Live and recent runs <Link to="/runs" className="ml-auto" style={{ fontSize: 11, textTransform: 'none' }}>All runs</Link></div>
               {d.recent_runs.length === 0 ? (
@@ -245,6 +247,66 @@ export default function Overview() {
       )}
       <div className="mt-3" data-testid="overview-footer" style={{ textAlign: 'right' }}>
         <Link to="/audit" style={{ textDecoration: 'none' }}><AuditChainStatus /></Link>
+      </div>
+    </div>
+  )
+}
+
+function ReviewQualityOverview() {
+  const reviewsQ = useQuery({
+    queryKey: ['overview-review-items'],
+    queryFn: () => listReviewItems({ status: 'reviewed', limit: 100 }),
+  })
+  const reviewed = (reviewsQ.data?.items ?? []).filter(i => i.status === 'reviewed')
+  if (reviewed.length === 0) return null
+
+  const total = reviewed.length
+  const good = reviewed.filter(i => i.verdict === 'good').length
+  const pct = Math.round((good / total) * 100)
+  const reasonsCount: Record<string, number> = {}
+  for (const item of reviewed) {
+    if (item.verdict === 'bad') {
+      for (const r of item.reasons || []) reasonsCount[r] = (reasonsCount[r] || 0) + 1
+    }
+  }
+  const topReasons = Object.entries(reasonsCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+
+  return (
+    <div className="card ov-span-12" data-testid="overview-review-quality">
+      <div className="ov-card-title">
+        Human review quality{' '}
+        <Link to="/review" className="ml-auto" style={{ fontSize: 11, textTransform: 'none' }}>
+          Review queue
+        </Link>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 6 }}>
+        <div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: pct >= 80 ? 'var(--accent-teal)' : 'var(--accent-red)',
+            }}
+            data-testid="review-quality-pct"
+          >
+            {pct}%
+          </div>
+          <div className="text-muted" style={{ fontSize: 11 }}>
+            good quality
+          </div>
+        </div>
+        <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
+          <div style={{ fontSize: 13 }}>
+            <strong>{total}</strong> reviewed output{total === 1 ? '' : 's'}
+          </div>
+          {topReasons.length > 0 && (
+            <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
+              Top issues: {topReasons.map(([r, c]) => `${r} (${c})`).join(', ')}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

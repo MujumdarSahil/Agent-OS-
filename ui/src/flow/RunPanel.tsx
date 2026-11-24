@@ -18,6 +18,7 @@ import {
 import type { NodeRunStatus } from './flowGraph'
 import { declassificationText, declassifiedBy, visibleSources } from './ExtractionConfig'
 import { SandboxCalls } from './SandboxWidgets'
+import { sendToReview } from '../api/review'
 
 type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'finished'
 type Tab = 'output' | 'steps' | 'logs' | 'security'
@@ -367,6 +368,8 @@ export default function ResultsPanel({
   const right = dock === 'right'
   const [collapsed, setCollapsed] = useState(false)
   const [deciding, setDeciding] = useState(false)
+  const [sendingReview, setSendingReview] = useState(false)
+  const [reviewSent, setReviewSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, setTick] = useState(0)
   const { events, conn, finished, connects, reconnect } = useRunEvents(flowId, runId)
@@ -427,6 +430,21 @@ export default function ResultsPanel({
       setError(`Decision failed: ${apiErrorMessage(e)}`)
     } finally {
       setDeciding(false)
+    }
+  }
+
+  const handleSendToReview = async (targetNode?: string) => {
+    if (!runId) return
+    setSendingReview(true)
+    setError(null)
+    try {
+      await sendToReview({ run_id: runId, node_id: targetNode || inspectNode || undefined })
+      setReviewSent(true)
+      setTimeout(() => setReviewSent(false), 3000)
+    } catch (e) {
+      setError(`Send to review failed: ${apiErrorMessage(e)}`)
+    } finally {
+      setSendingReview(false)
     }
   }
 
@@ -503,6 +521,9 @@ export default function ResultsPanel({
               </span>
             )}
             <button className="btn btn-ghost btn-sm" data-testid="ws-reconnect" onClick={reconnect} disabled={conn !== 'open'}>Reconnect</button>
+            <button className="btn btn-ghost btn-sm" data-testid="send-to-review-btn" onClick={() => void handleSendToReview()} disabled={sendingReview || reviewSent}>
+              {reviewSent ? 'Sent to review' : sendingReview ? 'Sending…' : 'Send to review'}
+            </button>
           </>
         ) : (
           <span className="text-muted" data-testid="results-empty">No run selected. Use Run, or pick a run from the history.</span>
@@ -642,7 +663,15 @@ export default function ResultsPanel({
             >
               <div className="flex items-center mb-1">
                 <strong className="font-mono">{inspectNode}</strong>
-                <button className="btn btn-ghost btn-sm ml-auto" data-testid="node-inspector-close" onClick={() => onInspectNode(null)}>×</button>
+                <button
+                  className="btn btn-ghost btn-sm ml-auto"
+                  data-testid="node-send-to-review-btn"
+                  onClick={() => void handleSendToReview(inspectNode)}
+                  disabled={sendingReview || reviewSent}
+                >
+                  Send to review
+                </button>
+                <button className="btn btn-ghost btn-sm" data-testid="node-inspector-close" onClick={() => onInspectNode(null)}>×</button>
               </div>
               {!io ? (
                 <div className="text-muted" data-testid="node-io-none">This step has not run in this run.</div>

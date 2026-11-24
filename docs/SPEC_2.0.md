@@ -181,7 +181,7 @@ Sub-milestones (each is one branch and one PR into `2.0`):
   everything that went in; `sandbox_exec` events; settings audited; 20 sandbox calls per run as a run limit. Also
   (Part 0): `AGENTOS_FORBID_REAL_HOME` guard and one data-location resolver for the CLI and the server. Design and
   gaps: `docs/evidence/3.5.md`.
-- **3.6 Review queue, trusted proxy, OTel export**
+- **3.6 Review queue, trusted proxy, OTel export**: **3.6a done** (Human review queue: MOCK-verified; Mongo store tested in mongo-live CI job). Human review of AI outputs at selected flow nodes with good/bad verdicts, failure reasons, and ground-truth corrected output (never fed back to live runs, preserved for test dataset creation). Per-flow sampling policies (off, all, percentage, or rules: failed, fallback used, rejected input, approval rejected, sink blocked). Role permissions (viewer: inspect queue/reviews; approver/builder/admin: review; builder/admin: sampling rules; admin: export). Secret values excluded from JSONL export unless explicitly requested by admin (audited). UI at Work > Review queue (`/review`) with keyboard shortcuts (G/B/N), Flow settings Review tab, "Send to review" button on runs, and quality metrics (% good, top bad reasons) on flow cards, Metrics, and Overview. Design decisions and gaps: `docs/evidence/3.6a.md`.
 
 Scope notes from the original plan:
 - Policy Engine: fine-grained RBAC and attribute-based access control.

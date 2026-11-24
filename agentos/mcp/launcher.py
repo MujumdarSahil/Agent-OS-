@@ -153,7 +153,7 @@ async def stdio_transport(
                             await read_writer.send(exc)
                             continue
                         await read_writer.send(SessionMessage(message))
-        except anyio.ClosedResourceError:
+        except (anyio.ClosedResourceError, anyio.BrokenResourceError):
             await anyio.lowlevel.checkpoint()
 
     async def stdin_writer() -> None:
@@ -163,7 +163,7 @@ async def stdio_transport(
                 async for session_message in write_reader:
                     data = session_message.message.model_dump_json(by_alias=True, exclude_none=True)
                     await process.stdin.send((data + "\n").encode("utf-8"))
-        except anyio.ClosedResourceError:
+        except (anyio.ClosedResourceError, anyio.BrokenResourceError):
             await anyio.lowlevel.checkpoint()
 
     try:

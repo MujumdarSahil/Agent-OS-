@@ -9,13 +9,13 @@ from __future__ import annotations
 from typing import Optional
 
 ROLES = ("viewer", "approver", "builder", "admin")
-CAPABILITIES = ("public", "self", "read", "approve", "build", "admin")
+CAPABILITIES = ("public", "self", "read", "review", "approve", "build", "admin")
 
 ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
     "viewer": frozenset({"self", "read"}),
-    "approver": frozenset({"self", "read", "approve"}),
-    "builder": frozenset({"self", "read", "build"}),
-    "admin": frozenset({"self", "read", "approve", "build", "admin"}),
+    "approver": frozenset({"self", "read", "review", "approve"}),
+    "builder": frozenset({"self", "read", "review", "build"}),
+    "admin": frozenset({"self", "read", "review", "approve", "build", "admin"}),
 }
 
 ROLE_DESCRIPTIONS = {
