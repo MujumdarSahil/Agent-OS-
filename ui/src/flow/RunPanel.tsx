@@ -370,6 +370,7 @@ export default function ResultsPanel({
   const [deciding, setDeciding] = useState(false)
   const [sendingReview, setSendingReview] = useState(false)
   const [reviewSent, setReviewSent] = useState(false)
+  const [copiedTrace, setCopiedTrace] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, setTick] = useState(0)
   const { events, conn, finished, connects, reconnect } = useRunEvents(flowId, runId)
@@ -524,6 +525,28 @@ export default function ResultsPanel({
             <button className="btn btn-ghost btn-sm" data-testid="send-to-review-btn" onClick={() => void handleSendToReview()} disabled={sendingReview || reviewSent}>
               {reviewSent ? 'Sent to review' : sendingReview ? 'Sending…' : 'Send to review'}
             </button>
+            {(() => {
+              const selectedRun = runs.find(r => r.run_id === runId)
+              if (!selectedRun?.trace_id) return null
+              return (
+                <span className="flex items-center gap-1" data-testid="trace-id-container">
+                  Trace <code data-testid="trace-id">{selectedRun.trace_id}</code>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    data-testid="copy-trace-id"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(selectedRun.trace_id!)
+                      setCopiedTrace(true)
+                      setTimeout(() => setCopiedTrace(false), 2000)
+                    }}
+                    title="Copy trace ID"
+                  >
+                    {copiedTrace ? 'Copied!' : 'Copy'}
+                  </button>
+                </span>
+              )
+            })()}
           </>
         ) : (
           <span className="text-muted" data-testid="results-empty">No run selected. Use Run, or pick a run from the history.</span>

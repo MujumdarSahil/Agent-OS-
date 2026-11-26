@@ -141,6 +141,8 @@ export interface RunInfo {
   /** 2.4d: "manual" | "webhook" | "cron" | "subflow"; null on runs created before 2.4d. */
   trigger?: string | null
   mission_name?: string
+  /** 3.6b: OpenTelemetry trace ID (32 hex characters) */
+  trace_id?: string | null
   created_at?: string
   updated_at?: string
 }

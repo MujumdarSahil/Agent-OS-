@@ -406,6 +406,10 @@ def create_app(
         mode = "platform" if getattr(app.state.storage, "backend", "file") == "mongo" else "standalone"
         await audit_startup(app, project_path, mode, __version__)
 
+        # 3.6b: OpenTelemetry export if configured
+        from agentos.telemetry import setup_telemetry
+        setup_telemetry()
+
         yield
         await audit_shutdown(app, mode, __version__)
         # Stop the in-process worker before storage is closed

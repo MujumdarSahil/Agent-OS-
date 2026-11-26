@@ -235,6 +235,10 @@ Use cases: [01](examples/usecases/01-email-summary-exfil/README.md),
 
 **Human review queue (3.6a)** — *Works today (verified in MOCK; Mongo store in mongo-live CI job)*. People review AI outputs at selected nodes, mark good/bad verdicts with reasons, and record corrected outputs for testing (never fed back to live runs); includes configurable flow sampling policies, quality scores (% good, top bad reasons), JSONL dataset export with secret redaction, and keyboard-driven review. See **Work → Review queue** and [the 3.6a evidence](docs/evidence/3.6a.md).
 
+**Trusted reverse proxy (3.6b)** — *Works today (verified in unit and middleware tests)*. Configure `AGENTOS_TRUSTED_PROXIES` to safely parse `X-Forwarded-For` (right-most untrusted address), `X-Forwarded-Proto`, and `X-Forwarded-Host` for rate limiting, session IP, audit log, and WebSocket tracking, ignoring forwarded headers from untrusted direct peers.
+
+**OpenTelemetry export (3.6b)** — *Works today (optional `[otel]` extra, verified in MOCK and in-memory canaries)*. Export traces (`agentos.run`, child node/model/tool spans) and metric counters/latency histograms to Jaeger or Grafana via OTLP without leaking prompts, outputs, or credentials; copy trace IDs directly from run inspect. See [docs/observability.md](docs/observability.md) and [the 3.6b evidence](docs/evidence/3.6b.md).
+
 **Approvals** — *Works today (verified)*. A flow can stop and wait for a person to approve the exact
 values that are about to be sent, with untrusted values clearly marked. Rejecting stops the run
 without sending anything.

@@ -635,3 +635,70 @@ async def test_send_to_review(store: ReviewStore, storage: Any):
     assert item.inputs["text"] == "inspect me"
     assert item.outputs["summary"] == "done"
     assert item.status == "pending"
+
+
+# -----------------------------------------------------------------------------
+# 8. Part 0 Cleanups: Deduplication (0d) & Sampling Failure Event (0c)
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_review_item_deduplication_by_run_and_node(store: ReviewStore):
+    """Part 0d (3.6b): Saving the same (run_id, node_id) twice must not create duplicates."""
+    item1 = ReviewItem(
+        run_id="run-dedup-1",
+        flow_id="test_flow",
+        node_id="target_node",
+        inputs={"q": "initial"},
+        outputs={"ans": "initial_output"},
+    )
+    saved1 = await store.put_item(item1)
+    items, total = await store.list_items(flow_id="test_flow")
+    assert total == 1
+    assert items[0].id == saved1.id
+    assert items[0].outputs["ans"] == "initial_output"
+
+    # Save a second time for the SAME run_id and node_id (e.g. re-evaluated or updated)
+    item2 = ReviewItem(
+        run_id="run-dedup-1",
+        flow_id="test_flow",
+        node_id="target_node",
+        inputs={"q": "initial"},
+        outputs={"ans": "updated_output"},
+    )
+    saved2 = await store.put_item(item2)
+
+    # Must overwrite / upsert, not create a second row
+    items, total = await store.list_items(flow_id="test_flow")
+    assert total == 1
+    assert saved1.id == saved2.id
+    assert items[0].id == saved2.id
+    assert items[0].outputs["ans"] == "updated_output"
+
+
+@pytest.mark.asyncio
+async def test_review_sampling_failure_emits_event(storage: Any):
+    """Part 0c (3.6b): Sampling failure emits 'review_sampling_failed' event with error_class only."""
+    from unittest.mock import patch
+    from agentos.flows.engine import FlowEngine
+    from agentos.flows.models import FlowDefinition, NodeDefinition
+
+    flow = FlowDefinition(
+        id="flow_sample_fail",
+        entrypoint="node_a",
+        nodes={"node_a": NodeDefinition(id="node_a", type="webhook_trigger")},
+        edges=[],
+    )
+    engine = FlowEngine(flow=flow, storage=storage)
+
+    with patch.object(engine, "_maybe_sample_for_review", side_effect=RuntimeError("sampling crash")):
+        state = await engine.run()
+        # The run itself is never failed or affected
+        assert state.status.value == "succeeded"
+
+    events = await storage.events.list(state.run_id, after_seq=0)
+    fail_evs = [e for e in events if e.type == "review_sampling_failed"]
+    assert len(fail_evs) == 1
+    # Metadata only: error_class only, no data/payloads
+    assert fail_evs[0].data == {"error_class": "RuntimeError"}
+

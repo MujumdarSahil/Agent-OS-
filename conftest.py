@@ -37,8 +37,8 @@ ISOLATED_ENV: Dict[str, str] = {
     "AGENTOS_DATA_DIR": str(_TEST_HOME / "data"),
     # 3.5 (0a): hard guard; every AgentOS resolver refuses a path inside the REAL ~/.agentos for the whole session
     "AGENTOS_FORBID_REAL_HOME": "1",
-    "LITELLM_LOCAL_MODEL_COST_MAP": "True",
-    "AGENTOS_MOCK_LLM": "1",
+    # Part 0b (3.6b): AGENTOS_MOCK_LLM and LITELLM_LOCAL_MODEL_COST_MAP are NOT set here globally.
+    # They are set only by the fixtures/tests that need them (mock_llm fixture, LLM-specific tests).
 }
 if os.name == "nt":
     # Windows shell-folder lookups (appdirs, used by CrewAI at import) need these to exist under the
@@ -67,24 +67,42 @@ os.environ.update(ISOLATED_ENV)
 
 Snapshot = Dict[str, Optional[Tuple[int, int]]]
 
+# Sentinel stored for a folder that existed but couldn't be scanned (Part 0a).
+_SCAN_FAILED_SENTINEL = "SCAN_FAILED"
+
 
 def snapshot_home(home: Path) -> Snapshot:
     """{relative path: (size, mtime_ns)} for files in home/.agentos (top level) and home/.agentos/keys.
 
     Only os.stat metadata is read; file contents are never opened.
+
+    Part 0a: fail CLOSED. If a folder exists but cannot be scanned (PermissionError / OSError), we store a
+    sentinel so the session-end diff can report the error rather than silently ignoring it.
     """
     base = home / ".agentos"
     out: Snapshot = {}
     for folder in (base, base / "keys"):
+        folder_key = f"<folder:{folder.name}:scan_failed>"
         try:
             if not folder.is_dir():
                 continue
+            entries_ok = True
             for entry in os.scandir(folder):
-                if entry.is_file(follow_symlinks=False):
-                    st = entry.stat(follow_symlinks=False)
-                    out[str(Path(entry.path).relative_to(home))] = (st.st_size, st.st_mtime_ns)
+                try:
+                    if entry.is_file(follow_symlinks=False):
+                        st = entry.stat(follow_symlinks=False)
+                        out[str(Path(entry.path).relative_to(home))] = (st.st_size, st.st_mtime_ns)
+                except (PermissionError, OSError):
+                    # An individual entry stat failed — treat the whole folder as unreadable.
+                    entries_ok = False
+                    break
+            if not entries_ok:
+                # Record the scan failure so the diff sees it.
+                out[folder_key] = None  # type: ignore[assignment]
         except (PermissionError, OSError):
-            continue
+            # The folder exists (is_dir checked above didn't throw, but scandir did), or is_dir itself
+            # raised — record the failure.
+            out[folder_key] = None  # type: ignore[assignment]
     return out
 
 
@@ -93,6 +111,21 @@ def diff_snapshots(before: Snapshot, after: Snapshot) -> list[str]:
     for name in sorted(set(before) | set(after)):
         b, a = before.get(name), after.get(name)
         if b == a:
+            continue
+        # Part 0a: scan-failure sentinels are stored as None under a <folder:…:scan_failed> key.
+        if name.startswith("<folder:") and name.endswith(":scan_failed>"):
+            folder_name = name.split(":")[1]
+            if a is None and name not in before:
+                # A folder that wasn't there before can now no longer be scanned — report it.
+                changes.append(
+                    f"scan_failed: {_REAL_HOME / '.agentos' / folder_name} could not be scanned "
+                    f"(PermissionError/OSError) — guard cannot verify this folder is unchanged"
+                )
+            elif b is None and name not in after:
+                changes.append(
+                    f"scan_recovered: {_REAL_HOME / '.agentos' / folder_name} was unreadable at start but readable now"
+                )
+            # If it was unreadable both before and after, no change to report.
             continue
         if b is None:
             changes.append(f"created: {name}")
@@ -161,11 +194,22 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     changes = diff_snapshots(_BEFORE, snapshot_home(_REAL_HOME))
     if changes:
         reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        # Part 0a: scan_failed entries mean the guard could not verify the folder — still fail CLOSED.
+        scan_errors = [c for c in changes if c.startswith("scan_failed:")]
+        file_changes = [c for c in changes if not c.startswith("scan_failed:") and not c.startswith("scan_recovered:")]
+        if scan_errors:
+            header = (
+                f"AGENTOS HOME GUARD: could not scan folder(s) in REAL {_REAL_HOME / '.agentos'} "
+                f"(PermissionError/OSError) — guard cannot guarantee no files changed; run is marked failed:"
+            )
+        else:
+            header = f"AGENTOS HOME GUARD: the test run changed files in the REAL {_REAL_HOME / '.agentos'}:"
         lines = [
-            f"AGENTOS HOME GUARD: the test run changed files in the REAL {_REAL_HOME / '.agentos'}:",
+            header,
             *[f"  {c}" for c in changes],
-            "A test wrote outside the temp test home. Find it and isolate it; the run is marked failed.",
         ]
+        if file_changes:
+            lines.append("A test wrote outside the temp test home. Find it and isolate it; the run is marked failed.")
         if reporter:
             reporter.write_sep("=", "AGENTOS HOME GUARD", red=True, bold=True)
             for line in lines:

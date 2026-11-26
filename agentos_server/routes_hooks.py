@@ -70,7 +70,8 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
     # -------------------------------------------------------------------------
     # 1. Pre-lookup Gate: Rate Limit per Client IP (429)
     # -------------------------------------------------------------------------
-    client_ip = request.client.host if request.client else "unknown"
+    # 3.6b: use the resolved client IP (set by SecurityMiddleware from X-Forwarded-For when trusted).
+    client_ip = getattr(request.state, "client_ip", None) or (request.client.host if request.client else "unknown")
     if not _check_ip_rate_limit(client_ip):
         logger.warning("Webhook IP rate limit exceeded for %s", client_ip)
         return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})

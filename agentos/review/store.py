@@ -7,6 +7,7 @@ Mongo backend: ``review_items`` and ``review_sampling_configs`` collections.
 from __future__ import annotations
 
 import collections
+import hashlib
 import time
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -54,7 +55,38 @@ class ReviewStore:
         self.sampling = sampling
 
     # ------------------------------------------------------------------ items
+
+    @staticmethod
+    def deterministic_item_id(run_id: str, node_id: str) -> str:
+        """Return a stable, collision-resistant item id for a (run_id, node_id) pair.
+
+        Part 0d (3.6b): saving the same run+node twice must not create duplicates.  Using a
+        deterministic id lets the storage layer's put() (which is an upsert-by-id) silently
+        overwrite the previous record instead of inserting a second one.
+        """
+        raw = f"{run_id}\0{node_id}".encode("utf-8")
+        digest = hashlib.sha256(raw).hexdigest()[:24]
+        return f"rev_{digest}"
+
     async def put_item(self, item: ReviewItem) -> ReviewItem:
+        """Persist a review item, deduplicating by (run_id, node_id).
+
+        Part 0d (3.6b): at most one item per (run_id, node_id): saving the same run twice must not
+        create duplicates (deterministic id or an upsert). If an item with the same run_id and node_id
+        already exists, we update that existing record.
+        """
+        raw_list = await self.items.list()
+        existing = next(
+            (ReviewItem.model_validate(d) for d in raw_list
+             if d.get("run_id") == item.run_id and d.get("node_id") == item.node_id),
+            None,
+        )
+        if existing is not None:
+            # Upsert: reuse existing id so saving the same run+node twice never creates duplicates
+            item = item.model_copy(update={"id": existing.id, "item_id": existing.id})
+        elif not item.id:
+            det_id = self.deterministic_item_id(item.run_id, item.node_id)
+            item = item.model_copy(update={"id": det_id, "item_id": det_id})
         doc = item.model_dump(mode="json")
         await self.items.put(doc)
         return item

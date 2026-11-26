@@ -199,6 +199,8 @@ class RunRecord(BaseModel):
     trigger: Optional[str] = None
     # 3.4: who started the run ({"user_id", "username"}; None for triggers and runs from before 3.4)
     started_by: Optional[Dict[str, Any]] = None
+    # 3.6b: OpenTelemetry trace ID (32 hex chars, None when OTEL is disabled or run was uninstrumented)
+    trace_id: Optional[str] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 

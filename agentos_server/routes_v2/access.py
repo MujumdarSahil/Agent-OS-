@@ -95,6 +95,15 @@ def _err(e: AccessError) -> HTTPException:
 
 
 def _client_ip(request: Request) -> str:
+    """Return the resolved client IP (real client, respecting trusted proxies).
+
+    Part 0 / 3.6b: SecurityMiddleware resolves the IP early and stores it in request.state.client_ip;
+    we fall back to the direct peer address for requests that bypass middleware (e.g. tests that use
+    the FastAPI TestClient directly against a bare app).
+    """
+    resolved = getattr(request.state, "client_ip", None)
+    if resolved:
+        return resolved
     return request.client.host if request.client else "unknown"
 
 
