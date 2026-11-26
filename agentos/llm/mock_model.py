@@ -54,4 +54,12 @@ def scenario(messages: Any) -> str:
 
 def complete(messages: Any) -> str:
     """The scripted answer for these messages."""
+    # 4.0: the natural-language flow builder gets its own scripted model (deterministic JSON drafts)
+    from agentos.builder.prompt import SYSTEM_MARKER
+
+    if isinstance(messages, list) and any(isinstance(m, dict) and SYSTEM_MARKER in str(m.get("content", ""))
+                                          for m in messages):
+        from agentos.builder import mock_builder
+
+        return mock_builder.respond(messages)
     return ANSWERS[scenario(messages)]

@@ -95,6 +95,9 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/events"): "read",
     ("WS", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/events"): "read",
     ("GET", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/usage"): "read",
+    # 4.0 natural-language builder: drafts only (never saved or published here); model calls cost money
+    ("POST", f"{_V2}/flows/generate"): "build",
+    ("POST", f"{_V2}/flows/check"): "build",
     # triggers
     ("GET", f"{_V2}/schedules"): "read",
     ("POST", f"{_V2}/schedules"): "build",

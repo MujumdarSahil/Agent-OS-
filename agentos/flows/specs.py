@@ -280,6 +280,10 @@ APPROVAL_NODE_SPEC = NodeSpec(
             "data": {"type": "object"},
             "to": {"type": "string"},
             "body": {"type": "string"},
+            # 4.0: an approved send_email subject / send_slack text can be mapped on (the engine already outputs
+            # every approved argument under its own name)
+            "subject": {"type": "string"},
+            "text": {"type": "string"},
         },
     },
     side_effect=SideEffectClass.NONE,
