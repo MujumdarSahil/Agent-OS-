@@ -94,6 +94,9 @@ V2_API_ROUTES = sorted([
     ("/api/v2/flows/{flow_id}", "GET"),
     ("/api/v2/flows/{flow_id}", "PUT"),
     ("/api/v2/flows/{flow_id}/archive", "POST"),
+    # 4.0: natural-language builder (drafts only; never saves or publishes)
+    ("/api/v2/flows/generate", "POST"),
+    ("/api/v2/flows/check", "POST"),
     ("/api/v2/flows/{flow_id}/publish", "POST"),
     ("/api/v2/flows/{flow_id}/runs", "GET"),
     ("/api/v2/flows/{flow_id}/runs", "POST"),
