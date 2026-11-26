@@ -199,6 +199,8 @@ until you choose **Create draft**, and nothing is published by the builder. In t
 a change as a diff you apply or discard. See [use case 13](examples/usecases/13-describe-it/README.md) and
 [the 4.0 evidence](docs/evidence/4.0.md).
 
+**Injection benchmark and "Attack my flow" (4.1)** — *Works today (verified in MOCK: an adversarial scripted model that always obeys the injection, fake senders only)*. `python -m benchmarks.awib` runs 199 injection attacks (11 families) against the use-case flows. Attack success rate is 40.7% for a naive executor and 2.5% for AgentOS; the remaining successes are Unicode look-alike recipients that a person approved (see [the 4.1 results](docs/evidence/4.1-results.md)). In the editor, **Attack my flow** runs the attacks that fit your flow on a copy and shows a score, where each attack stopped and the fixes. Nothing is sent or saved.
+
 **Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
 an if/else branch, join parallel branches, pause for a while and continue later, call another
 published flow, and send a failed step to an error handler instead of failing the whole run.

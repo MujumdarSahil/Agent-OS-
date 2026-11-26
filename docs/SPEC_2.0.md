@@ -207,6 +207,20 @@ Scope notes from the original plan:
   audited `flow.save`; `flow.generate` is audited with the description length and sha256 only). UI: Flows → + New
   flow → Describe it; editor "Edit with AI" diff (apply or discard). 12-case eval (`docs/evidence/4.0-eval.md`).
   Design decisions and gaps: `docs/evidence/4.0.md`.
+- **4.1 AgentOS Workflow Injection Benchmark (AWIB) + "Attack my flow"**: **done** (MOCK; AgentDojo is not part
+  of it). `benchmarks/awib`:
+  - 199 cases from 11 attack families applied to the flows of use cases 01, 03-10, 12 and 13;
+  - an adversarial MOCK model that always obeys the injection;
+  - fake recording sinks only;
+  - a naive baseline executor that lives inside `benchmarks/` (no product switch).
+
+  Results: ASR baseline 40.7% vs AgentOS 2.5%; benign utility 100% for both; 0 static-check false refusals; 4/4
+  unsafe flows refused at publish. The 5 AgentOS successes are Unicode look-alike recipients chosen by the incoming
+  message and passed by a human approver, a documented gap.
+
+  `POST /api/v2/flows/{flow_id}/attack-test` (builder/admin, audited with counts only) and the editor panel run the
+  fitting attacks on an isolated copy. `scripts/awib_live.py` (real models, not in CI). Design, results and gaps:
+  `docs/evidence/4.1.md`, `docs/evidence/4.1-results.md`.
 - Security benchmark integration: **AgentDojo** evaluation harness.
 - In-house AgentOS workflow-injection benchmark measuring:
   - Attack Success Rate (ASR) across standard and adaptive attacks.
