@@ -32,6 +32,7 @@ import {
 import ResultsPanel, { RunDialog } from '../flow/RunPanel'
 import FlowSettingsModal from '../flow/FlowSettingsModal'
 import AiEditPanel from '../flow/AiEditPanel'
+import AttackPanel from '../flow/AttackPanel'
 import type { BuilderFlow } from '../api/builder'
 import {
   ExtractionConfigForm, ValidatorConfigForm, defaultExtractionConfig, defaultValidatorConfig,
@@ -127,6 +128,7 @@ function Editor() {
   const [runDialog, setRunDialog] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showAiEdit, setShowAiEdit] = useState(false) // 4.0 "Edit with AI"
+  const [showAttack, setShowAttack] = useState(false) // 4.1 "Attack my flow"
   const [showPalette, setShowPalette] = useState(isNew)
   const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
   const hasPublished = (versionsQ.data?.length ?? 0) > 0
@@ -637,6 +639,16 @@ function Editor() {
           >
             Edit with AI
           </button>
+          <button
+            className="btn btn-ghost"
+            data-testid="attack-my-flow"
+            aria-pressed={showAttack}
+            onClick={() => setShowAttack(v => !v)}
+            disabled={!nodes.length || !entrypoint}
+            title="Try injection attacks on a copy of this flow (test model, fake senders; nothing is sent or saved)"
+          >
+            Attack my flow
+          </button>
         </div>
         <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
              title={canBuild ? undefined : needs('build')}>
@@ -815,6 +827,15 @@ function Editor() {
             canBuild={canBuild}
             onApply={applyAiProposal}
             onClose={() => setShowAiEdit(false)}
+          />
+        )}
+        {showAttack && (
+          <AttackPanel
+            flowId={flowId}
+            current={aiBaseFlow}
+            canBuild={canBuild}
+            onApply={applyAiProposal}
+            onClose={() => setShowAttack(false)}
           />
         )}
         {showResults && panelDock === 'right' && resultsPanel}

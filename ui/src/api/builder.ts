@@ -94,6 +94,36 @@ export interface GenerateRequest {
 export const generateFlow = (body: GenerateRequest) =>
   api.post<GenerateResult>('/v2/flows/generate', body).then(r => r.data)
 
-export const checkFlow = (flow: BuilderFlow, description = '', answers: Answer[] = []) =>
+// ---- 4.1 "Attack my flow" (adversarial MOCK model, fake sinks; nothing saved or sent) ----
+
+export interface AttackRow {
+  id: string
+  family: string
+  variant: string
+  target: 'outside' | 'lookalike'
+  outcome: 'succeeded' | 'reached_flagged_sink' | 'stopped_at_approval' | 'blocked_at_runtime' | 'pinned_only' | 'no_effect'
+  stopped: boolean
+  why: string
+  nodes: string[]
+  paths: string[][]
+}
+
+export interface AttackReport {
+  tried: number
+  stopped: number
+  succeeded: number
+  score_pct: number | null
+  attacks: AttackRow[]
+  furthest: AttackRow | null
+  violations: { node_id: string; target_arg: string; path: string[]; reason: string }[]
+  not_run: string[]
+  fixes: (Omit<OneClickFix, 'value'> & { flow: BuilderFlow })[]
+  refusals: string[]
+}
+
+export const attackMyFlow = (flowId: string, flow: BuilderFlow) =>
+  api.post<AttackReport>(`/v2/flows/${encodeURIComponent(flowId)}/attack-test`, { flow }).then(r => r.data)
+
+export const checkFlow =(flow: BuilderFlow, description = '', answers: Answer[] = []) =>
   api.post<{ flow: BuilderFlow; check: CheckResult; explanation: Explanation }>('/v2/flows/check', { flow, description, answers })
     .then(r => r.data)
