@@ -151,5 +151,8 @@ def security_summary(flow: dict[str, Any], policy: SecurityPolicy, catalog: Tool
     approvals = [{"node_id": nid, "sink": (n["config"].get("approves") or {}).get("sink_node"),
                   "args": (n["config"].get("approves") or {}).get("args") or []}
                  for nid, n in flow["nodes"].items() if n["type"] == "approval"]
+    # Per node: the integrity of what it outputs (any untrusted output field -> "untrusted"), for the preview colours
+    node_trust = {nid: ("untrusted" if any(lbl.integrity == "untrusted" for lbl in labels.get(nid, {}).values())
+                        else "trusted") for nid in flow["nodes"]}
     return {"untrusted_inputs": untrusted, "untrusted_flows": flows_to, "pinned": pinned,
-            "approvals": approvals, "external_sinks": sinks}
+            "approvals": approvals, "external_sinks": sinks, "node_trust": node_trust}

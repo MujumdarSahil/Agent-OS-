@@ -37,14 +37,15 @@ export const CATEGORY_STYLE: Record<NodeCategory, { color: string; icon: LucideI
 }
 
 /** Callbacks the editor provides to node cards (kept out of node data so it stays serialisable). */
-export const BuilderActions = createContext<{ onAddNext: (nodeId: string, branch: string | null) => void; vertical?: boolean }>({
+export const BuilderActions = createContext<{ onAddNext: (nodeId: string, branch: string | null) => void; vertical?: boolean; readOnly?: boolean }>({
   onAddNext: () => undefined,
   vertical: false,
 })
 
 /** `top` is the position along the output side: right edge (left-to-right) or bottom edge (top-to-bottom). */
 function PlusButton({ nodeId, branch, top }: { nodeId: string; branch: string | null; top: string }) {
-  const { onAddNext, vertical } = useContext(BuilderActions)
+  const { onAddNext, vertical, readOnly } = useContext(BuilderActions)
+  if (readOnly) return null
   const place = vertical
     ? { left: top === '35%' ? '30%' : top === '72%' ? '70%' : '50%', bottom: -30, transform: 'translateX(-50%)' }
     : { right: -34, top, transform: 'translateY(-50%)' }
@@ -109,6 +110,16 @@ export function FlowNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
         <Icon size={14} color={style.color} aria-label={style.label} />
         <strong className="font-mono truncate" style={{ flex: 1 }}>{id}</strong>
         {data.isEntrypoint && <span title="Entrypoint" style={{ color: 'var(--accent-teal)', fontSize: 10 }}>entry</span>}
+        {data.trust && (
+          <span
+            data-testid={`trust-${id}`}
+            data-trust={data.trust}
+            title={data.trust === 'untrusted' ? 'Outputs UNTRUSTED data (attacker-controllable)' : 'Outputs trusted data'}
+            style={{ color: data.trust === 'untrusted' ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 9, border: '1px solid currentColor', borderRadius: 4, padding: '0 3px' }}
+          >
+            {data.trust === 'untrusted' ? 'UNTRUSTED' : 'trusted'}
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 3 }}>
         <span style={{ color: 'var(--text-secondary)' }}>{type}</span>

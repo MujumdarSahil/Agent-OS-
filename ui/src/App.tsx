@@ -26,6 +26,7 @@ import Templates from './pages/Templates'
 import Settings from './pages/Settings'
 import Flows from './pages/Flows'
 import FlowEditor from './pages/FlowEditor'
+import DescribeFlow from './pages/DescribeFlow'
 import Overview from './pages/Overview'
 import Runs from './pages/Runs'
 import Approvals from './pages/Approvals'
@@ -236,6 +237,7 @@ function Shell() {
             <Route path="/runs/:runId" element={<RunDetail />} />
             <Route path="/builder" element={<Builder />} />
             <Route path="/flows" element={<Flows />} />
+            <Route path="/flows/describe" element={<DescribeFlow />} />
             <Route path="/flows/:flowId" element={<FlowEditor />} />
             <Route path="/governance" element={<Governance />} />
             <Route path="/packaging" element={<Packaging />} />

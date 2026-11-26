@@ -44,6 +44,7 @@ export async function clickEdge(page: Page, from: string, to: string) {
 /** Build use case 01 (webhook -> agent with send_email). `pinRecipient=false` is the exfiltration variant. */
 async function buildUc01(page: Page, flowId: string, pinRecipient: boolean) {
   await page.goto('/flows')
+  await page.getByTestId('new-flow-open').click() // 4.0: "+ New flow" offers "Build visually" and "Describe it"
   await page.getByTestId('new-flow-id').fill(flowId)
   await page.getByTestId('create-flow').click()
   await expect(page.getByTestId('flow-id')).toHaveText(flowId)

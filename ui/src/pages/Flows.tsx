@@ -15,6 +15,7 @@ export default function Flows() {
   const [newName, setNewName] = useState('')
   const [openVersions, setOpenVersions] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showNew, setShowNew] = useState(false)
 
   const archiveMut = useMutation({
     mutationFn: archiveFlow,
@@ -52,19 +53,38 @@ export default function Flows() {
         <p className="text-muted">Visual flow builder. Publishing runs the static security check.</p>
       </div>
 
-      <div className="card mb-4" style={{ padding: 12 }}>
-        <div className="flex gap-2 items-end flex-wrap">
-          <div className="form-group">
-            <label className="form-label" htmlFor="new-flow-id">Flow id</label>
-            <input id="new-flow-id" className="form-input" data-testid="new-flow-id" value={newId} onChange={e => setNewId(e.target.value)} />
+      <div className="mb-4">
+        <button className="btn btn-primary" data-testid="new-flow-open" aria-expanded={showNew} onClick={() => setShowNew(v => !v)}>
+          + New flow
+        </button>
+        {showNew && (
+          <div className="flex gap-3 flex-wrap" style={{ marginTop: 10 }} data-testid="new-flow-cards">
+            <div className="card" style={{ padding: 12, flex: '1 1 360px' }} data-testid="card-build-visually">
+              <h3 style={{ marginTop: 0 }}>Build visually</h3>
+              <p className="text-muted" style={{ fontSize: 12 }}>Start from an empty canvas and add nodes yourself.</p>
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="new-flow-id">Flow id</label>
+                  <input id="new-flow-id" className="form-input" data-testid="new-flow-id" value={newId} onChange={e => setNewId(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="new-flow-name">Name</label>
+                  <input id="new-flow-name" className="form-input" data-testid="new-flow-name" value={newName} onChange={e => setNewName(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" data-testid="create-flow" onClick={create} disabled={!newId.trim()}>Open editor</button>
+              </div>
+              {error && <div style={{ color: 'var(--accent-red)', marginTop: 8 }} data-testid="flows-error">{error}</div>}
+            </div>
+            <div className="card" style={{ padding: 12, flex: '1 1 360px' }} data-testid="card-describe-it">
+              <h3 style={{ marginTop: 0 }}>Describe it</h3>
+              <p className="text-muted" style={{ fontSize: 12 }}>
+                Say in plain English what the flow should do. AgentOS drafts it, runs the security check, fixes or asks
+                where it must not guess, and explains the result. You review it before anything is saved.
+              </p>
+              <Link to="/flows/describe" className="btn btn-primary" data-testid="open-describe-it">Describe it</Link>
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="new-flow-name">Name</label>
-            <input id="new-flow-name" className="form-input" data-testid="new-flow-name" value={newName} onChange={e => setNewName(e.target.value)} />
-          </div>
-          <button className="btn btn-primary" data-testid="create-flow" onClick={create} disabled={!newId.trim()}>New flow</button>
-        </div>
-        {error && <div style={{ color: 'var(--accent-red)', marginTop: 8 }} data-testid="flows-error">{error}</div>}
+        )}
       </div>
 
       {flowsQ.isLoading ? (
