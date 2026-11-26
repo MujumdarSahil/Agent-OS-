@@ -107,14 +107,21 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _is_secure(request: Request) -> bool:
+    scheme = getattr(request.state, "scheme", None)
+    if scheme:
+        return scheme == "https"
+    return request.url.scheme == "https"
+
+
 def _set_session_cookie(response: Response, request: Request, raw: str) -> None:
     response.set_cookie(SESSION_COOKIE, raw, max_age=SESSION_ABSOLUTE_S, path="/", httponly=True,
-                        samesite="strict", secure=request.url.scheme == "https")
+                        samesite="strict", secure=_is_secure(request))
 
 
 def _clear_session_cookie(response: Response, request: Request) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict",
-                           secure=request.url.scheme == "https")
+                           secure=_is_secure(request))
 
 
 def _me(request: Request, p: Principal) -> dict[str, Any]:

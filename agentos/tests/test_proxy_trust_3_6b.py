@@ -238,7 +238,7 @@ class TestEdgeCases:
             pt._LOADED_FROM = old_from
 
     def test_malformed_xff_address_skipped(self):
-        """Malformed addresses in XFF are skipped; the first valid non-trusted address wins."""
+        """If a non-trusted address is found on the right, unparseable entries further to the left are never reached."""
         import agentos.proxy_trust as pt
         old_nets = pt._TRUSTED_NETWORKS
         old_from = pt._LOADED_FROM
@@ -248,11 +248,52 @@ class TestEdgeCases:
             with _env(AGENTOS_TRUSTED_PROXIES="10.0.0.1"):
                 headers = {"x-forwarded-for": "not-valid, 203.0.113.5"}
                 result = pt.resolve_client_ip("10.0.0.1", headers)
-                # "not-valid" is skipped; 203.0.113.5 is not trusted → client IP
+                # 203.0.113.5 is right-most non-trusted address → client IP
                 assert result == "203.0.113.5"
         finally:
             pt._TRUSTED_NETWORKS = old_nets
             pt._LOADED_FROM = old_from
+
+    def test_port_stripping_ipv4(self):
+        """XFF with ip:port has port stripped correctly and returns the untrusted client IP."""
+        r = _resolve("10.0.0.2", xff="6.6.6.6, 198.51.100.7:51234", trusted_proxies="10.0.0.0/8")
+        assert r["client_ip"] == "198.51.100.7"
+
+    def test_port_stripping_ipv6_bracketed(self):
+        """XFF with [v6]:port has port stripped correctly."""
+        r = _resolve("10.0.0.2", xff="6.6.6.6, [2001:db8::1]:443", trusted_proxies="10.0.0.0/8")
+        assert r["client_ip"] == "2001:db8::1"
+
+    def test_bracketed_ipv6_without_port(self):
+        """XFF with [v6] brackets without port parses correctly."""
+        r = _resolve("10.0.0.2", xff="6.6.6.6, [2001:db8::1]", trusted_proxies="10.0.0.0/8")
+        assert r["client_ip"] == "2001:db8::1"
+
+    def test_unparseable_garbage_stops_and_returns_peer(self):
+        """Unparseable right-most entry STOPS immediately and returns peer IP (no spoofing to left)."""
+        r = _resolve("10.0.0.2", xff="6.6.6.6, not-an-ip", trusted_proxies="10.0.0.0/8")
+        assert r["client_ip"] == "10.0.0.2"
+
+    def test_unparseable_garbage_between_hops_stops_and_returns_peer(self):
+        """Unparseable entry preceding a trusted proxy STOPS immediately and returns peer IP."""
+        r = _resolve("10.0.0.2", xff="6.6.6.6, not-an-ip, 10.0.0.1", trusted_proxies="10.0.0.0/8")
+        assert r["client_ip"] == "10.0.0.2"
+
+    def test_empty_entry_stops_and_returns_peer(self):
+        """Empty entry (trailing or double comma) STOPS and returns peer IP."""
+        r1 = _resolve("10.0.0.2", xff="6.6.6.6, ", trusted_proxies="10.0.0.0/8")
+        assert r1["client_ip"] == "10.0.0.2"
+
+        r2 = _resolve("10.0.0.2", xff="6.6.6.6, , 10.0.0.1", trusted_proxies="10.0.0.0/8")
+        assert r2["client_ip"] == "10.0.0.2"
+
+    def test_ipv4_mapped_in_xff_with_and_without_port(self):
+        """IPv4-mapped IPv6 in XFF is normalized to plain IPv4, with or without port."""
+        r1 = _resolve("10.0.0.2", xff="6.6.6.6, ::ffff:198.51.100.7", trusted_proxies="10.0.0.0/8")
+        assert r1["client_ip"] == "198.51.100.7"
+
+        r2 = _resolve("10.0.0.2", xff="6.6.6.6, [::ffff:198.51.100.7]:8080", trusted_proxies="10.0.0.0/8")
+        assert r2["client_ip"] == "198.51.100.7"
 
     def test_unknown_peer(self):
         import agentos.proxy_trust as pt

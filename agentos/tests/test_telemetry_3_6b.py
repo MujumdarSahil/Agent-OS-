@@ -189,6 +189,7 @@ class TestTelemetryCanaryPrivacy:
     CANARY_OUTPUT = "CANARY_SENSITIVE_OUTPUT_665544"
     CANARY_TOOL_ARG = "CANARY_SENSITIVE_TOOL_ARG_332211"
     CANARY_SECRET_TOKEN = "CANARY_BEARER_TOKEN_SECRET_001122"
+    CANARY_FAILING_ARG = "CANARY_BLOCKED_SINK_VIOLATION_PAYLOAD_889900"
 
     @pytest.mark.asyncio
     async def test_canary_appears_nowhere_in_telemetry(self, tmp_path):
@@ -196,6 +197,8 @@ class TestTelemetryCanaryPrivacy:
         try:
             from agentos.flows.engine import FlowEngine
             from agentos.flows.models import EdgeDefinition, FlowDefinition, NodeDefinition
+            from agentos.flows.proxy import AgentOSToolProxy
+            from agentos.flows.policy import SecurityPolicy
             from agentos.storage.file import open_file_storage
 
             storage = open_file_storage(str(tmp_path))
@@ -223,6 +226,29 @@ class TestTelemetryCanaryPrivacy:
             )
             assert state.status.value == "succeeded"
 
+            # Execute a failing tool call where canary is in the argument that causes the failure
+            class FailingTransport:
+                async def avalidate(self, args):
+                    raise ValueError(f"Blocked sink call due to payload: {args.get('to')}")
+
+            with RunSpan("run-fail", "flow-fail") as run_span:
+                fail_proxy = AgentOSToolProxy(
+                    run_id="run-fail",
+                    agent_node_id="node_fail",
+                    storage=storage,
+                    policy=SecurityPolicy(),
+                    transport_registry={"send_email": FailingTransport()},
+                    run_span=run_span,
+                )
+                with pytest.raises(ValueError) as excinfo:
+                    # Header injection containing the canary causes avalidate() to raise ValueError
+                    await fail_proxy.invoke(
+                        "node_fail",
+                        "send_email",
+                        {"to": f"bad\r\n{self.CANARY_FAILING_ARG}@example.com", "subject": "Test", "body": "Body"},
+                    )
+                assert self.CANARY_FAILING_ARG in str(excinfo.value)
+
             # Record model and tool calls with canary values in local variables
             record_model_call(
                 provider="mock-prov",
@@ -246,6 +272,7 @@ class TestTelemetryCanaryPrivacy:
                 self.CANARY_OUTPUT,
                 self.CANARY_TOOL_ARG,
                 self.CANARY_SECRET_TOKEN,
+                self.CANARY_FAILING_ARG,
             ]
 
             for span in spans:
@@ -262,6 +289,13 @@ class TestTelemetryCanaryPrivacy:
                             assert canary not in str(k)
                             assert canary not in str(v)
 
+            # Specifically verify the failing tool span has ONLY the exception class name in description
+            failing_spans = [s for s in spans if s.name == "agentos.tool_call" and s.attributes.get("agentos.node_id") == "node_fail"]
+            assert len(failing_spans) == 1
+            f_span = failing_spans[0]
+            assert f_span.status.description == "ValueError"
+            assert len(f_span.events) == 0
+
             # Inspect ALL metrics
             metric_data = metric_reader.get_metrics_data()
             if metric_data:
@@ -275,6 +309,51 @@ class TestTelemetryCanaryPrivacy:
                                     for k, v in getattr(dp, "attributes", {}).items():
                                         assert canary not in str(k)
                                         assert canary not in str(v)
+        finally:
+            reset_telemetry()
+
+
+class TestToolSpanDeduplicationAndNoOpenSpans:
+    @pytest.mark.asyncio
+    async def test_tool_span_deduplicated_and_no_span_left_open(self, tmp_path):
+        tracer, meter, span_exp, metric_reader = setup_in_memory_telemetry()
+        try:
+            from agentos.flows.proxy import AgentOSToolProxy
+            from agentos.flows.policy import SecurityPolicy
+            from agentos.storage.file import open_file_storage
+            from opentelemetry.trace import StatusCode
+
+            storage = open_file_storage(str(tmp_path))
+            with RunSpan("run-dedup", "flow-dedup") as run_span:
+                proxy = AgentOSToolProxy(
+                    run_id="run-dedup",
+                    agent_node_id="node_sink",
+                    storage=storage,
+                    policy=SecurityPolicy(),
+                    track_labels=False,
+                    run_span=run_span,
+                )
+                args = {"to": "recipient@corp.local", "subject": "Hello", "body": "First"}
+                # First call commits the sink
+                res1 = await proxy.invoke("node_sink", "send_email", args)
+                assert "email successfully dispatched" in res1.lower()
+
+                # Second call with same args hits existing_commit early return
+                res2 = await proxy.invoke("node_sink", "send_email", args)
+                assert "email successfully dispatched" in res2.lower()
+
+            spans = span_exp.get_finished_spans()
+            tool_spans = [s for s in spans if s.name == "agentos.tool_call"]
+            assert len(tool_spans) == 2
+
+            # Assert NO span is left open (every finished span has end_time set)
+            for s in spans:
+                assert s.end_time is not None
+
+            # Second tool span is marked deduplicated and status is OK
+            dedup_span = tool_spans[1]
+            assert dedup_span.attributes.get("agentos.tool.deduplicated") is True
+            assert dedup_span.status.status_code == StatusCode.OK
         finally:
             reset_telemetry()
 

@@ -343,13 +343,13 @@ class RunSpan:
         self._flow_id = flow_id
         self._trigger = trigger
         self._span = None
-        self._ctx = None
+        self._token = None
         self.trace_id: Optional[str] = None
 
     def __enter__(self):
         if not _tracer:
             return self
-        from opentelemetry import trace
+        from opentelemetry import context, trace
         self._span = _tracer.start_span(
             "agentos.run",
             attributes={
@@ -357,25 +357,27 @@ class RunSpan:
                 "agentos.flow_id": _safe(self._flow_id),
                 "agentos.trigger": _safe(self._trigger),
             },
+            record_exception=False,
+            set_status_on_exception=False,
         )
-        self._ctx = trace.use_span(self._span, end_on_exit=False).__enter__()
+        self._token = context.attach(trace.set_span_in_context(self._span))
         ctx = self._span.get_span_context()
         self.trace_id = format(ctx.trace_id, "032x") if ctx and ctx.is_valid else None
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._ctx:
+        if self._token:
+            from opentelemetry import context
             try:
-                self._ctx.__exit__(exc_type, exc_val, exc_tb)
+                context.detach(self._token)
             except Exception:
                 pass
-            self._ctx = None
+            self._token = None
         if self._span:
+            from opentelemetry.trace import StatusCode
             if exc_type is not None:
-                from opentelemetry.trace import StatusCode
                 self._span.set_status(StatusCode.ERROR, _safe(exc_type.__name__ if exc_type else "error"))
             else:
-                from opentelemetry.trace import StatusCode
                 self._span.set_status(StatusCode.OK)
             self._span.end()
             self._span = None
@@ -417,6 +419,7 @@ class _NodeSpan:
         self._node_id = node_id
         self._node_type = node_type
         self._span = None
+        self._token = None
 
     def __enter__(self):
         if not _tracer or not self._parent:
@@ -430,15 +433,28 @@ class _NodeSpan:
                 "agentos.node_id": _safe(self._node_id),
                 "agentos.node_type": _safe(self._node_type),
             },
+            record_exception=False,
+            set_status_on_exception=False,
         )
+        self._token = context.attach(trace.set_span_in_context(self._span))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._token:
+            from opentelemetry import context
+            try:
+                context.detach(self._token)
+            except Exception:
+                pass
+            self._token = None
         if self._span:
+            from opentelemetry.trace import StatusCode
             if exc_type is not None:
-                from opentelemetry.trace import StatusCode
                 self._span.set_status(StatusCode.ERROR, _safe(exc_type.__name__ if exc_type else "error"))
+            else:
+                self._span.set_status(StatusCode.OK)
             self._span.end()
+            self._span = None
         return False
 
     async def __aenter__(self):
@@ -455,6 +471,7 @@ class _ModelSpan:
         self._model = model
         self._node_id = node_id
         self._span = None
+        self._token = None
 
     def set_tokens(self, prompt: int = 0, completion: int = 0, cost_usd: float = 0.0,
                    fallback_attempts: int = 0) -> None:
@@ -472,7 +489,7 @@ class _ModelSpan:
     def __enter__(self):
         if not _tracer or not self._parent:
             return self
-        from opentelemetry import trace
+        from opentelemetry import context, trace
         ctx = trace.set_span_in_context(self._parent)
         self._span = _tracer.start_span(
             "agentos.model_call",
@@ -482,15 +499,28 @@ class _ModelSpan:
                 "agentos.model.model": _safe(self._model),
                 "agentos.node_id": _safe(self._node_id) if self._node_id else "unknown",
             },
+            record_exception=False,
+            set_status_on_exception=False,
         )
+        self._token = context.attach(trace.set_span_in_context(self._span))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._token:
+            from opentelemetry import context
+            try:
+                context.detach(self._token)
+            except Exception:
+                pass
+            self._token = None
         if self._span:
+            from opentelemetry.trace import StatusCode
             if exc_type is not None:
-                from opentelemetry.trace import StatusCode
                 self._span.set_status(StatusCode.ERROR, _safe(exc_type.__name__ if exc_type else "error"))
+            else:
+                self._span.set_status(StatusCode.OK)
             self._span.end()
+            self._span = None
         return False
 
     async def __aenter__(self):
@@ -506,16 +536,30 @@ class _ToolSpan:
         self._tool_name = tool_name
         self._node_id = node_id
         self._span = None
+        self._token = None
+
+    @property
+    def is_open(self) -> bool:
+        return self._span is not None
 
     def set_status(self, status: str, limit_hit: bool = False) -> None:
         if self._span:
             self._span.set_attribute("agentos.tool.status", _safe(status))
             self._span.set_attribute("agentos.tool.limit_hit", limit_hit)
+            from opentelemetry.trace import StatusCode
+            if status == "ok":
+                self._span.set_status(StatusCode.OK)
+            elif status == "failed":
+                self._span.set_status(StatusCode.ERROR)
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        if self._span:
+            self._span.set_attribute(key, value)
 
     def __enter__(self):
         if not _tracer or not self._parent:
             return self
-        from opentelemetry import trace
+        from opentelemetry import context, trace
         ctx = trace.set_span_in_context(self._parent)
         self._span = _tracer.start_span(
             "agentos.tool_call",
@@ -524,15 +568,28 @@ class _ToolSpan:
                 "agentos.tool.name": _safe(self._tool_name),
                 "agentos.node_id": _safe(self._node_id) if self._node_id else "unknown",
             },
+            record_exception=False,
+            set_status_on_exception=False,
         )
+        self._token = context.attach(trace.set_span_in_context(self._span))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._token:
+            from opentelemetry import context
+            try:
+                context.detach(self._token)
+            except Exception:
+                pass
+            self._token = None
         if self._span:
+            from opentelemetry.trace import StatusCode
             if exc_type is not None:
-                from opentelemetry.trace import StatusCode
                 self._span.set_status(StatusCode.ERROR, _safe(exc_type.__name__ if exc_type else "error"))
+            else:
+                self._span.set_status(StatusCode.OK)
             self._span.end()
+            self._span = None
         return False
 
     async def __aenter__(self):
@@ -550,9 +607,18 @@ class _NullSpan:
     """A no-op span for when OTEL is not configured."""
     trace_id: Optional[str] = None
 
+    @property
+    def is_open(self) -> bool: return False
     def __enter__(self): return self
     def __exit__(self, *_): return False
     async def __aenter__(self): return self
+    async def __aexit__(self, *_): return False
+    def set_status(self, *_, **__): pass
+    def set_attribute(self, *_, **__): pass
+    def set_tokens(self, *_, **__): pass
+    def node_span(self, *_, **__): return _NullSpan()
+    def model_span(self, *_, **__): return _NullSpan()
+    def tool_span(self, *_, **__): return _NullSpan()
     async def __aexit__(self, *_): return False
     def set_status(self, *_, **__): pass
     def set_tokens(self, *_, **__): pass

@@ -84,3 +84,109 @@ class TestMiddlewareProxyResolution:
 
         from agentos_server.routes_v2.access import _client_ip
         assert _client_ip(request) == "1.2.3.4"
+
+    def test_trusted_proxy_https_proto_sets_secure_cookie(self, monkeypatch):
+        """Trusted proxy + X-Forwarded-Proto https -> Secure cookie."""
+        import asyncio
+        from agentos_server.auth import SecurityMiddleware
+        from agentos_server.routes_v2.access import _set_session_cookie
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        monkeypatch.setenv("AGENTOS_TRUSTED_PROXIES", "10.0.0.0/8")
+        import agentos.proxy_trust as pt
+        pt._TRUSTED_NETWORKS = None
+        pt._LOADED_FROM = None
+
+        captured_scope = {}
+        async def mock_app(scope, receive, send):
+            captured_scope.update(scope)
+
+        mw = SecurityMiddleware(mock_app)
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v2/access/login",
+            "headers": [(b"host", b"localhost"), (b"x-forwarded-proto", b"https")],
+            "client": ("10.0.0.1", 12345),
+            "scheme": "http",
+        }
+        asyncio.run(mw(scope, None, None))
+        assert captured_scope.get("state", {}).get("scheme") == "https"
+
+        req = Request(captured_scope)
+        resp = Response()
+        _set_session_cookie(resp, req, "token_val")
+        cookie_header = resp.headers.get("set-cookie", "")
+        assert "Secure" in cookie_header
+
+    def test_untrusted_peer_https_proto_not_secure_cookie(self, monkeypatch):
+        """Untrusted peer sending X-Forwarded-Proto https -> not Secure cookie."""
+        import asyncio
+        from agentos_server.auth import SecurityMiddleware
+        from agentos_server.routes_v2.access import _set_session_cookie
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        monkeypatch.setenv("AGENTOS_TRUSTED_PROXIES", "10.0.0.0/8")
+        import agentos.proxy_trust as pt
+        pt._TRUSTED_NETWORKS = None
+        pt._LOADED_FROM = None
+
+        captured_scope = {}
+        async def mock_app(scope, receive, send):
+            captured_scope.update(scope)
+
+        mw = SecurityMiddleware(mock_app)
+        # Peer 1.2.3.4 is NOT in 10.0.0.0/8
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v2/access/login",
+            "headers": [(b"host", b"localhost"), (b"x-forwarded-proto", b"https")],
+            "client": ("1.2.3.4", 12345),
+            "scheme": "http",
+        }
+        asyncio.run(mw(scope, None, None))
+        assert captured_scope.get("state", {}).get("scheme") == "http"
+
+        req = Request(captured_scope)
+        resp = Response()
+        _set_session_cookie(resp, req, "token_val")
+        cookie_header = resp.headers.get("set-cookie", "")
+        assert "Secure" not in cookie_header
+
+    def test_direct_https_sets_secure_cookie(self, monkeypatch):
+        """Direct connection with scheme https -> Secure cookie."""
+        import asyncio
+        from agentos_server.auth import SecurityMiddleware
+        from agentos_server.routes_v2.access import _set_session_cookie
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        monkeypatch.delenv("AGENTOS_TRUSTED_PROXIES", raising=False)
+        import agentos.proxy_trust as pt
+        pt._TRUSTED_NETWORKS = None
+        pt._LOADED_FROM = None
+
+        captured_scope = {}
+        async def mock_app(scope, receive, send):
+            captured_scope.update(scope)
+
+        mw = SecurityMiddleware(mock_app)
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v2/access/login",
+            "headers": [(b"host", b"localhost")],
+            "client": ("1.2.3.4", 12345),
+            "scheme": "https",
+        }
+        asyncio.run(mw(scope, None, None))
+        assert captured_scope.get("state", {}).get("scheme") == "https"
+
+        req = Request(captured_scope)
+        resp = Response()
+        _set_session_cookie(resp, req, "token_val")
+        cookie_header = resp.headers.get("set-cookie", "")
+        assert "Secure" in cookie_header

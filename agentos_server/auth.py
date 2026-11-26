@@ -212,10 +212,13 @@ class SecurityMiddleware:
         path = scope.get("path", "")
         is_hook = path.startswith("/hooks/") or path == "/hooks"
 
-        # 3.6b: resolve the real client IP early so all downstream handlers (rate limit, audit) use it.
+        # 3.6b: resolve the real client IP and effective scheme early so all downstream handlers use them.
         peer_ip = (scope.get("client") or ("unknown", 0))[0]
         resolved_ip = resolve_client_ip(peer_ip, headers)
+        conn_scheme = scope.get("scheme", "http")
+        effective_scheme = resolve_scheme(peer_ip, headers, conn_scheme=conn_scheme)
         scope.setdefault("state", {})["client_ip"] = resolved_ip
+        scope["state"]["scheme"] = effective_scheme
 
         # 3.6b: X-Forwarded-Host is considered only from a trusted peer and must still pass allowed-hosts.
         effective_host = host
