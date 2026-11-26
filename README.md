@@ -84,11 +84,19 @@ the first admin account; after that you log in with a username and password. Ins
 run `agentos users create-admin`. Add more people under **Settings → Users** with a role: viewer (read), approver
 (+ approve runs), builder (+ build, publish and run flows) or admin (everything).
 
-**First thing to try:** build and publish the use case 01 flow in the visual builder (**Flows → New
-flow**). The step-by-step walkthrough is in
+**First thing to try:** build and publish the use case 01 flow in the visual builder (**Flows → + New
+flow → Build visually**). The step-by-step walkthrough is in
 [examples/usecases/05-visual-builder/README.md](examples/usecases/05-visual-builder/README.md):
 publish the safe version (recipient pinned), then remove the pinned recipient and watch publish refuse
 the unsafe version and highlight the path.
+
+**Describe it (4.0):** **Flows → + New flow → Describe it**. Click an example (support desk triage, phishing triage,
+daily digest by email) or write your own description, then **Build draft**. You get a read-only preview with
+UNTRUSTED steps marked, a step-by-step explanation, a security summary and the check result. Answer any questions
+(AgentOS never guesses a recipient), click a one-click fix if the check fails, **Refine** with a follow-up, and
+**Create draft** to open it in the visual editor, where the normal **Publish** runs the check again. In MOCK mode a
+scripted model answers the examples; with a real provider the description is sent to that provider (nothing that
+looks like a key is ever sent: such text is refused first).
 
 ### 4. Using a real model
 
@@ -179,6 +187,17 @@ arrows that say which output feeds which input. Save it, then publish it as a fi
 when you want an automation that people can read and review instead of a script.
 Use cases: [05 visual builder](examples/usecases/05-visual-builder/README.md),
 [06 HTTP and branching](examples/usecases/06-http-and-branching/README.md).
+
+**Describe it: build a flow from plain English (4.0)** — *Works today (verified in MOCK with a scripted builder
+model; real-model quality is measured only by `scripts/nl_builder_live_eval.py`, which is not run in CI)*. Describe
+what should happen ("when a support ticket arrives, ... email urgent ones to oncall@corp.local after approval") and
+AgentOS drafts the flow. The model is never trusted for safety: the draft must pass the same security check as
+Publish. AgentOS asks instead of guessing any recipient, URL or channel you did not name, refuses keys pasted into the
+text, repairs violations (up to two rounds) and offers one-click fixes ("Pin this recipient to ...", "Add an approval
+before ...", "Use allowlist ..."). A recipient taken from the incoming message is always refused. Nothing is saved
+until you choose **Create draft**, and nothing is published by the builder. In the editor, **Edit with AI** proposes
+a change as a diff you apply or discard. See [use case 13](examples/usecases/13-describe-it/README.md) and
+[the 4.0 evidence](docs/evidence/4.0.md).
 
 **Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
 an if/else branch, join parallel branches, pause for a while and continue later, call another

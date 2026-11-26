@@ -1,0 +1,30 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.1, pluggy-1.6.0 -- C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Scripts\python.exe
+agentos test home: C:\Users\mujum\AppData\Local\Temp\agentos-test-home-g3dt0mtf
+  Path.home()   -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-g3dt0mtf
+  vault         -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-g3dt0mtf\.agentos\vault.json
+  master key    -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-g3dt0mtf\.agentos\master.key
+  api token     -> C:\Users\mujum\AppData\Local\Temp\agentos-test-home-g3dt0mtf\.agentos\api.token
+  guard watches -> C:\Users\mujum\.agentos (size + mtime only)
+rootdir: C:\Users\mujum\OneDrive\Desktop\Agent OS
+configfile: pyproject.toml
+plugins: anyio-4.16.0, langsmith-0.9.3, asyncio-1.3.0, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 14 items
+
+tests/ci/test_nl_builder_eval.py::test_eval_case[01-support-desk] PASSED [  7%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[02-phishing] PASSED     [ 14%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[03-daily-digest] PASSED [ 21%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[04-missing-recipient] PASSED [ 28%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[05-reply-to-sender] PASSED [ 35%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[06-slack-summary] PASSED [ 42%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[07-reply-with-approval] PASSED [ 50%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[08-forward-external] PASSED [ 57%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[09-injection] PASSED    [ 64%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[10-post-untrusted] PASSED [ 71%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[11-missing-url] PASSED  [ 78%]
+tests/ci/test_nl_builder_eval.py::test_eval_case[12-secret-in-description] PASSED [ 85%]
+tests/ci/test_nl_builder_eval.py::test_eval_has_twelve_cases_and_full_mock_success PASSED [ 92%]
+tests/ci/test_nl_builder_eval.py::test_ui_examples_match_the_mock_examples PASSED [100%]
+
+============================= 14 passed in 14.92s =============================

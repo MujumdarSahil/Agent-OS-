@@ -12,6 +12,8 @@ export interface FlowNodeData extends Record<string, unknown> {
   isEntrypoint: boolean
   violated: boolean
   status?: NodeRunStatus
+  /** 4.0 "Describe it" preview: integrity of the node's outputs from the static analysis (display only). */
+  trust?: 'trusted' | 'untrusted'
 }
 
 export interface FlowEdgeData extends Record<string, unknown> {

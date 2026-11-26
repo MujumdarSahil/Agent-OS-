@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from agentos_server.routes_v2.access import router as access_router
 from agentos_server.routes_v2.agents import router as agents_router
 from agentos_server.routes_v2.audit import router as audit_router
+from agentos_server.routes_v2.builder import router as builder_router
 from agentos_server.routes_v2.flows import router as flows_router
 from agentos_server.routes_v2.mcp_servers import router as mcp_servers_router
 from agentos_server.routes_v2.node_specs import router as node_specs_router
@@ -27,6 +28,7 @@ from agentos_server.routes_v2.webhooks import router as webhooks_router
 router = APIRouter()
 
 router.include_router(agents_router)
+router.include_router(builder_router)  # 4.0: POST /flows/generate and /flows/check (never save or publish)
 router.include_router(flows_router)
 router.include_router(squads_router)
 router.include_router(tools_router)

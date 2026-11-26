@@ -31,6 +31,8 @@ import {
 } from '../flow/builderModel'
 import ResultsPanel, { RunDialog } from '../flow/RunPanel'
 import FlowSettingsModal from '../flow/FlowSettingsModal'
+import AiEditPanel from '../flow/AiEditPanel'
+import type { BuilderFlow } from '../api/builder'
 import {
   ExtractionConfigForm, ValidatorConfigForm, defaultExtractionConfig, defaultValidatorConfig,
   type ExtractionConfig, type ValidatorConfig,
@@ -124,6 +126,7 @@ function Editor() {
   }, [])
   const [runDialog, setRunDialog] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showAiEdit, setShowAiEdit] = useState(false) // 4.0 "Edit with AI"
   const [showPalette, setShowPalette] = useState(isNew)
   const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
   const hasPublished = (versionsQ.data?.length ?? 0) > 0
@@ -458,6 +461,24 @@ function Editor() {
     }
   }
 
+  // 4.0 "Edit with AI": the editor's current graph goes to the builder; an applied proposal is an ordinary,
+  // undoable change (unsaved until Save). Existing nodes keep their positions; new ones get layered positions.
+  const aiBaseFlow = (): BuilderFlow => {
+    const f = fromCanvas({ id: flowId, name, entrypoint, loops }, nodes, edges)
+    return { id: f.id, name: f.name, entrypoint: f.entrypoint, nodes: f.nodes, edges: f.edges, loops: f.loops }
+  }
+  const applyAiProposal = (proposal: BuilderFlow) => {
+    const c = toCanvas({ ...proposal, status: 'draft', version: null }, specs)
+    const old = new Map(graphRef.current.nodes.map(n => [n.id, n.position]))
+    commit(g => ({
+      ...g,
+      nodes: c.nodes.map(n => (old.has(n.id) ? { ...n, position: old.get(n.id)! } : n)),
+      edges: c.edges,
+      entrypoint: proposal.entrypoint,
+    }))
+    setPendingFit(true)
+  }
+
   const onExport = () => {
     const f = fromCanvas({ id: flowId, name, entrypoint, loops }, nodes, edges)
     const out = {
@@ -606,6 +627,16 @@ function Editor() {
           </button>
           <button className="btn btn-ghost" data-testid="flow-settings-btn" onClick={() => setShowSettingsModal(true)} title="Flow settings and review sampling rules">Settings</button>
           <button className="btn btn-ghost" data-testid="export-flow" onClick={onExport} title="Download the flow definition as JSON">Export JSON</button>
+          <button
+            className="btn btn-ghost"
+            data-testid="edit-with-ai"
+            aria-pressed={showAiEdit}
+            onClick={() => setShowAiEdit(v => !v)}
+            disabled={!nodes.length || !entrypoint}
+            title="Describe a change; review the proposed diff before applying it"
+          >
+            Edit with AI
+          </button>
         </div>
         <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
              title={canBuild ? undefined : needs('build')}>
@@ -776,6 +807,15 @@ function Editor() {
             </div>
           )}
         </div>
+        )}
+        {showAiEdit && (
+          <AiEditPanel
+            flowId={flowId}
+            current={aiBaseFlow}
+            canBuild={canBuild}
+            onApply={applyAiProposal}
+            onClose={() => setShowAiEdit(false)}
+          />
         )}
         {showResults && panelDock === 'right' && resultsPanel}
       </div>
