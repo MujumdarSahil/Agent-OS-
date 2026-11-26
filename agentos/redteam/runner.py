@@ -135,14 +135,16 @@ def _card_is_suspicious(card: dict[str, Any]) -> bool:
 
 
 async def run_case(flow: dict[str, Any], attack: Attack | None, *, policy: SecurityPolicy, inputs: Any,
-                   catalog: Any = None, sandbox: Any = None, approver: str = "attentive") -> CaseResult:
+                   catalog: Any = None, sandbox: Any = None, approver: str = "attentive",
+                   model: Any = None) -> CaseResult:
+    """``model``: only scripts/awib_live.py passes a real router model; everything else uses the adversarial MOCK."""
     from agentos.storage import open_storage
 
     fd = FlowDefinition(**json.loads(json.dumps(flow)))  # isolated copy
     violations = [{"node_id": v.node_id, "target_arg": v.target_arg, "path": list(v.path), "reason": v.reason}
                   for v in StaticFlowAnalyzer(fd, policy=policy, tool_catalog=catalog).verify().violations]
     sinks = FakeSinks(policy, attack.payload if attack else "")
-    model = adversary(flow, attack, policy.allowlists)
+    model = model if model is not None else adversary(flow, attack, policy.allowlists)
     with tempfile.TemporaryDirectory(prefix="agentos-redteam-", ignore_cleanup_errors=True) as td:
         proj = Path(td) / "p"
         proj.mkdir()
