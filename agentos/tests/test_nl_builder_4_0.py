@@ -302,3 +302,83 @@ def test_input_limits():
         BuilderRequest(description="x" * 4001).validate()
     with pytest.raises(BuilderInputError):
         BuilderRequest(description="").validate()
+
+
+# ------------------------------------------------------------------------------------------- exact target matching
+# 4.0 review fix: stated recipients and URLs match EXACTLY (never as a substring of what the user wrote).
+
+def _email_flow(to):
+    return {"nodes": {"send": {"id": "send", "type": "send_email", "config": {}, "pinned_args": {"to": to}}}}
+
+
+def _url_flow(url):
+    return {"nodes": {"call": {"id": "call", "type": "http_request", "config": {"method": "GET"},
+                               "pinned_args": {"url": url}}}}
+
+
+def _flagged(flow, stated, pol=None):
+    return {(i.node_id, i.kind) for i in invented_targets(flow, stated, pol or policy())}
+
+
+@pytest.mark.parametrize("stated, pinned, flagged", [
+    ("email bob.smith@corp.local", "smith@corp.local", True),              # suffix of the stated address
+    ("email bob.smith@corp.local.evil.net", "bob.smith@corp.local", True),  # prefix of a longer stated address
+    ("email bob@corp.local", "alice@corp.local", True),                     # different user, same domain
+    ("email bob@corp.local", "bob@corp.local.evil.net", True),              # stated address is a prefix of the pin
+    ("email bob@corp.local.", "bob@corp.local", False),                     # trailing punctuation
+    ("email Bob.Smith@Corp.Local, please", "bob.smith@corp.local", False),  # case differences are allowed
+    ("email bob.smith@corp.local", "BOB.SMITH@CORP.LOCAL", False),
+])
+def test_email_targets_match_exactly(stated, pinned, flagged):
+    assert (("send", "email") in _flagged(_email_flow(pinned), stated)) is flagged
+
+
+@pytest.mark.parametrize("stated, pinned, flagged", [
+    ("call https://api.example.com.evil.net/x", "https://api.example.com", True),  # host is a prefix of the stated
+    ("call https://api.example.com.evil.net/x", "https://api.example.com/x", True),
+    ("call https://api.example.com/x", "https://evil-api.example.com/x", True),     # host ends with the stated host
+    ("call https://api.example.com/x", "https://api.example.com.evil.net/x", True),  # stated host is a prefix
+    ("call https://api.example.com/x", "https://api.example.com/x/y", True),         # longer path
+    ("call https://api.example.com/x", "http://api.example.com/x", True),            # different scheme
+    ("call https://api.example.com/x", "https://api.example.com:8443/x", True),      # different port
+    ("call https://api.example.com/x", "https://user@api.example.com/x", True),      # user info never matches
+    ("call https://api.example.com/x.", "https://api.example.com/x", False),         # trailing punctuation
+    ("call https://api.example.com/x, then stop", "https://api.example.com/x", False),
+    ("call HTTPS://API.Example.COM/x", "https://api.example.com/x", False),          # scheme and host case
+    ("call https://api.example.com:443/x", "https://api.example.com/x", False),      # default port stripped
+    ("call https://api.example.com", "https://api.example.com/", False),             # empty path == "/"
+])
+def test_url_targets_match_exactly(stated, pinned, flagged):
+    assert (("call", "url") in _flagged(_url_flow(pinned), stated)) is flagged
+
+
+@pytest.mark.parametrize("stated, pinned, flagged", [
+    ("poll api.example.com every hour", "https://api.example.com/status", False),    # bare host: that host only
+    ("poll API.Example.com.", "https://api.example.com/status", False),             # host case + punctuation
+    ("poll api.example.com every hour", "https://api.example.com.evil.net/s", True),
+    ("poll api.example.com every hour", "https://evilapi.example.com/s", True),
+    ("poll api.example.com.evil.net", "https://api.example.com/s", True),           # stated host is longer
+    ("mail bob@api.example.com", "https://api.example.com/s", True),                # a host inside an email is not a host
+])
+def test_bare_host_matches_only_that_exact_host(stated, pinned, flagged):
+    assert (("call", "url") in _flagged(_url_flow(pinned), stated)) is flagged
+
+
+def test_slack_channel_word_matches_exactly():
+    flow = {"nodes": {"s": {"id": "s", "type": "send_slack", "config": {}, "pinned_args": {"channel": "ops"}}}}
+    pol = policy(slack_channels={})
+    assert ("s", "slack_channel") in _flagged(flow, "post to ops-alerts", pol)
+    assert ("s", "slack_channel") not in _flagged(flow, "post to #ops.", pol)
+
+
+@pytest.mark.asyncio
+async def test_suffix_address_from_model_becomes_a_question():
+    """End to end: the model pins a shorter address than the one stated ("call@" inside "oncall@") -> question."""
+    class Model:
+        async def __call__(self, messages):
+            f = json.loads(mock_builder.support_desk({}))["flow"]
+            f["nodes"]["page_oncall"]["pinned_args"]["to"] = "call@corp.local"
+            return json.dumps({"flow": f, "explanation": "x"})
+
+    res, _ = await gen(mock_builder.EXAMPLES["support"], model=Model())
+    assert res["status"] == "questions" and "page_oncall" in res["questions"][0]

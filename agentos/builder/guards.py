@@ -38,7 +38,68 @@ def emails_in(text: str) -> list[str]:
 
 
 def urls_in(text: str) -> list[str]:
-    return list(dict.fromkeys(m.group(0).rstrip(".,;:") for m in URL_RE.finditer(text or "")))
+    return list(dict.fromkeys(m.group(0).rstrip(".,;:!?") for m in URL_RE.finditer(text or "")))
+
+
+# A bare host name the user wrote ("api.example.com"): labels joined by dots, alphabetic TLD. Lookarounds keep it from
+# starting or ending inside a longer token, so "api.example.com.evil.net" is one host, never "api.example.com".
+HOST_RE = re.compile(r"(?<![A-Za-z0-9@._-])((?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})"
+                     r"(?![A-Za-z0-9_-])")
+WORD_RE = re.compile(r"#?([A-Za-z0-9][A-Za-z0-9_.-]*)")
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+CanonicalUrl = tuple[str, str, "int | None", str]
+
+
+def canonical_url(url: str) -> CanonicalUrl | None:
+    """(scheme, host, port, path): scheme and host lower-cased, a default port dropped, an empty path is "/".
+    None for anything that is not a plain http(s) URL (no host, bad port, or user info such as user:pass@host)."""
+    from urllib.parse import urlsplit
+
+    try:
+        p = urlsplit(url.strip().rstrip(".,;:!?"))
+        port = p.port
+    except ValueError:
+        return None
+    scheme = p.scheme.lower()
+    host = (p.hostname or "").lower().rstrip(".")
+    if scheme not in _DEFAULT_PORTS or not host or p.username is not None or p.password is not None:
+        return None
+    if port == _DEFAULT_PORTS[scheme]:
+        port = None
+    return (scheme, host, port, p.path or "/")
+
+
+@dataclass(frozen=True)
+class StatedTargets:
+    """The exact emails, URLs, bare hosts and words the user wrote. Membership is EXACT (never a substring): emails
+    compared lower-cased; URLs by (scheme, host, port, path) with host lower-cased and default ports stripped; a bare
+    host matches a URL only when the URL has exactly that host."""
+
+    emails: frozenset[str]
+    urls: frozenset[CanonicalUrl]
+    hosts: frozenset[str]
+    words: frozenset[str]
+
+    @classmethod
+    def from_text(cls, text: str) -> "StatedTargets":
+        text = text or ""
+        emails = frozenset(emails_in(text))
+        urls = frozenset(c for c in (canonical_url(u) for u in urls_in(text)) if c is not None)
+        rest = URL_RE.sub(" ", EMAIL_RE.sub(" ", text))  # a host inside an email or URL is not a stated bare host
+        hosts = frozenset(m.group(1).lower() for m in HOST_RE.finditer(rest))
+        words = frozenset(w.lower().rstrip(".") for w in WORD_RE.findall(text))
+        return cls(emails, urls, hosts, words)
+
+    def has_email(self, email: str) -> bool:
+        return email.strip().lower() in self.emails
+
+    def has_url(self, url: str) -> bool:
+        c = canonical_url(url)
+        return c is not None and (c in self.urls or c[1] in self.hosts)
+
+    def has_word(self, word: str) -> bool:
+        return word.strip().lower().lstrip("#") in self.words
 
 
 @dataclass(frozen=True)
@@ -72,8 +133,8 @@ def _strings(value: Any, where: str) -> Iterable[tuple[str, str]]:
             yield from _strings(v, f"{where}[{i}]")
 
 
-def _url_ok(url: str, source: str, policy: SecurityPolicy) -> bool:
-    if url.lower() in source:
+def _url_ok(url: str, stated: StatedTargets, policy: SecurityPolicy) -> bool:
+    if stated.has_url(url):
         return True
     try:
         return policy.is_http_allowlisted(url)
@@ -87,7 +148,7 @@ def invented_targets(flow: dict[str, Any], source_text: str, policy: SecurityPol
     ``source_text``: the description, answers and change request, plus (edit mode) the JSON of the flow being
     edited, whose values the author already chose.
     """
-    src = (source_text or "").lower()
+    stated = StatedTargets.from_text(source_text)
     found: list[Invented] = []
     seen: set[tuple[str, str, str]] = set()
 
@@ -102,10 +163,10 @@ def invented_targets(flow: dict[str, Any], source_text: str, policy: SecurityPol
         for part in ("config", "pinned_args"):
             for where, text in _strings(node.get(part) or {}, part):
                 for email in emails_in(text):
-                    if email not in src:
+                    if not stated.has_email(email):
                         add(nid, "email", where, ntype)
                 for url in urls_in(text):
-                    if not _url_ok(url, src, policy):
+                    if not _url_ok(url, stated, policy):
                         add(nid, "url", where, ntype)
         cfg, pinned = node.get("config") or {}, node.get("pinned_args") or {}
         if ntype == "http_request":
@@ -116,7 +177,7 @@ def invented_targets(flow: dict[str, Any], source_text: str, policy: SecurityPol
         channel_keys += [(f"pinned_args.{k}", v) for k, v in pinned.items() if k.endswith("send_slack.channel")]
         for where, ch in channel_keys:
             # stated by the user but not configured: not a guess; the static check reports it
-            if isinstance(ch, str) and ch not in policy.slack_channels and ch.lower().lstrip("#") not in src:
+            if isinstance(ch, str) and ch not in policy.slack_channels and not stated.has_word(ch):
                 add(nid, "slack_channel", where, ntype)
         names: list[tuple[str, Any]] = []
         if ntype == "validator":

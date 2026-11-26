@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from agentos.builder.guards import emails_in, urls_in
+from agentos.builder.guards import StatedTargets, emails_in, urls_in
 from agentos.builder.schema import validate_definition
 from agentos.flows.policy import SecurityPolicy
 from agentos.flows.static_analyzer import StaticFlowAnalyzer
@@ -116,9 +116,9 @@ def add_approval(flow: dict[str, Any], node_id: str, args: list[str]) -> dict[st
 def _candidates(arg: str, node_type: str, stated: str, policy: SecurityPolicy) -> list[str]:
     if arg == "to":
         return emails_in(stated)
-    if arg == "channel":
-        low = stated.lower()
-        return [c for c in sorted(policy.slack_channels) if c.lower() in low]
+    if arg == "channel":  # exact word match, never a substring ("ops" is not stated by "ops-alerts")
+        words = StatedTargets.from_text(stated)
+        return [c for c in sorted(policy.slack_channels) if words.has_word(c)]
     if arg == "url" and node_type == "http_request":
         return urls_in(stated)
     return []
