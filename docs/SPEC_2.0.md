@@ -193,6 +193,20 @@ Scope notes from the original plan:
 - UI markdown rendering protection against image auto-load exfiltration and deceptive link clicks.
 
 ### Phase 4: Security Evaluation, Intelligence & Fallback (Trimmed)
+- **4.0 Natural-language flow builder ("Describe it")**: **done** (MOCK-verified with a scripted builder model; LIVE
+  eval script `scripts/nl_builder_live_eval.py` provided, not run in CI). `POST /api/v2/flows/generate` and
+  `POST /api/v2/flows/check` (builder/admin). One model call through the AgentOS router with no tools (fallback,
+  budgets, run limits, `llm_call` events under the pseudo flow id `builder`), at most one retry for invalid output
+  (AgentOS-written error, never the model's text) and two repair rounds. The prompt is built from trusted material
+  only (node specs, approved tools, allowlist and channel names); the description is a delimited data block. Strict
+  output schema (no extra fields, known node types and tools, at most 30 nodes). Recipients, URLs, channels and
+  allowlist names not stated by the user become questions; key-like text is refused before any model call. Every
+  draft goes through the Publish gate's static check; remaining violations get deterministic one-click fixes (pin a
+  stated recipient, use an allowlist, add an approval; recipients are never fixed by an approval). Deterministic
+  explanation and security summary. Nothing is saved or published by the builder ("Create draft" is the normal
+  audited `flow.save`; `flow.generate` is audited with the description length and sha256 only). UI: Flows → + New
+  flow → Describe it; editor "Edit with AI" diff (apply or discard). 12-case eval (`docs/evidence/4.0-eval.md`).
+  Design decisions and gaps: `docs/evidence/4.0.md`.
 - Security benchmark integration: **AgentDojo** evaluation harness.
 - In-house AgentOS workflow-injection benchmark measuring:
   - Attack Success Rate (ASR) across standard and adaptive attacks.
