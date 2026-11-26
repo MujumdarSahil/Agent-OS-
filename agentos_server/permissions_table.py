@@ -98,6 +98,8 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     # 4.0 natural-language builder: drafts only (never saved or published here); model calls cost money
     ("POST", f"{_V2}/flows/generate"): "build",
     ("POST", f"{_V2}/flows/check"): "build",
+    # 4.1 "Attack my flow": isolated copy, adversarial MOCK model, fake sinks; nothing saved or sent
+    ("POST", f"{_V2}/flows/{{flow_id}}/attack-test"): "build",
     # triggers
     ("GET", f"{_V2}/schedules"): "read",
     ("POST", f"{_V2}/schedules"): "build",
