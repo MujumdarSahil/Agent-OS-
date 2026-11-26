@@ -6,6 +6,7 @@ Provides:
 - Constant-time token verification (hmac.compare_digest).
 - Host header validation (DNS rebinding defense: localhost and 127.0.0.1 only).
 - Deprecation warning for AGENTOS_V1_NO_AUTH=1 compatibility mode.
+- 3.6b: Trusted-proxy header resolution (X-Forwarded-For / Proto / Host from AGENTOS_TRUSTED_PROXIES).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import warnings
 from fastapi import Request
 
 from agentos.access.permissions import allows
+from agentos.proxy_trust import resolve_client_ip, resolve_host, resolve_scheme, peer_is_trusted
 from agentos_server.access_mw import (
     LEGACY, LOCAL_HOSTS, UNSAFE_METHODS, bearer_token, capability, csrf_ok, origin_host, principal_from_session,
     principal_from_token, route_template, session_cookie,
@@ -210,8 +212,26 @@ class SecurityMiddleware:
         path = scope.get("path", "")
         is_hook = path.startswith("/hooks/") or path == "/hooks"
 
+        # 3.6b: resolve the real client IP and effective scheme early so all downstream handlers use them.
+        peer_ip = (scope.get("client") or ("unknown", 0))[0]
+        resolved_ip = resolve_client_ip(peer_ip, headers)
+        conn_scheme = scope.get("scheme", "http")
+        effective_scheme = resolve_scheme(peer_ip, headers, conn_scheme=conn_scheme)
+        scope.setdefault("state", {})["client_ip"] = resolved_ip
+        scope["state"]["scheme"] = effective_scheme
+
+        # 3.6b: X-Forwarded-Host is considered only from a trusted peer and must still pass allowed-hosts.
+        effective_host = host
+        fwd_host = resolve_host(peer_ip, headers)
+        if fwd_host:
+            # Strip port and normalise; must still pass the existing host check below.
+            fwd_hostname = fwd_host.split(":")[0].strip().lower()
+            is_fwd_hook = is_hook  # same path, same routing context
+            if verify_host_header(fwd_host, is_hook=is_fwd_hook):
+                effective_host = fwd_host  # the forwarded host passes the existing rules
+
         # 1. Host header validation
-        if not verify_host_header(host, is_hook=is_hook):
+        if not verify_host_header(effective_host, is_hook=is_hook):
             body = b'{"detail":"Invalid Host header (DNS-rebinding protection: localhost and 127.0.0.1 only)"}'
             await send({
                 "type": "http.response.start",
@@ -296,6 +316,11 @@ class SecurityMiddleware:
         headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in raw_headers}
         host = headers.get("host", "")
         origin = headers.get("origin")
+
+        # 3.6b: resolve the real client IP for WebSocket requests (same rules as HTTP).
+        peer_ip = (scope.get("client") or ("unknown", 0))[0]
+        resolved_ip = resolve_client_ip(peer_ip, headers)
+        scope.setdefault("state", {})["client_ip"] = resolved_ip
 
         # 1. Host header validation
         if not verify_host_header(host):

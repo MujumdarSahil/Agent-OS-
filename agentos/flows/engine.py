@@ -51,6 +51,8 @@ from agentos.storage.ports import FencingTokenError, Storage
 # (CREWAI_DISABLE_TELEMETRY=false). CrewAI reads the variable on every telemetry call.
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
 
+logger = logging.getLogger(__name__)
+
 
 def execute_validator_runtime(
     node: NodeDefinition,
@@ -172,6 +174,16 @@ class FlowEngine:
         # 1. Initialize run record and append run_started event
         self._check_fencing(run_id)
         existing = await self.storage.runs.get(run_id)
+
+        # 3.6b: OTEL run span
+        from agentos.telemetry import RunSpan
+        run_span = RunSpan(run_id=run_id, flow_id=self.flow.id, trigger=trigger)
+        run_span.__enter__()
+        trace_id = run_span.trace_id or (existing.trace_id if existing else None)
+        if not hasattr(self, "_active_run_spans"):
+            self._active_run_spans = {}
+        self._active_run_spans[run_id] = run_span
+
         run_record = RunRecord(
             run_id=run_id,
             mission_name=self.flow.id,
@@ -182,6 +194,7 @@ class FlowEngine:
             trigger=(existing.trigger if existing and existing.trigger else trigger),
             # 3.4: who started it ({user_id, username}, set by the route that created the run)
             started_by=existing.started_by if existing else None,
+            trace_id=trace_id,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
         )
@@ -708,6 +721,43 @@ class FlowEngine:
         if guard is not None:
             guard.after_record(record)
 
+        # 3.6b: OTEL metrics and child model span
+        try:
+            from agentos.telemetry import record_model_call
+            provider = str(record.get("provider") or "unknown")
+            model = str(record.get("model") or "unknown")
+            latency = float(record.get("latency_ms") or 0.0)
+            pt = int(record.get("prompt_tokens") or 0)
+            ct = int(record.get("completion_tokens") or 0)
+            cost = float(record.get("cost_usd") or 0.0)
+            attempts = list(record.get("attempts") or [])
+            is_ok = record.get("status") == "ok"
+            record_model_call(
+                provider=provider,
+                model=model,
+                duration_ms=latency,
+                prompt_tokens=pt,
+                completion_tokens=ct,
+                cost_usd=cost,
+                fallback_attempts=len(attempts),
+                success=is_ok,
+            )
+            if hasattr(self, "_active_run_spans") and run_id in self._active_run_spans:
+                mspan = self._active_run_spans[run_id].model_span(
+                    provider=provider,
+                    model=model,
+                    node_id=str(record.get("node_id") or ""),
+                )
+                with mspan:
+                    mspan.set_tokens(
+                        prompt=pt,
+                        completion=ct,
+                        cost_usd=cost,
+                        fallback_attempts=len(attempts),
+                    )
+        except Exception:
+            pass
+
     def _router_llm(
         self, state: FlowRunState, node: NodeDefinition, inbound: Label, loop: Any,
         extra_on_call: Any | None = None, guard: Any | None = None,
@@ -901,6 +951,10 @@ class FlowEngine:
         timeout = node.config.get("timeout_seconds") or spec.timeout_seconds
 
         t_node_start = time.perf_counter()
+        node_span = None
+        if hasattr(self, "_active_run_spans") and state.run_id in self._active_run_spans:
+            node_span = self._active_run_spans[state.run_id].node_span(node_id, node.type)
+            node_span.__enter__()
         try:
             if timeout and timeout > 0:
                 await asyncio.wait_for(
@@ -910,19 +964,26 @@ class FlowEngine:
             else:
                 await self._dispatch_node(state, node, spec, inbound_args, inbound_labels)
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
-        except asyncio.TimeoutError as err:
+            if node_span:
+                node_span.__exit__(None, None, None)
+                node_span = None
+        except Exception as exc:
             state.node_durations_ms[node_id] = (time.perf_counter() - t_node_start) * 1000.0
-            if self._has_error_handler(node_id):
-                raise  # the execution loop records it as a handled failure
-            fail_ev = await self._append_event(
-                run_id=state.run_id,
-                type="node_failed",
-                data={
-                    "node_id": node_id,
-                    "error": f"Node {node_id!r} timed out after {timeout}s",
-                },
-            )
-            state.apply_event(fail_ev)
+            if node_span:
+                node_span.__exit__(type(exc), exc, exc.__traceback__)
+                node_span = None
+            if isinstance(exc, asyncio.TimeoutError):
+                if self._has_error_handler(node_id):
+                    raise  # the execution loop records it as a handled failure
+                fail_ev = await self._append_event(
+                    run_id=state.run_id,
+                    type="node_failed",
+                    data={
+                        "node_id": node_id,
+                        "error": f"Node {node_id!r} timed out after {timeout}s",
+                    },
+                )
+                state.apply_event(fail_ev)
             raise
 
     async def _dispatch_node(
@@ -1219,6 +1280,7 @@ class FlowEngine:
                 mcp_manager=self.mcp_manager,
                 sandbox=self.sandbox,
                 usage_guard=await self._usage_guard(state),
+                run_span=self._active_run_spans.get(state.run_id) if hasattr(self, "_active_run_spans") else None,
             )
 
             # Wrap tools
@@ -1342,9 +1404,25 @@ class FlowEngine:
                 record.resume_at = resume_at
             record.outputs = state.node_outputs
             record.current_lease_id = self.lease_id
+            if hasattr(self, "_active_run_spans") and state.run_id in self._active_run_spans:
+                span = self._active_run_spans[state.run_id]
+                if span.trace_id and not record.trace_id:
+                    record.trace_id = span.trace_id
             await self.storage.runs.put(record)
             record.outputs = state.node_outputs
             await self.storage.runs.put(record)
+        # 3.6b: OTEL metrics and close span if run reached terminal status
+        try:
+            from agentos.telemetry import record_run_status
+            if status in (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED):
+                record_run_status(status.value)
+                if hasattr(self, "_active_run_spans") and state.run_id in self._active_run_spans:
+                    span = self._active_run_spans.pop(state.run_id, None)
+                    if span:
+                        span.set_status(status.value)
+                        span.__exit__(None, None, None)
+        except Exception:
+            pass
         # 3.5: the run's sandbox workspace is deleted when the run ends (a WAITING run keeps it)
         if self.sandbox is not None and status in (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED):
             self.sandbox.cleanup_run(state.run_id)
@@ -1352,8 +1430,23 @@ class FlowEngine:
         if status in (RunStatus.SUCCEEDED, RunStatus.FAILED):
             try:
                 await self._maybe_sample_for_review(state, status)
-            except Exception:
-                pass
+            except Exception as _exc:
+                # Part 0c (3.6b): emit a "review_sampling_failed" event (error class only, no data) so the
+                # failure is visible in the event log. The run itself is never affected.
+                _exc_class = type(_exc).__name__
+                try:
+                    await self._append_event(
+                        run_id=state.run_id,
+                        type="review_sampling_failed",
+                        data={"error_class": _exc_class},
+                    )
+                except Exception:
+                    # If we can't even record the event, log it at WARNING but never raise.
+                    logger.warning(
+                        "review_sampling_failed (%s) and could not record event for run %s",
+                        _exc_class,
+                        state.run_id,
+                    )
 
     async def _maybe_sample_for_review(self, state: FlowRunState, status: RunStatus) -> None:
         if not getattr(self, "storage", None) or not getattr(self, "flow", None):

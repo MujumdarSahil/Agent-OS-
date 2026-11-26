@@ -206,6 +206,8 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
             loops=draft.loops,
         )
     except Exception as err:
+        from agentos.telemetry import record_refused_publish
+        record_refused_publish()
         await audit(request, "flow.publish", "flow", flow_id, outcome="refused",
                     details={"reason": "structural_validation_failed"})
         raise HTTPException(status_code=400, detail=f"Flow structural validation failed: {err}")
@@ -214,6 +216,8 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     try:
         _check_node_models(draft.nodes)
     except HTTPException:
+        from agentos.telemetry import record_refused_publish
+        record_refused_publish()
         await audit(request, "flow.publish", "flow", flow_id, outcome="refused", details={"reason": "model"})
         raise
 
@@ -231,6 +235,8 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     analyzer = StaticFlowAnalyzer(flow=flow_def, policy=policy, subflow_summaries=summaries, tool_catalog=catalog)
     res = analyzer.verify()
     if not res.is_valid:
+        from agentos.telemetry import record_refused_publish
+        record_refused_publish()
         # 3.1: the refusal is audited with the violated rule names (node.argument), not the payload
         rules = sorted({f"{v.node_id}.{v.target_arg}" for v in res.violations})
         await audit(request, "flow.publish", "flow", flow_id, outcome="refused",

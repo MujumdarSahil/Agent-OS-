@@ -7,8 +7,12 @@ import pytest
 
 # Ensure environment variables for mock crewai execution
 os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "1"
-os.environ["OTEL_SDK_DISABLED"] = "true"
 os.environ["AGENTOS_MOCK_LLM"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def _usecase_01_env(monkeypatch):
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
 
 USECASE_DIR = Path(__file__).resolve().parent.parent.parent / "examples" / "usecases" / "01-email-summary-exfil"
 

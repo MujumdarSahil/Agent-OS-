@@ -122,7 +122,10 @@ class AgentOSToolProxy:
         mcp_manager: Any | None = None,
         sandbox: Any | None = None,
         usage_guard: Any | None = None,
+        run_span: Any | None = None,
     ) -> None:
+        # 3.6b: OTEL span context for child tool spans
+        self.run_span = run_span
         # 3.5: sandbox service for python_exec / shell_exec / file_* (None: those tools refuse, fail closed) and the
         # run guard that counts sandbox calls toward the 3.2 run limits
         self.sandbox = sandbox
@@ -257,6 +260,8 @@ class AgentOSToolProxy:
                         "reason": violation.reason,
                     },
                 )
+                from agentos.telemetry import record_blocked_call
+                record_blocked_call()
                 raise SinkRuleViolationError(violation)
 
         # 3. Check sink rules using the shared rule engine
@@ -295,6 +300,8 @@ class AgentOSToolProxy:
                             "reason": v.reason,
                         },
                     )
+                    from agentos.telemetry import record_blocked_call
+                    record_blocked_call()
                     raise SinkRuleViolationError(v)
 
         # 4. Append tool_called event (every call produces an event)
@@ -308,97 +315,135 @@ class AgentOSToolProxy:
         )
 
         # 5. Execute tool or sink pipeline
-        if entry.is_mcp:
-            ret_val = await self._invoke_mcp(agent_node_id, entry, final_args)
-        elif tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
-            canonical_json = json.dumps(final_args, sort_keys=True, separators=(",", ":"))
-            key_raw = f"{self.run_id}:{agent_node_id}:{tool_name}:{canonical_json}"
-            idempotency_key = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()
+        import time
+        t_tool_start = time.perf_counter()
+        tool_span = None
+        if self.run_span:
+            tool_span = self.run_span.tool_span(tool_name, agent_node_id)
+            tool_span.__enter__()
+        limit_hit = False
+        try:
+            if entry.is_mcp:
+                ret_val = await self._invoke_mcp(agent_node_id, entry, final_args)
+            elif tool_spec.side_effect == SideEffectClass.EXTERNAL_SEND:
+                canonical_json = json.dumps(final_args, sort_keys=True, separators=(",", ":"))
+                key_raw = f"{self.run_id}:{agent_node_id}:{tool_name}:{canonical_json}"
+                idempotency_key = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()
 
-            # (b) Check event log: if sink_committed exists for that key, return recorded result without sending
-            events = await self.storage.events.list(self.run_id, after_seq=0)
-            existing_commit = next(
-                (
-                    e for e in events
-                    if e.type == "sink_committed"
-                    and (e.data or {}).get("idempotency_key") == idempotency_key
-                ),
-                None,
-            )
-            if existing_commit:
-                return sink_result_text(tool_name, final_args, (existing_commit.data or {}).get("result"))
-
-            transport = self.transport_registry.get(tool_name)
-            # 3.3: argument checks of a real channel (header injection, sizes, From) BEFORE any intent
-            if transport is not None and hasattr(transport, "avalidate"):
-                try:
-                    await transport.avalidate(final_args)
-                except ValueError as err:
-                    await self._append_event(type="tool_call_blocked", data={
-                        "agent_node": agent_node_id, "tool_name": tool_name, "reason": str(err)[:300]})
-                    raise
-
-            # Append sink_intent event (if not already appended for this key)
-            has_intent = any(
-                e.type == "sink_intent"
-                and (e.data or {}).get("idempotency_key") == idempotency_key
-                for e in events
-            )
-            if has_intent and not getattr(transport, "retry_safe", True):
-                # 3.3: a real send may or may not have happened; never re-send automatically
-                reason = (f"{tool_name}: an earlier call with these arguments may or may not have been sent "
-                          f"(uncommitted_sink_needs_review); it is never re-sent automatically")
-                await self._append_event(type="sink_needs_review",
-                                         data={"agent_node": agent_node_id, "tool_name": tool_name, "reason": reason})
-                raise ValueError(reason)
-            if not has_intent:
-                await self._append_event(
-                    type="sink_intent",
-                    data={
-                        "sink_node": agent_node_id,
-                        "tool_name": tool_name,
-                        "idempotency_key": idempotency_key,
-                        "args": final_args,
-                    },
+                # (b) Check event log: if sink_committed exists for that key, return recorded result without sending
+                events = await self.storage.events.list(self.run_id, after_seq=0)
+                existing_commit = next(
+                    (
+                        e for e in events
+                        if e.type == "sink_committed"
+                        and (e.data or {}).get("idempotency_key") == idempotency_key
+                    ),
+                    None,
                 )
+                if existing_commit:
+                    if tool_span:
+                        tool_span.set_attribute("agentos.tool.deduplicated", True)
+                    ret_val = sink_result_text(tool_name, final_args, (existing_commit.data or {}).get("result"))
+                else:
+                    transport = self.transport_registry.get(tool_name)
+                    # 3.3: argument checks of a real channel (header injection, sizes, From) BEFORE any intent
+                    if transport is not None and hasattr(transport, "avalidate"):
+                        try:
+                            await transport.avalidate(final_args)
+                        except ValueError as err:
+                            await self._append_event(type="tool_call_blocked", data={
+                                "agent_node": agent_node_id, "tool_name": tool_name, "reason": str(err)[:300]})
+                            from agentos.telemetry import record_blocked_call
+                            record_blocked_call()
+                            raise
 
-            # Transport call with fencing check and idempotency key
-            self._check_fencing()
-            if transport is not None and (hasattr(transport, "send") or hasattr(transport, "asend")):
-                result = await transport_send(transport, idempotency_key, final_args)
+                    # Append sink_intent event (if not already appended for this key)
+                    has_intent = any(
+                        e.type == "sink_intent"
+                        and (e.data or {}).get("idempotency_key") == idempotency_key
+                        for e in events
+                    )
+                    if has_intent and not getattr(transport, "retry_safe", True):
+                        # 3.3: a real send may or may not have happened; never re-send automatically
+                        reason = (f"{tool_name}: an earlier call with these arguments may or may not have been sent "
+                                  f"(uncommitted_sink_needs_review); it is never re-sent automatically")
+                        await self._append_event(type="sink_needs_review",
+                                                 data={"agent_node": agent_node_id, "tool_name": tool_name, "reason": reason})
+                        raise ValueError(reason)
+                    if not has_intent:
+                        await self._append_event(
+                            type="sink_intent",
+                            data={
+                                "sink_node": agent_node_id,
+                                "tool_name": tool_name,
+                                "idempotency_key": idempotency_key,
+                                "args": final_args,
+                            },
+                        )
+
+                    # Transport call with fencing check and idempotency key
+                    self._check_fencing()
+                    if transport is not None and (hasattr(transport, "send") or hasattr(transport, "asend")):
+                        result = await transport_send(transport, idempotency_key, final_args)
+                    else:
+                        result = {"status": "sent", "idempotency_key": idempotency_key}
+
+                    # Append sink_committed event
+                    await self._append_event(
+                        type="sink_committed",
+                        data={
+                            "sink_node": agent_node_id,
+                            "tool_name": tool_name,
+                            "idempotency_key": idempotency_key,
+                            "result": result,
+                        },
+                    )
+                    ret_val = sink_result_text(tool_name, final_args, result)
+            elif tool_name == "calculator":
+                # 3.1: safe arithmetic only; errors go back to the model as text (no side effect, nothing to undo)
+                from agentos.flows.calculator import CalculatorError, evaluate
+
+                try:
+                    ret_val = str(evaluate(final_args.get("expression")))
+                except CalculatorError as err:
+                    ret_val = f"Calculator error: {err}"
+            elif tool_name == "fetch_url":
+                ret_val = await self._fetch_url(agent_node_id, final_args.get("url"))
+            elif tool_name in SANDBOX_TOOL_TYPES:
+                # 3.5: labels are applied inside (output = untrusted, confidentiality of everything that went in)
+                ret_val = await self._sandbox_call(agent_node_id, tool_name, final_args)
             else:
-                result = {"status": "sent", "idempotency_key": idempotency_key}
-
-            # Append sink_committed event
-            await self._append_event(
-                type="sink_committed",
-                data={
-                    "sink_node": agent_node_id,
-                    "tool_name": tool_name,
-                    "idempotency_key": idempotency_key,
-                    "result": result,
-                },
-            )
-            ret_val = sink_result_text(tool_name, final_args, result)
-        elif tool_name == "calculator":
-            # 3.1: safe arithmetic only; errors go back to the model as text (no side effect, nothing to undo)
-            from agentos.flows.calculator import CalculatorError, evaluate
-
-            try:
-                ret_val = str(evaluate(final_args.get("expression")))
-            except CalculatorError as err:
-                ret_val = f"Calculator error: {err}"
-        elif tool_name == "fetch_url":
-            ret_val = await self._fetch_url(agent_node_id, final_args.get("url"))
-        elif tool_name in SANDBOX_TOOL_TYPES:
-            # 3.5: labels are applied inside (output = untrusted, confidentiality of everything that went in)
-            return await self._sandbox_call(agent_node_id, tool_name, final_args)
+                ret_val = f"Executed {tool_name} successfully with args: {final_args}"
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - t_tool_start) * 1000.0
+            from agentos.usage.guard import RunLimitExceeded
+            if isinstance(exc, RunLimitExceeded):
+                limit_hit = True
+            if tool_span:
+                tool_span.set_status("failed", limit_hit)
+                tool_span.__exit__(type(exc), exc, exc.__traceback__)
+                tool_span = None
+            from agentos.telemetry import record_tool_call
+            record_tool_call(tool_name, duration_ms, "failed", limit_hit)
+            raise
         else:
-            ret_val = f"Executed {tool_name} successfully with args: {final_args}"
+            duration_ms = (time.perf_counter() - t_tool_start) * 1000.0
+            if tool_span:
+                tool_span.set_status("ok", limit_hit)
+                tool_span.__exit__(None, None, None)
+                tool_span = None
+            from agentos.telemetry import record_tool_call
+            record_tool_call(tool_name, duration_ms, "ok", limit_hit)
+        finally:
+            if tool_span:
+                tool_span.set_status("ok", limit_hit)
+                tool_span.__exit__(None, None, None)
+                tool_span = None
 
         # 6. Accumulate tool output label: tool outputs are untrusted sources (shared rule, see tool_catalog;
         #    MCP outputs carry the confidentiality the admin configured)
-        self.agent_context_label = context_after_tool_output(self.agent_context_label, entry)
+        if tool_name not in SANDBOX_TOOL_TYPES:
+            self.agent_context_label = context_after_tool_output(self.agent_context_label, entry)
 
         return ret_val
 

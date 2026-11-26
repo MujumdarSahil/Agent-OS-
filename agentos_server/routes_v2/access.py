@@ -95,17 +95,33 @@ def _err(e: AccessError) -> HTTPException:
 
 
 def _client_ip(request: Request) -> str:
+    """Return the resolved client IP (real client, respecting trusted proxies).
+
+    Part 0 / 3.6b: SecurityMiddleware resolves the IP early and stores it in request.state.client_ip;
+    we fall back to the direct peer address for requests that bypass middleware (e.g. tests that use
+    the FastAPI TestClient directly against a bare app).
+    """
+    resolved = getattr(request.state, "client_ip", None)
+    if resolved:
+        return resolved
     return request.client.host if request.client else "unknown"
+
+
+def _is_secure(request: Request) -> bool:
+    scheme = getattr(request.state, "scheme", None)
+    if scheme:
+        return scheme == "https"
+    return request.url.scheme == "https"
 
 
 def _set_session_cookie(response: Response, request: Request, raw: str) -> None:
     response.set_cookie(SESSION_COOKIE, raw, max_age=SESSION_ABSOLUTE_S, path="/", httponly=True,
-                        samesite="strict", secure=request.url.scheme == "https")
+                        samesite="strict", secure=_is_secure(request))
 
 
 def _clear_session_cookie(response: Response, request: Request) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict",
-                           secure=request.url.scheme == "https")
+                           secure=_is_secure(request))
 
 
 def _me(request: Request, p: Principal) -> dict[str, Any]:
