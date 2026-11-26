@@ -97,6 +97,7 @@ V2_API_ROUTES = sorted([
     # 4.0: natural-language builder (drafts only; never saves or publishes)
     ("/api/v2/flows/generate", "POST"),
     ("/api/v2/flows/check", "POST"),
+    ("/api/v2/flows/{flow_id}/attack-test", "POST"),  # 4.1 "Attack my flow"
     ("/api/v2/flows/{flow_id}/publish", "POST"),
     ("/api/v2/flows/{flow_id}/runs", "GET"),
     ("/api/v2/flows/{flow_id}/runs", "POST"),
