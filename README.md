@@ -203,6 +203,8 @@ a change as a diff you apply or discard. See [use case 13](examples/usecases/13-
 
 **Testing flows (4.2)** — *Works today (verified in MOCK: scripted test model, fake senders, fixture responses)*. Save a run as a test case, write expectations, and run the suite against the draft or a published version. You can run it with the free MOCK model, the normal model chain or chosen models. Results show pass/fail diffs, regressions and a model comparison, and an optional gate can require passing tests before Publish. Test runs never send anything. See [Testing flows](#testing-flows) below.
 
+**Versions and environments (4.3)** — *Works today (verified in MOCK with file storage; the Mongo store has a LIVE test for the CI mongo-live job, not yet run)*. Each flow has a staging and a production environment that point to a published version. Publish with a change note, try it in staging (sends are simulated there), compare versions with security changes listed first, promote with checks and roll back in one click. See [Versions and environments](#versions-and-environments) below.
+
 **Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
 an if/else branch, join parallel branches, pause for a while and continue later, call another
 published flow, and send a failed step to an error handler instead of failing the whole run.
@@ -308,6 +310,30 @@ model; it is clearly marked non-deterministic.
   runs first.
 - **CI:** `agentos test <flow_id> [--version N] [--model ...] [--tags security] [--junit out.xml]` exits with 0 only
   if every case passes. Example: [use case 15](examples/usecases/15-flow-tests/README.md).
+
+### Versions and environments
+
+Every publish creates an immutable version with a short **change note**. Each flow has two environments, **staging**
+and **production**, and each points to one published version (4.3).
+
+- **What runs where:** webhooks and schedules are bound to an environment (existing ones: production) and run the
+  version it points to when the run starts. A later promote or rollback never changes a run that already started.
+  The Run dialog lets you choose the draft, staging, production or a specific version.
+- **Staging is safe by default:** in staging (and draft runs) email and Slack sends are simulated and labelled in the
+  run panel, unless an admin maps staging to specific channels (for example a test mailbox).
+- **Publishing** creates the version only. Per flow: "auto-deploy to staging" (default on) and "auto-deploy to
+  production" (on for flows that existed before 4.3, so they behave as before; off for new flows).
+- **Promote and roll back** (Versions tab or `agentos flows promote|rollback`): the static security check runs again
+  against the current policy and refuses if it now fails. Optional per flow: the 4.2 test gate for that exact
+  version (warn or block), and a "second person" rule (who published a version cannot promote it to production).
+  Every promote and rollback is audited.
+- **Compare** any two versions (or the draft and a version). Security-relevant changes come first: a sink added, a
+  pinned recipient or host changed, an approval removed, a validator or extraction loosened, a new path from an
+  untrusted source to a sink, and the security check before and after.
+- **Roles:** viewers see versions, environments and diffs; builders publish and promote or roll back staging; admins
+  do production, the environment settings and webhook/schedule bindings.
+
+Example: [use case 16](examples/usecases/16-environments/README.md).
 
 ### Model providers and fallback (2.0 defaults)
 

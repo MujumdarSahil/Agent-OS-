@@ -241,6 +241,24 @@ Scope notes from the original plan:
 
   API `/api/v2/flows/{flow_id}/tests...` (viewer reads; builder/admin writes; audited with counts only), CLI
   `agentos test` (exit 0 only if all pass, JUnit), editor Tests tab, use case 15. Evidence: `docs/evidence/4.2.md`.
+- **4.3 Versions and environments**: **implemented, waiting for review** (MOCK; the Mongo deployment store has a LIVE test
+  for the mongo-live CI job, not yet run). `agentos/flows/environments.py`, `agentos/flows/version_diff.py`:
+  - per flow, `staging` and `production` each point to one published version (deployment records with history;
+    file + Mongo; compare-and-set on the expected current version, so concurrent promotions cannot both win);
+  - startup migration: flows from before 4.3 get production = latest published version and keep auto-deploy to
+    production on publish; new flows deploy to staging only;
+  - webhooks and schedules are bound to an environment (existing ones: production) and resolve its version when a run
+    STARTS (the run records version and environment); manual runs choose draft / staging / production / a version;
+  - staging and draft runs simulate send_email / send_slack unless an admin maps staging channels;
+  - publish needs a change note; promote / rollback re-run the static check against the CURRENT policy, plus the
+    optional promote test gate (warn/block, 4.2 suite against that exact version) and second-person rule for
+    production; all audited;
+  - version diff with security-relevant changes first (sink added/removed, recipient or host changed, approval
+    removed, validator/extraction loosened, new untrusted-to-sink path, analysis before/after).
+
+  API: viewer reads versions, environments and diffs; builder promotes/rolls back staging; admin production, the
+  environment settings and trigger bindings. CLI `agentos flows versions|diff|promote|rollback`. Editor Versions tab,
+  use case 16. Evidence: `docs/evidence/4.3.md`.
 - Security benchmark integration: **AgentDojo** evaluation harness (adapter in 4.1b; LIVE numbers pending).
 - In-house AgentOS workflow-injection benchmark measuring:
   - Attack Success Rate (ASR) across standard and adaptive attacks.
