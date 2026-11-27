@@ -184,6 +184,8 @@ class FlowRecord(BaseModel):
     change_note: Optional[str] = None
     # 4.3: response-only result of auto-deploy after publish ({environment: {deployed, version|reason}}); never stored
     deployments: Optional[dict[str, Any]] = None
+    # 4.3: response-only {staging: version | None, production: version | None} (Flows list badges); never stored
+    deployed: Optional[dict[str, Any]] = None
 
 
 class RunRecord(BaseModel):

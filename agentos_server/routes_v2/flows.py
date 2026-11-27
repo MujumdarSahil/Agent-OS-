@@ -71,16 +71,22 @@ def _publish_digest(flow: FlowRecord) -> Optional[str]:
 
 
 async def _with_publish_view(storage: Any, flow: FlowRecord) -> FlowRecord:
-    """3.4 Part 0c: add published_version / unpublished_changes so the UI shows "published vN" or "draft"."""
+    """3.4 Part 0c: add published_version / unpublished_changes so the UI shows "published vN" or "draft";
+    4.3: and the version each environment points to (``deployed``)."""
     versions = await storage.flows.list_versions(flow.id)
     latest = versions[-1] if versions else None
+    deployed = None
+    if getattr(storage, "deployments", None) is not None and latest is not None:
+        cur = await storage.deployments.current(flow.id)
+        deployed = {env: (cur[env].version if env in cur else None) for env in ("staging", "production")}
     if latest is None:
-        return flow.model_copy(update={"published_version": None, "unpublished_changes": True})
+        return flow.model_copy(update={"published_version": None, "unpublished_changes": True, "deployed": deployed})
     if flow.status == "published" and flow.version == latest.version:
         changed = False
     else:
         changed = _publish_digest(flow) != latest.content_sha256
-    return flow.model_copy(update={"published_version": latest.version, "unpublished_changes": changed})
+    return flow.model_copy(update={"published_version": latest.version, "unpublished_changes": changed,
+                                   "deployed": deployed})
 
 
 @router.get("", response_model=List[FlowRecord])
@@ -110,7 +116,8 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
     storage = request.app.state.storage
     # response-only / server-set fields are never taken from the client
     flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None,
-                                   "test_gate": None, "change_note": None, "deployments": None})
+                                   "test_gate": None, "change_note": None, "deployments": None,
+                                   "deployed": None})
     details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
                "content_sha256": _flow_digest(flow)}
     try:
