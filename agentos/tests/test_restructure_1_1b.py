@@ -84,6 +84,8 @@ V2_API_ROUTES = sorted([
     ("/api/v2/audit/verify", "GET"),
     ("/api/v2/budgets", "GET"),  # 3.2: usage, cost and budgets
     ("/api/v2/budgets", "PUT"),
+    ("/api/v2/environments/staging-channels", "GET"),  # 4.3 environments
+    ("/api/v2/environments/staging-channels", "PUT"),  # 4.3 environments
     ("/api/v2/flows/{flow_id}/runs/{run_id}/usage", "GET"),
     ("/api/v2/usage", "GET"),
     ("/api/v2/agents/{name}", "DELETE"),
@@ -98,6 +100,15 @@ V2_API_ROUTES = sorted([
     ("/api/v2/flows/generate", "POST"),
     ("/api/v2/flows/check", "POST"),
     ("/api/v2/flows/{flow_id}/attack-test", "POST"),  # 4.1 "Attack my flow"
+    ("/api/v2/flows/{flow_id}/diff", "GET"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments", "GET"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/history", "GET"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/production/promote", "POST"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/production/rollback", "POST"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/settings/production", "PUT"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/settings/staging", "PUT"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/staging/promote", "POST"),  # 4.3 environments
+    ("/api/v2/flows/{flow_id}/environments/staging/rollback", "POST"),  # 4.3 environments
     ("/api/v2/flows/{flow_id}/tests", "GET"),  # 4.2 flow tests
     ("/api/v2/flows/{flow_id}/tests", "POST"),  # 4.2 flow tests
     ("/api/v2/flows/{flow_id}/tests/from-run", "POST"),  # 4.2 flow tests
@@ -121,7 +132,9 @@ V2_API_ROUTES = sorted([
     ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "GET"),
     ("/api/v2/flows/{flow_id}/runs/{run_id}/events", "WS"),
     ("/api/v2/flows/{flow_id}/versions", "GET"),
+    ("/api/v2/flows/{flow_id}/versions/summary", "GET"),  # 4.3 environments
     ("/api/v2/flows/{flow_id}/versions/{version}", "GET"),
+    ("/api/v2/flows/{flow_id}/versions/{version}/archive", "POST"),  # 4.3 environments
     ("/api/v2/mcp-servers", "GET"),
     ("/api/v2/mcp-servers", "POST"),
     ("/api/v2/mcp-servers/{name}", "DELETE"),
@@ -158,6 +171,7 @@ V2_API_ROUTES = sorted([
     ("/api/v2/schedules/{schedule_id}", "DELETE"),
     ("/api/v2/schedules/{schedule_id}", "GET"),
     ("/api/v2/schedules/{schedule_id}", "PUT"),
+    ("/api/v2/schedules/{schedule_id}/environment", "PUT"),  # 4.3 environments
     ("/api/v2/squads", "GET"),
     ("/api/v2/squads", "POST"),
     ("/api/v2/squads/{name}", "DELETE"),
@@ -174,6 +188,7 @@ V2_API_ROUTES = sorted([
     ("/api/v2/webhooks/{webhook_id}", "DELETE"),
     ("/api/v2/webhooks/{webhook_id}", "GET"),
     ("/api/v2/webhooks/{webhook_id}", "PUT"),
+    ("/api/v2/webhooks/{webhook_id}/environment", "PUT"),  # 4.3 environments
     ("/api/v2/webhooks/{webhook_id}/rotate", "POST"),
 ])
 
