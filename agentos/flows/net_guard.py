@@ -102,8 +102,13 @@ def _normalize_host(host: str) -> str:
 
 
 def host_matches_allowlist(host: str, ips: Iterable[str], allowlist: Iterable[str]) -> bool:
-    """Admin allowlist entries: exact hostnames, '*.suffix' wildcards, or IP/CIDR ranges."""
-    h = _normalize_host(host)
+    """Admin allowlist entries: exact hostnames, '*.suffix' wildcards, or IP/CIDR ranges.
+
+    4.1b: hosts are compared after NFKC/IDN normalisation (shared ``destinations`` check); a host with look-alike
+    characters never matches a name entry."""
+    from agentos.flows.destinations import canonical_host
+
+    h = canonical_host(_normalize_host(host)) or ""
     parsed_ips = []
     for ip in ips:
         try:
@@ -115,13 +120,14 @@ def host_matches_allowlist(host: str, ips: Iterable[str], allowlist: Iterable[st
         if not e:
             continue
         if e.startswith("*."):
-            if h.endswith(e[1:]) and h != e[2:]:
+            suffix = canonical_host(e[2:])
+            if h and suffix and h.endswith("." + suffix):
                 return True
             continue
         try:
             net = ipaddress.ip_network(e, strict=False)
         except ValueError:
-            if h == _normalize_host(e):
+            if h and h == canonical_host(_normalize_host(e)):
                 return True
             continue
         if parsed_ips and all(ip.version == net.version and ip in net for ip in parsed_ips):

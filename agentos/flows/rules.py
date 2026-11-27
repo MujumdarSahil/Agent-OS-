@@ -102,6 +102,7 @@ def evaluate_sink_argument_rule(
     path: list[str],
     sink_context: dict[str, Any] | None = None,
     approval_gated: bool = False,
+    lookalike_confirmed: bool = False,
 ) -> list[RuleViolation]:
     """Evaluate IFC rules for a single sink argument.
 
@@ -263,6 +264,29 @@ def evaluate_sink_argument_rule(
                     ),
                 )
             )
+
+    # 7. 4.1b: a destination with look-alike characters (mixed scripts, Cyrillic/Greek letters that look Latin,
+    #    full-width) is treated as untrusted and outside: refused when pinned (publish), when an agent picks it
+    #    (proxy) and at runtime, unless a human approved it WITH the extra look-alike confirmation.
+    if spec.side_effect == SideEffectClass.EXTERNAL_SEND and not lookalike_confirmed:
+        from agentos.flows.destinations import analyze, destination_kind, recipient_values
+
+        base_arg = arg_name.rsplit(".", 1)[-1]
+        found: list[tuple[str, Any]] = []
+        if base_arg == spec.recipient_arg and pinned_to_val is not None:
+            kind = destination_kind(base_arg)
+            found += [(v, analyze(v, kind)) for v in recipient_values(pinned_to_val)]
+        if base_arg == "url" and isinstance((sink_context or {}).get("host"), str):
+            found.append((sink_context["host"], analyze(sink_context["host"], "host")))
+        bad = [(v, info) for v, info in found if info.confusable]
+        if bad:
+            v, info = bad[0]
+            violations.append(RuleViolation(
+                node_id=node_id, target_arg=arg_name, path=path,
+                reason=(f"Destination {info.ascii_form!r} has look-alike characters ({'; '.join(info.reasons)}); "
+                        "it is treated as untrusted and outside, and needs an approval with the look-alike "
+                        "confirmation."),
+            ))
 
     return violations
 
