@@ -201,6 +201,8 @@ a change as a diff you apply or discard. See [use case 13](examples/usecases/13-
 
 **Injection benchmark and "Attack my flow" (4.1)** — *Works today (verified in MOCK: an adversarial scripted model that always obeys the injection, fake senders only)*. `python -m benchmarks.awib` runs 199 injection attacks (11 families) against the use-case flows. Attack success rate is 40.7% for a naive executor and 0.0% for AgentOS with an attentive approver (6.0% if the approver approves and confirms everything); since 4.1b, approval cards flag Unicode look-alike recipients and need an extra confirmation (see [the AWIB results](docs/evidence/4.1-results.md)). An AgentDojo adapter (benchmark only, `pip install -e ".[benchmark]"`) puts AgentDojo's tools behind the AgentOS tool proxy; its CI check is a MOCK ground-truth replay and LIVE numbers are not published yet ([4.1b evidence](docs/evidence/4.1b.md)). In the editor, **Attack my flow** runs the attacks that fit your flow on a copy and shows a score, where each attack stopped and the fixes. Nothing is sent or saved.
 
+**Testing flows (4.2)** — *Works today (verified in MOCK: scripted test model, fake senders, fixture responses)*. Save a run as a test case, write expectations, and run the suite against the draft or a published version. You can run it with the free MOCK model, the normal model chain or chosen models. Results show pass/fail diffs, regressions and a model comparison, and an optional gate can require passing tests before Publish. Test runs never send anything. See [Testing flows](#testing-flows) below.
+
 **Branching, waiting, sub-flows and error handling** — *Works today (verified)*. A flow can take
 an if/else branch, join parallel branches, pause for a while and continue later, call another
 published flow, and send a failed step to an error handler instead of failing the whole run.
@@ -283,6 +285,29 @@ open top to bottom. It shows only what AgentOS records (cost since 3.2, alerts s
 **Packs** — *Experimental (v1 agent/tool packaging via `agentos pack`); Planned (2.0 packs carrying
 flows, prompts and policies)*. Packs will let you share a ready-made automation and install it with
 one command.
+
+### Testing flows
+
+Every flow has a **Tests** tab in the editor (4.2). A test case is the trigger input plus expectations, for example:
+the final status, a node output field (equals / contains / regex / JSON path), an extraction value, a sink called or
+not called (or called with a recipient), "nothing reached an address outside the internal domains", an approval
+reached, or cost / duration / model-call limits. An optional "judge" check grades an output against a rubric with a
+model; it is clearly marked non-deterministic.
+
+- **Create cases:** "Save as test case" on any run (input, recorded HTTP responses and suggested expectations to
+  edit), write one by hand, import reviewed items from the review queue (the corrected output becomes the expected
+  value), or click **Add security tests** to generate cases from the attack families that fit the flow.
+- **Run safely:** test runs never cause real side effects. Email and Slack go to fake senders. HTTP, fetch_url and
+  MCP calls get the case's fixture responses, and a call without a fixture fails the case. Admins can allow real
+  read-only HTTP GETs; sends always stay fake.
+- **Models:** MOCK (scripted, free), the normal router chain, or a chosen `provider/model`. Real model calls count
+  against budgets and run limits and are tagged as test usage. **Compare models** runs the suite on 2-4 models and
+  shows pass rate, cost and median latency.
+- **Regressions:** every suite run is compared with the previous one, and newly failing cases are listed first.
+- **Publish gate (optional, per flow):** "warn" or "block" publishing unless the tests pass; the security check still
+  runs first.
+- **CI:** `agentos test <flow_id> [--version N] [--model ...] [--tags security] [--junit out.xml]` exits with 0 only
+  if every case passes. Example: [use case 15](examples/usecases/15-flow-tests/README.md).
 
 ### Model providers and fallback (2.0 defaults)
 

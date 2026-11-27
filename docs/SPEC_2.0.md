@@ -226,6 +226,21 @@ Scope notes from the original plan:
   and need an extra confirmation (use case 14). AgentDojo adapter (`benchmarks/agentdojo`, optional `benchmark` extra):
   AgentDojo's tools behind the real AgentOS tool proxy; CI smoke with the ground-truth replay; full LIVE runs via
   `scripts/agentdojo_run.py` (not in CI). Evidence: `docs/evidence/4.1b.md`.
+- **4.2 Test cases for flows**: **done** (MOCK; router/provider runs and the judge are not run LIVE in CI).
+  `agentos/flowtests`:
+  - cases per flow (file + Mongo storage) with typed expectations: status, output, extraction, sink, security,
+    approval reached, limits, and a judge built on quarantined extraction, marked non-deterministic;
+  - test runs use the real FlowEngine (trigger `test`; they open in the run panel) with fake email/Slack and fixture
+    HTTP/fetch_url/MCP responses (a call without a fixture fails the case). Admin-only live read-only GETs;
+  - models: MOCK, router or `provider/model`; real calls count against budgets and are tagged `source=test` in the
+    usage ledger;
+  - cases can come from a run, from the 3.6a review export or from the 4.1 attack families; SECRET values are
+    excluded unless an admin includes them (audited);
+  - model comparison, regression against the previous run of the same flow and model, and an optional per-flow
+    publish gate (warn/block; runs after the static check).
+
+  API `/api/v2/flows/{flow_id}/tests...` (viewer reads; builder/admin writes; audited with counts only), CLI
+  `agentos test` (exit 0 only if all pass, JUnit), editor Tests tab, use case 15. Evidence: `docs/evidence/4.2.md`.
 - Security benchmark integration: **AgentDojo** evaluation harness (adapter in 4.1b; LIVE numbers pending).
 - In-house AgentOS workflow-injection benchmark measuring:
   - Attack Success Rate (ASR) across standard and adaptive attacks.
