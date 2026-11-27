@@ -461,7 +461,7 @@ class FileFlowRepository:
 
     async def publish(
         self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None,
-        published_by: Optional[str] = None,
+        published_by: Optional[str] = None, change_note: Optional[str] = None,
     ) -> FlowRecord:
         draft = await self.get_draft(flow_id)
         if draft is None:
@@ -494,6 +494,7 @@ class FileFlowRepository:
             policy_hash=policy_hash,
             analysis=analysis,
             published_by=published_by,
+            change_note=change_note,
             created_at=draft.created_at,
             updated_at=utcnow(),
             published_at=utcnow(),
@@ -657,6 +658,12 @@ def default_vault_path() -> Path:
     return checked(Path(os.environ.get("AGENTOS_VAULT_PATH") or Path.home() / ".agentos" / "vault.json"), "vault file")
 
 
+def _file_deployments(project_path: str) -> Any:
+    from agentos.storage.file.deployments import FileDeploymentRepository
+
+    return FileDeploymentRepository(project_path)
+
+
 def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> Storage:
     from agentos.core.home_guard import check_path
 
@@ -683,5 +690,6 @@ def open_file_storage(project_path: str, vault_path: Optional[str] = None) -> St
         webhooks=FileWebhookRepository(project_path),
         schedules=FileScheduleRepository(project_path),
         settings=FileSettingsRepository(project_path),
+        deployments=_file_deployments(project_path),
         location=project_path,
     )

@@ -32,6 +32,7 @@ from agentos.storage.models import (
     entity_key,
     utcnow,
 )
+from agentos.storage.mongo.deployments import MongoDeploymentRepository
 from agentos.storage.ports import DuplicateIdempotencyKeyError, FencingTokenError, Storage
 
 M = TypeVar("M", bound=BaseModel)
@@ -191,7 +192,7 @@ class MongoFlowRepository:
 
     async def publish(
         self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None,
-        published_by: Optional[str] = None,
+        published_by: Optional[str] = None, change_note: Optional[str] = None,
     ) -> FlowRecord:
         draft = await self.get_draft(flow_id)
         if draft is None:
@@ -219,6 +220,7 @@ class MongoFlowRepository:
             policy_hash=policy_hash,
             analysis=analysis,
             published_by=published_by,
+            change_note=change_note,
             created_at=draft.created_at,
             updated_at=utcnow(),
             published_at=utcnow(),
@@ -368,6 +370,9 @@ async def ensure_indexes(db) -> None:
     await db.flows.create_index([("record_type", ASCENDING)])
     await db.webhooks.create_index([("secret_path_hash", ASCENDING)], unique=True)
     await db.schedules.create_index([("flow_id", ASCENDING)])
+    # 4.3: environments
+    await db.flow_deployments.create_index([("flow_id", ASCENDING)])
+    await db.flow_deployment_history.create_index([("flow_id", ASCENDING), ("deployed_at", DESCENDING)])
     # 3.1 audit chain: seq is the _id (unique); prev_hash unique so the chain cannot fork
     await db.audit.create_index("prev_hash", unique=True)
 
@@ -397,6 +402,7 @@ async def open_mongo_storage(uri: str, db_name: str = DEFAULT_DB, timeout_ms: in
         webhooks=MongoWebhookRepository(db.webhooks),
         schedules=MongoScheduleRepository(db.schedules),
         settings=MongoNamedRepository(db.settings, ProjectSettingsRecord),
+        deployments=MongoDeploymentRepository(db),
     )
     storage._closer = client.close
     return storage

@@ -10,7 +10,9 @@ from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtim
 
 from agentos.storage.models import (
     AgentRecord,
+    DeploymentRecord,
     EncryptedSecretRecord,
+    EnvironmentSettings,
     EventRecord,
     FlowRecord,
     MCPServerRecord,
@@ -20,6 +22,7 @@ from agentos.storage.models import (
     RunRecord,
     ScheduleRecord,
     SquadRecord,
+    StagingChannels,
     ToolRecord,
     WebhookRecord,
 )
@@ -33,6 +36,15 @@ class ReadOnlyEntityError(Exception):
 
 class FencingTokenError(Exception):
     """Raised when a write or operation is attempted with an expired or superseded lease."""
+
+
+class DeploymentConflict(Exception):
+    """4.3: an environment no longer points to the version the caller expected (another promote or rollback won)."""
+
+    def __init__(self, flow_id: str, environment: str, expected: Optional[int], current: Optional[int]) -> None:
+        super().__init__(f"{flow_id} {environment}: expected v{expected}, now v{current}")
+        self.expected = expected
+        self.current = current
 
 
 class DuplicateIdempotencyKeyError(Exception):
@@ -99,7 +111,7 @@ class FlowRepository(Protocol):
 
     async def publish(
         self, flow_id: str, content_sha256: str, policy_hash: str, analysis: Optional[Dict[str, Any]] = None,
-        published_by: Optional[str] = None,
+        published_by: Optional[str] = None, change_note: Optional[str] = None,
     ) -> FlowRecord: ...
 
     async def delete_flow(self, flow_id: str) -> bool:
@@ -143,6 +155,27 @@ class ScheduleRepository(Protocol):
     async def delete(self, schedule_id: str) -> bool: ...
 
 
+@runtime_checkable
+class DeploymentRepository(Protocol):
+    """4.3: environment pointers (staging / production -> published version), their history and per-flow settings.
+    ``set`` is a compare-and-set: it raises DeploymentConflict unless the environment still points to
+    ``expected_version`` (None = not deployed yet), so two concurrent promotions cannot both win."""
+
+    async def get(self, flow_id: str, environment: str) -> Optional[DeploymentRecord]: ...
+    async def current(self, flow_id: str) -> Dict[str, DeploymentRecord]: ...
+    async def set(self, record: DeploymentRecord, expected_version: Optional[int]) -> DeploymentRecord: ...
+    async def history(self, flow_id: str, limit: int = 100) -> List[DeploymentRecord]: ...
+    async def get_settings(self, flow_id: str) -> Optional[EnvironmentSettings]: ...
+    async def put_settings(self, settings: EnvironmentSettings) -> None: ...
+    async def create_settings(self, settings: EnvironmentSettings) -> bool:
+        """Create the settings record only if none exists; True if this call created it."""
+        ...
+    async def archived_versions(self, flow_id: str) -> List[int]: ...
+    async def archive_version(self, flow_id: str, version: int) -> None: ...
+    async def get_staging_channels(self) -> StagingChannels: ...
+    async def put_staging_channels(self, channels: StagingChannels) -> None: ...
+
+
 @dataclass
 class Storage:
     """All repositories of one backend."""
@@ -161,6 +194,8 @@ class Storage:
     webhooks: Optional[WebhookRepository] = None
     schedules: Optional[ScheduleRepository] = None
     settings: Optional[NamedRepository[ProjectSettingsRecord]] = None
+    # 4.3: environments (staging / production) per flow
+    deployments: Optional[DeploymentRepository] = None
     # Project directory for the File backend, None for Mongo.
     location: Optional[str] = None
 

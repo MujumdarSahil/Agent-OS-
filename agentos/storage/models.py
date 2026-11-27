@@ -180,6 +180,10 @@ class FlowRecord(BaseModel):
     unpublished_changes: Optional[bool] = None
     # 4.2: response-only result of the "require tests to pass" publish gate (warn mode); never stored
     test_gate: Optional[dict[str, Any]] = None
+    # 4.3: the publisher's change note, stored with the immutable version (None for versions published before 4.3)
+    change_note: Optional[str] = None
+    # 4.3: response-only result of auto-deploy after publish ({environment: {deployed, version|reason}}); never stored
+    deployments: Optional[dict[str, Any]] = None
 
 
 class RunRecord(BaseModel):
@@ -206,6 +210,9 @@ class RunRecord(BaseModel):
     # 4.2: test runs only: the exact flow definition the case ran against ({target, version, content_sha256, flow});
     # a test run is never resolved later from "latest published"
     flow_snapshot: Optional[Dict[str, Any]] = None
+    # 4.3: the environment the run was started in ("staging" | "production" | "draft"); None = a specific version or a
+    # run from before 4.3. Resolved once when the run starts; a later promote or rollback never changes it.
+    environment: Optional[str] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 
@@ -223,6 +230,8 @@ class WebhookRecord(BaseModel):
     secret_key_ref: str = Field(..., min_length=1)
     rate_limit_per_minute: int = 60
     enabled: bool = True
+    # 4.3: the environment whose version this webhook runs (records from before 4.3 load as production)
+    environment: Literal["staging", "production"] = "production"
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 
@@ -241,6 +250,8 @@ class ScheduleRecord(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     misfire_policy: str = "skip"  # "skip" | "fire_once"
     enabled: bool = True
+    # 4.3: the environment whose version this schedule runs (records from before 4.3 load as production)
+    environment: Literal["staging", "production"] = "production"
     last_run_at: Optional[float] = None
     next_run_at: Optional[float] = None
     created_at: Timestamp = Field(default_factory=utcnow)
@@ -255,3 +266,42 @@ class EventRecord(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict)
     ts: Timestamp = Field(default_factory=utcnow)
     lease_id: Optional[str] = None
+
+
+# --------------------------------------------------------------------------------------------- 4.3 environments
+
+ENVIRONMENTS = ("staging", "production")
+Environment = Literal["staging", "production"]
+
+
+class DeploymentRecord(BaseModel):
+    """Which published version an environment of a flow points to (4.3). One current record per (flow, environment);
+    every change is also appended to the flow's deployment history."""
+    flow_id: str = Field(..., min_length=1)
+    environment: Environment
+    version: int = Field(..., ge=1)
+    previous_version: Optional[int] = None
+    action: Literal["migrate", "publish", "promote", "rollback"] = "promote"
+    deployed_by: Optional[str] = None
+    deployed_at: Timestamp = Field(default_factory=utcnow)
+    note: str = Field(default="", max_length=500)
+
+
+class EnvironmentSettings(BaseModel):
+    """Per-flow environment settings (4.3). A flow without a settings record is a flow from before 4.3 (legacy)."""
+    flow_id: str = Field(..., min_length=1)
+    auto_deploy_staging: bool = True
+    auto_deploy_production: bool = False
+    promote_test_gate: Literal["off", "warn", "block"] = "off"
+    second_person: bool = False
+    legacy: bool = False
+    updated_by: Optional[str] = None
+    updated_at: Timestamp = Field(default_factory=utcnow)
+
+
+class StagingChannels(BaseModel):
+    """Admin mapping of staging sends to real notification channels (4.3). Empty = every staging send is simulated."""
+    email_channel: Optional[str] = Field(default=None, max_length=100)
+    slack_channels: List[str] = Field(default_factory=list, max_length=20)
+    updated_by: Optional[str] = None
+    updated_at: Timestamp = Field(default_factory=utcnow)
