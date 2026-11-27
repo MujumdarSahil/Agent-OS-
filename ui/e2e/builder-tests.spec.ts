@@ -53,6 +53,12 @@ test('Tests tab: run all, regression, diffs, save from run, security tests, publ
   await expect(page.getByTestId('tests-counts')).toHaveAttribute('data-pass', '2', { timeout: 90000 })
   await expect(page.getByTestId('regression-summary')).toContainText('First run')
 
+  // 4.2 review fix: the urgent case's run waited at the approval; the runner closed it after evaluating, and its
+  // approval card is not reachable (the run panel shows no card; the API would refuse with 409)
+  await page.getByTestId('tests-result').nth(1).getByTestId('tests-open-run').click()
+  await expect(page.getByTestId('save-as-test')).toBeVisible()
+  await expect(page.getByTestId('approval-card')).toHaveCount(0)
+
   // A change that breaks a case: the regression summary and the diff show it
   const broken = { ...cases[0], expectations: [{ kind: 'status', equals: 'failed' }] }
   expect((await request.put(`/api/v2/flows/${id}/tests/${ids[0]}`, { data: broken, headers: AUTH })).status()).toBe(200)
@@ -89,4 +95,11 @@ test('Tests tab: run all, regression, diffs, save from run, security tests, publ
   // The flow list shows the last pass rate
   await page.goto('/flows')
   await expect(page.getByTestId(`tests-badge-${id}`)).toContainText('% pass')
+
+  // No test run shows up as waiting work: Approvals has nothing for this flow
+  // (other specs in this run may leave real waiting runs, so only this flow is checked)
+  await page.goto('/approvals')
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByText('Loading…')).toHaveCount(0)
+  await expect(page.getByText(id)).toHaveCount(0)
 })
