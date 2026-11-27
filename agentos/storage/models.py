@@ -178,6 +178,8 @@ class FlowRecord(BaseModel):
     # the latest published version number and whether the draft differs from it.
     published_version: Optional[int] = None
     unpublished_changes: Optional[bool] = None
+    # 4.2: response-only result of the "require tests to pass" publish gate (warn mode); never stored
+    test_gate: Optional[dict[str, Any]] = None
 
 
 class RunRecord(BaseModel):
