@@ -269,7 +269,7 @@ async def test_changed_policy_refuses_promote_and_rollback_and_is_audited(projec
     await b.put(F, json=fixed)
     assert (await b.post(f"{F}/publish", json={"note": "fixed body"})).status_code == 200
     assert (await a.post(f"{F}/environments/production/promote", json={"version": 2})).status_code == 200
-    app.state.security_policy.internal_domains = []  # the admin tightens the policy after v1 was published
+    app.state.security_policy.internal_domains = set()  # the admin tightens the policy after v1 was published
     rb = await a.post(f"{F}/environments/production/rollback", json={"version": 1})
     assert rb.status_code == 409
     detail = rb.json()["detail"]
