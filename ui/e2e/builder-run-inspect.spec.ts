@@ -234,6 +234,8 @@ test.describe('1440x900', () => {
     await seed(request, f, false)
     await page.goto(`/flows/${f.id}`)
     await page.getByTestId('publish-flow').click()
+    await page.getByTestId('publish-note').fill('e2e change')
+    await page.getByTestId('publish-confirm').click()
     await expect(page.getByTestId('editor-message')).toContainText('Publish refused')
     // 2.4e: the words "Publish refused" appear once on the page (message), the list only explains why
     await expect(page.getByText('Publish refused', { exact: false })).toHaveCount(1)

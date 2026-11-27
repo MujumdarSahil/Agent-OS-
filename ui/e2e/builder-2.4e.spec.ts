@@ -185,6 +185,8 @@ test('README screenshots (MOCK): overview, run inspect, approval, publish refuse
   await seed(request, { ...unsafe, id: 'uc07_unsafe_demo', name: 'Support desk (unsafe variant)' }, false)
   await page.goto('/flows/uc07_unsafe_demo')
   await page.getByTestId('publish-flow').click()
+  await page.getByTestId('publish-note').fill('e2e change')
+  await page.getByTestId('publish-confirm').click()
   await expect(page.getByTestId('violation-list')).toBeVisible()
   await page.screenshot({ path: path.join(IMAGES, 'publish-refused.png') })
 

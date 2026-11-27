@@ -83,6 +83,8 @@ test('Tests tab: run all, regression, diffs, save from run, security tests, publ
   await page.getByTestId('tests-gate-save').click()
   await expect(page.getByTestId('tests-info')).toHaveText('Publish gate saved.')
   await page.getByTestId('publish-flow').click()
+  await page.getByTestId('publish-note').fill('e2e change')
+  await page.getByTestId('publish-confirm').click()
   await expect(page.getByText(/Publish refused: tests failed/)).toBeVisible({ timeout: 120000 })
   await expect(page.getByTestId('flow-status')).toHaveText('draft')
 

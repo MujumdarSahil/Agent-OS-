@@ -91,6 +91,8 @@ async function exported(page: Page) {
 test('use case 01 benign flow: build -> save -> publish OK', async ({ page }) => {
   await buildUc01(page, 'uc01_benign_ui', true)
   await page.getByTestId('publish-flow').click()
+  await page.getByTestId('publish-note').fill('e2e change')
+  await page.getByTestId('publish-confirm').click()
   await expect(page.getByTestId('editor-message')).toHaveText('Published version 1.')
   // 3.4 Part 0c: a published flow says which version, not "draft"
   await expect(page.getByTestId('flow-status')).toHaveText('published v1')
@@ -114,6 +116,8 @@ test('use case 01 benign flow: build -> save -> publish OK', async ({ page }) =>
 test('use case 01 exfiltration variant: publish refused, agent node highlighted', async ({ page }) => {
   await buildUc01(page, 'uc01_exfil_ui', false)
   await page.getByTestId('publish-flow').click()
+  await page.getByTestId('publish-note').fill('e2e change')
+  await page.getByTestId('publish-confirm').click()
 
   await expect(page.getByTestId('editor-message')).toContainText('Publish refused')
   const list = page.getByTestId('violation-list')

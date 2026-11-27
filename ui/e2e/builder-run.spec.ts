@@ -64,6 +64,8 @@ test('benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 se
   await page.getByTestId('save-flow').click()
   await expect(page.getByTestId('editor-message')).toHaveText('Saved draft.')
   await page.getByTestId('publish-flow').click()
+  await page.getByTestId('publish-note').fill('e2e change')
+  await page.getByTestId('publish-confirm').click()
   await expect(page.getByTestId('editor-message')).toHaveText('Published version 1.')
 
   await startRun(page, { text: 'Customer reports the export button does nothing.' })
