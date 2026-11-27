@@ -109,6 +109,7 @@ export default function Flows() {
                   name={f.name}
                   status={flowStatusLabel(f)}
                   version={f.published_version ?? f.version}
+                  deployed={f.deployed ?? null}
                   tests={testsQ.data?.[f.id]}
                   showVersions={openVersions === f.id}
                   onToggleVersions={() => setOpenVersions(v => (v === f.id ? null : f.id))}
@@ -128,6 +129,8 @@ function FlowRow(props: {
   name: string
   status: string
   version: number | null
+  /** 4.3: the version each environment points to */
+  deployed: { staging: number | null; production: number | null } | null
   tests?: { cases: number; last_pass_rate: number | null }
   showVersions: boolean
   onToggleVersions: () => void
@@ -170,7 +173,14 @@ function FlowRow(props: {
           )}
         </td>
         <td><span className="badge badge-default">{props.status}</span></td>
-        <td>{props.version ?? '-'}</td>
+        <td>
+          {props.version ?? '-'}
+          {props.deployed && (
+            <div className="text-muted" style={{ fontSize: 11 }} data-testid={`env-summary-${props.id}`}>
+              prod {props.deployed.production ? `v${props.deployed.production}` : '–'} / staging {props.deployed.staging ? `v${props.deployed.staging}` : '–'}
+            </div>
+          )}
+        </td>
         <td className="flex gap-2">
           <button className="btn btn-ghost btn-sm" data-testid={`settings-${props.id}`} onClick={() => setShowSettings(true)}>Settings</button>
           <button className="btn btn-ghost btn-sm" data-testid={`versions-${props.id}`} onClick={props.onToggleVersions}>Versions</button>

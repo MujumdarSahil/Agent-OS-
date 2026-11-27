@@ -9,6 +9,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { needs, useAuth } from '../components/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { apiErrorMessage, decideApproval, listRuns, runEventsUrl, startRun } from '../api/flows'
+import type { RunTarget } from '../api/flows'
+import { getVersionsSummary } from '../api/environments'
+import type { VersionsSummary } from '../api/environments'
 import {
   blockedCalls, eventSummary, finalOutput, formatMs, lastDecision, mergeEvents, missingSeqs, nodeIO, nodeStatuses,
   pendingApproval,
@@ -305,6 +308,22 @@ export function RunDialog({
   const [inputText, setInputText] = useState(() => JSON.stringify(sample ?? {}, null, 2))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // 4.3: what to run: an environment's current version, the draft (sends simulated), or a specific version
+  const [summary, setSummary] = useState<VersionsSummary | null>(null)
+  const [target, setTarget] = useState<string>('')
+  useEffect(() => {
+    let live = true
+    getVersionsSummary(flowId).then(s => {
+      if (!live) return
+      setSummary(s)
+      setTarget(t => t || (s.environments.production ? 'production' : s.environments.staging ? 'staging'
+        : s.versions.length ? `v${s.versions[0].version}` : 'draft'))
+    }).catch(() => setTarget(t => t || 'production'))
+    return () => { live = false }
+  }, [flowId])
+  const runTarget = (): RunTarget =>
+    target.startsWith('v') ? { version: Number(target.slice(1)) }
+      : target === 'draft' || target === 'staging' || target === 'production' ? { environment: target } : {}
 
   const run = async () => {
     setError(null)
@@ -319,7 +338,7 @@ export function RunDialog({
     }
     setBusy(true)
     try {
-      const r = await startRun(flowId, inputs)
+      const r = await startRun(flowId, inputs, runTarget())
       onStarted(r.run_id)
     } catch (e) {
       setError(`Run failed to start: ${apiErrorMessage(e)}`)
@@ -337,7 +356,22 @@ export function RunDialog({
       onKeyDown={e => e.key === 'Escape' && onClose()}
     >
       <div className="card" style={{ width: 560, maxWidth: '92vw', padding: 16 }}>
-        <div className="font-semibold mb-1">Run the latest published version</div>
+        <div className="font-semibold mb-1">Run this flow</div>
+        <label className="form-label" htmlFor="run-target">Version to run</label>
+        <select id="run-target" className="form-input" data-testid="run-target" value={target} onChange={e => setTarget(e.target.value)}>
+          {summary?.environments.production ? <option value="production">production (v{summary.environments.production})</option> : null}
+          {summary?.environments.staging ? <option value="staging">staging (v{summary.environments.staging}): sends simulated unless mapped</option> : null}
+          <option value="draft">draft (unpublished): sends simulated</option>
+          {(summary?.versions ?? []).filter(v => !v.archived).map(v => (
+            <option key={v.version} value={`v${v.version}`}>v{v.version}{v.change_note ? `: ${v.change_note.slice(0, 40)}` : ''}</option>
+          ))}
+        </select>
+        {(target === 'staging' || target === 'draft') && (
+          <div data-testid="run-target-simulated" style={{ fontSize: 11, color: 'var(--accent-amber)' }}>
+            {target === 'draft' ? 'Draft run: email and Slack sends are simulated, nothing is delivered.'
+              : 'Staging run: email and Slack sends are simulated unless an admin mapped staging channels.'}
+          </div>
+        )}
         <label className="form-label" htmlFor="run-input">Input (JSON)</label>
         <div className="text-muted" style={{ fontSize: 11, color: 'var(--accent-amber)' }} data-testid="untrusted-input-note">
           Inputs are treated as untrusted.
@@ -433,6 +467,8 @@ export default function ResultsPanel({
   }, [inspectNode, inspectSeq])
   const runStatus = finished?.status ?? runStatusFromEvents(events) ?? (runId ? 'queued' : '')
   const sends = events.filter(e => e.type === 'sink_committed').length
+  // 4.3: the environment the selected run started in (staging / draft: simulated sends)
+  const runEnv = history.data?.find(r => r.run_id === runId)?.environment ?? null
   // 3.3: a send with no configured channel is SIMULATED; say so (AgentOS-written reason from the sink result)
   const simulated = events
     .filter(e => e.type === 'sink_committed' && (e.data?.result as { status?: string } | undefined)?.status === 'simulated')
@@ -548,6 +584,12 @@ export default function ResultsPanel({
               stream <span data-testid="ws-state">{conn}</span> · connections <span data-testid="ws-connects">{connects}</span> ·
               sends <span data-testid="send-count">{sends}</span> · missing events <span data-testid="missing-seqs">{gaps.length}</span>
             </span>
+            {runEnv === 'staging' || runEnv === 'draft' ? (
+              <span data-testid="run-env-banner" style={{ color: 'var(--accent-amber)', fontWeight: 600 }}
+                    title="Sends in this run are simulated unless an admin mapped staging channels (drafts: always simulated)">
+                {runEnv === 'draft' ? 'DRAFT RUN' : 'STAGING'}
+              </span>
+            ) : runEnv === 'production' ? <span data-testid="run-env-banner" className="text-muted">production</span> : null}
             {simulated.length > 0 && (
               <span data-testid="simulated-sends" style={{ color: 'var(--accent-amber)' }} title="Configure a channel in Connect > Notification channels">
                 {simulated.length} send{simulated.length === 1 ? '' : 's'} {[...new Set(simulated)].join('; ')}

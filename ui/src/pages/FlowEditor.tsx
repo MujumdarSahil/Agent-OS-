@@ -34,6 +34,7 @@ import FlowSettingsModal from '../flow/FlowSettingsModal'
 import AiEditPanel from '../flow/AiEditPanel'
 import AttackPanel from '../flow/AttackPanel'
 import TestsPanel from '../flow/TestsPanel'
+import VersionsPanel from '../flow/VersionsPanel'
 import { caseFromRun } from '../api/flowTests'
 import type { TestCase, TestGateResult } from '../api/flowTests'
 import type { BuilderFlow } from '../api/builder'
@@ -123,7 +124,9 @@ function Editor() {
   const [panelDock, setPanelDock] = useState<'bottom' | 'right'>('bottom')
   const [inspectNode, setInspectNode] = useState<string | null>(null)
   const [inspectSeq, setInspectSeq] = useState(0)
-  const canBuild = useAuth().can('build') // 3.4: display only; the server refuses other roles
+  const auth = useAuth()
+  const canBuild = auth.can('build') // 3.4: display only; the server refuses other roles
+  const canAdmin = auth.can('admin') // 4.3: production promote / rollback and production settings
   const inspect = useCallback((id: string | null) => {
     setInspectNode(id)
     if (id) setInspectSeq(s => s + 1)
@@ -133,6 +136,9 @@ function Editor() {
   const [showAiEdit, setShowAiEdit] = useState(false) // 4.0 "Edit with AI"
   const [showAttack, setShowAttack] = useState(false) // 4.1 "Attack my flow"
   const [showTests, setShowTests] = useState(false) // 4.2 "Tests" tab
+  const [showVersions, setShowVersions] = useState(false) // 4.3 "Versions" tab
+  const [publishDialog, setPublishDialog] = useState(false) // 4.3: the change note
+  const [publishNote, setPublishNote] = useState('')
   const [testDraft, setTestDraft] = useState<TestCase | null>(null) // 4.2 "Save as test case" from a run
   const clearTestDraft = useCallback(() => setTestDraft(null), [])
   const [showPalette, setShowPalette] = useState(isNew)
@@ -517,17 +523,22 @@ function Editor() {
     }
   }
 
-  const onPublish = async () => {
+  const onPublish = async (note: string) => {
     setBusy(true)
     setViolations([])
+    setPublishDialog(false)
     try {
-      const pub = await publishFlow(flowId)
+      const pub = await publishFlow(flowId, note)
+      setPublishNote('')
       setStatus(pub.status)
       takePubView(pub)
       const gate = pub.test_gate
+      // 4.3: publishing creates the version; where it was deployed follows the flow's auto-deploy settings
+      const deployed = Object.entries(pub.deployments ?? {}).filter(([, d]) => d.deployed).map(([e]) => e)
+      const where = deployed.length ? ` Deployed to ${deployed.join(' and ')}.` : ' Not deployed to any environment.'
       setMessage(gate && !gate.passed
-        ? { kind: 'error', text: `Published version ${pub.version}, but tests failed (warn mode): ${gate.message}.` }
-        : { kind: 'ok', text: `Published version ${pub.version}.${gate ? ` Tests: ${gate.message}.` : ''}` })
+        ? { kind: 'error', text: `Published version ${pub.version}, but tests failed (warn mode): ${gate.message}.${where}` }
+        : { kind: 'ok', text: `Published version ${pub.version}.${gate ? ` Tests: ${gate.message}.` : ''}${where}` })
       void versionsQ.refetch() // enables Run
     } catch (err) {
       if (err instanceof PublishRefusedError) {
@@ -683,6 +694,16 @@ function Editor() {
           >
             Tests
           </button>
+          <button
+            className="btn btn-ghost"
+            data-testid="versions-open"
+            aria-pressed={showVersions}
+            onClick={() => setShowVersions(v => !v)}
+            disabled={isNew}
+            title="Published versions, staging / production, compare, promote and roll back"
+          >
+            Versions
+          </button>
         </div>
         <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
              title={canBuild ? undefined : needs('build')}>
@@ -690,7 +711,7 @@ function Editor() {
           <button
             className="btn btn-primary"
             data-testid="publish-flow"
-            onClick={onPublish}
+            onClick={() => setPublishDialog(true)}
             disabled={busy || dirty || !persisted || !canBuild}
             title={!canBuild ? needs('build') : dirty || !persisted ? 'Save before publishing' : 'Run the static security check and publish'}
           >
@@ -721,6 +742,28 @@ function Editor() {
             setShowResults(true)
           }}
         />
+      )}
+      {publishDialog && (
+        <div role="dialog" aria-label="Publish" data-testid="publish-dialog"
+             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+             onKeyDown={e => e.key === 'Escape' && setPublishDialog(false)}>
+          <div className="card" style={{ width: 520, maxWidth: '92vw', padding: 16 }}>
+            <div className="font-semibold mb-1">Publish a new version</div>
+            <p className="text-muted" style={{ fontSize: 12 }}>
+              The static security check runs first. Publishing creates the version only; it goes to staging and/or
+              production according to this flow's auto-deploy settings (Versions tab).
+            </p>
+            <label className="form-label" htmlFor="publish-note">What changed? (required)</label>
+            <textarea id="publish-note" className="form-textarea" data-testid="publish-note" rows={3} maxLength={500} autoFocus
+                      value={publishNote} onChange={e => setPublishNote(e.target.value)} />
+            <div className="text-muted" style={{ fontSize: 11, textAlign: 'right' }} data-testid="publish-note-count">{publishNote.length}/500</div>
+            <div className="flex gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" data-testid="publish-cancel" onClick={() => setPublishDialog(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" data-testid="publish-confirm" disabled={busy || !publishNote.trim()}
+                      onClick={() => void onPublish(publishNote.trim())}>Publish</button>
+            </div>
+          </div>
+        </div>
       )}
       {showSettingsModal && (
         <FlowSettingsModal
@@ -870,6 +913,15 @@ function Editor() {
             canBuild={canBuild}
             onApply={applyAiProposal}
             onClose={() => setShowAttack(false)}
+          />
+        )}
+        {showVersions && (
+          <VersionsPanel
+            flowId={flowId}
+            canBuild={canBuild}
+            canAdmin={canAdmin}
+            onChanged={() => void versionsQ.refetch()}
+            onClose={() => setShowVersions(false)}
           />
         )}
         {showTests && (

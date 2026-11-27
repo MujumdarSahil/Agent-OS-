@@ -75,6 +75,12 @@ export interface FlowRecord {
   unpublished_changes?: boolean | null
   /** 4.2: response-only result of the "require tests to pass" publish gate */
   test_gate?: import('./flowTests').TestGateResult | null
+  /** 4.3: the publisher's change note (published versions) */
+  change_note?: string | null
+  /** 4.3: response-only result of auto-deploy after publish */
+  deployments?: Record<string, { deployed: boolean; version?: number; reason?: string }> | null
+  /** 4.3: response-only: the version each environment points to (Flows list badges) */
+  deployed?: { staging: number | null; production: number | null } | null
 }
 
 /** "published v3" when the latest version matches the draft, "draft" when there are unpublished changes. */
@@ -130,9 +136,14 @@ export const listVersions = (id: string) =>
 export interface RunStartResponse {
   run_id: string
   flow_id: string
-  version: number
+  version: number | null
+  /** 4.3: "staging" | "production" | "draft", or null for a specific version */
+  environment?: string | null
   status: string
 }
+
+/** 4.3: what a manual run executes: the draft, an environment's current version, or a specific version. */
+export type RunTarget = { environment: 'draft' | 'staging' | 'production' } | { version: number } | Record<string, never>
 
 export interface RunInfo {
   run_id: string
@@ -145,6 +156,8 @@ export interface RunInfo {
   mission_name?: string
   /** 3.6b: OpenTelemetry trace ID (32 hex characters) */
   trace_id?: string | null
+  /** 4.3: environment the run was started in (null: a specific version, or a run from before 4.3) */
+  environment?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -154,8 +167,8 @@ export const listRuns = (flowId: string) =>
   api.get<RunInfo[]>(`/v2/flows/${encodeURIComponent(flowId)}/runs`).then(r => r.data)
 
 /** Inputs are labelled untrusted by the server (manual trigger). */
-export const startRun = (flowId: string, inputs: Record<string, unknown>) =>
-  api.post<RunStartResponse>(`/v2/flows/${encodeURIComponent(flowId)}/runs`, { inputs }).then(r => r.data)
+export const startRun = (flowId: string, inputs: Record<string, unknown>, target: RunTarget = {}) =>
+  api.post<RunStartResponse>(`/v2/flows/${encodeURIComponent(flowId)}/runs`, { inputs, ...target }).then(r => r.data)
 export const getRun = (flowId: string, runId: string) =>
   api.get<RunInfo>(`/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}`).then(r => r.data)
 /** 3.1: a 409 means the worker is still parking the run (it holds the lease for a moment after the run
@@ -190,12 +203,13 @@ export const getRunEvents = (flowId: string, runId: string) =>
 
 // ---- triggers (2.4e list page; secret paths and keys are never requested or shown) ----
 
-export interface WebhookInfo { webhook_id: string; name: string; flow_id: string; rate_limit_per_minute: number; enabled: boolean; created_at?: string }
-export interface ScheduleInfo { schedule_id: string; name: string; flow_id: string; cron_expression: string; timezone: string; enabled: boolean; last_run_at?: string | null; next_run_at?: string | null }
+export type EnvironmentName = 'staging' | 'production'
+export interface WebhookInfo { webhook_id: string; name: string; flow_id: string; rate_limit_per_minute: number; enabled: boolean; created_at?: string; environment?: EnvironmentName }
+export interface ScheduleInfo { schedule_id: string; name: string; flow_id: string; cron_expression: string; timezone: string; enabled: boolean; last_run_at?: string | null; next_run_at?: string | null; environment?: EnvironmentName }
 
 export const listWebhooks = () =>
   api.get<WebhookInfo[]>('/v2/webhooks').then(r =>
-    r.data.map(w => ({ webhook_id: w.webhook_id, name: w.name, flow_id: w.flow_id, rate_limit_per_minute: w.rate_limit_per_minute, enabled: w.enabled, created_at: w.created_at })))
+    r.data.map(w => ({ webhook_id: w.webhook_id, name: w.name, flow_id: w.flow_id, rate_limit_per_minute: w.rate_limit_per_minute, enabled: w.enabled, created_at: w.created_at, environment: w.environment })))
 export const listSchedules = () => api.get<ScheduleInfo[]>('/v2/schedules').then(r => r.data)
 
 // ---- overview (2.4e) ------------------------------------------------------
@@ -239,9 +253,10 @@ export function runEventsUrl(flowId: string, runId: string, afterSeq: number): s
   return `${protocol}//${window.location.host}/api/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/events?after_seq=${afterSeq}`
 }
 
-export async function publishFlow(id: string): Promise<FlowRecord> {
+/** 4.3: every publish carries a short change note (1-500 characters), stored with the version. */
+export async function publishFlow(id: string, note: string): Promise<FlowRecord> {
   try {
-    const r = await api.post<FlowRecord>(`/v2/flows/${encodeURIComponent(id)}/publish`)
+    const r = await api.post<FlowRecord>(`/v2/flows/${encodeURIComponent(id)}/publish`, { note })
     return r.data
   } catch (err) {
     const resp = (err as { response?: { status?: number; data?: { detail?: { violations?: Violation[] } } } })
