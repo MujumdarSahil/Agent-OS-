@@ -1,0 +1,36 @@
+﻿.....................                                                    [100%]
+============================== warnings summary ===============================
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 3 warnings
+tests/ci/test_usecase_15.py: 84 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:455: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    if self.function_calling_llm and not isinstance(
+
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 3 warnings
+tests/ci/test_usecase_15.py: 84 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:463: DeprecationWarning: deprecated
+    if self.allow_code_execution:
+
+tests/ci/test_usecase_01.py: 6 warnings
+tests/ci/test_usecase_07.py: 24 warnings
+tests/ci/test_usecase_08.py: 9 warnings
+tests/ci/test_usecase_12.py: 3 warnings
+tests/ci/test_usecase_15.py: 84 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:474: DeprecationWarning: deprecated
+    if self.reasoning and self.planning_config is None:
+
+tests/ci/test_usecase_01.py: 2 warnings
+tests/ci/test_usecase_07.py: 8 warnings
+tests/ci/test_usecase_08.py: 3 warnings
+tests/ci/test_usecase_12.py: 1 warning
+tests/ci/test_usecase_15.py: 28 warnings
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\venv\Lib\site-packages\crewai\agent\core.py:1375: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+    function_calling_llm=self.function_calling_llm,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+21 passed, 420 warnings in 94.92s (0:01:34)
