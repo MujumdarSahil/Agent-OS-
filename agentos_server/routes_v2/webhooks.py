@@ -8,7 +8,7 @@ import hashlib
 import logging
 import secrets
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request
@@ -23,12 +23,15 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 class CreateWebhookRequest(BaseModel):
+    # 4.3: chosen when the trigger is created (builder); changing it later is admin-only (PUT .../environment)
+    environment: Literal["staging", "production"] = "production"
     name: str = Field(..., min_length=1)
     flow_id: str = Field(..., min_length=1)
     rate_limit_per_minute: int = 60
 
 
 class UpdateWebhookRequest(BaseModel):
+    environment: Optional[str] = None  # 4.3: refused here unless unchanged; admins use PUT .../environment
     name: Optional[str] = None
     flow_id: Optional[str] = None
     rate_limit_per_minute: Optional[int] = None
@@ -36,6 +39,7 @@ class UpdateWebhookRequest(BaseModel):
 
 
 class WebhookResponse(BaseModel):
+    environment: str = "production"  # 4.3: the environment whose version it runs
     webhook_id: str
     name: str
     flow_id: str
@@ -65,7 +69,7 @@ async def create_webhook(req: CreateWebhookRequest, request: Request) -> Webhook
     webhook_id = f"wh_{uuid.uuid4().hex[:12]}"
     # 3.1: audited before the secret is created (ids and names only; never the secret path or key)
     await audit(request, "webhook.create", "webhook", webhook_id,
-                details={"name": req.name[:100], "flow_id": req.flow_id})
+                details={"name": req.name[:100], "flow_id": req.flow_id, "environment": req.environment})
     # Secret path: random >= 128 bits (token_urlsafe(24) = 192 bits of entropy)
     secret_path = secrets.token_urlsafe(24)
     secret_path_hash = hashlib.sha256(secret_path.encode("utf-8")).hexdigest()
@@ -83,6 +87,7 @@ async def create_webhook(req: CreateWebhookRequest, request: Request) -> Webhook
         secret_key_ref=secret_key_ref,
         rate_limit_per_minute=req.rate_limit_per_minute,
         enabled=True,
+        environment=req.environment,
     )
     await storage.webhooks.put(record)
 
@@ -92,6 +97,7 @@ async def create_webhook(req: CreateWebhookRequest, request: Request) -> Webhook
         flow_id=record.flow_id,
         rate_limit_per_minute=record.rate_limit_per_minute,
         enabled=record.enabled,
+        environment=record.environment,
         created_at=record.created_at,
         updated_at=record.updated_at,
         secret_path_hash=record.secret_path_hash,
@@ -113,6 +119,7 @@ async def list_webhooks(request: Request) -> List[WebhookResponse]:
             flow_id=h.flow_id,
             rate_limit_per_minute=h.rate_limit_per_minute,
             enabled=h.enabled,
+            environment=h.environment,
             created_at=h.created_at,
             updated_at=h.updated_at,
             secret_path_hash=h.secret_path_hash,
@@ -135,6 +142,7 @@ async def get_webhook(webhook_id: str, request: Request) -> WebhookResponse:
         flow_id=hook.flow_id,
         rate_limit_per_minute=hook.rate_limit_per_minute,
         enabled=hook.enabled,
+        environment=hook.environment,
         created_at=hook.created_at,
         updated_at=hook.updated_at,
         secret_path_hash=hook.secret_path_hash,
@@ -149,6 +157,9 @@ async def update_webhook(webhook_id: str, req: UpdateWebhookRequest, request: Re
     hook = await storage.webhooks.get(webhook_id)
     if not hook:
         raise HTTPException(status_code=404, detail="Webhook not found")
+    if req.environment is not None and req.environment != hook.environment:
+        raise HTTPException(status_code=403, detail=f"Changing the environment of a webhook needs the admin "
+                                                    f"permission: PUT /api/v2/webhooks/{webhook_id}/environment")
 
     if req.name is not None:
         hook.name = req.name
@@ -172,6 +183,7 @@ async def update_webhook(webhook_id: str, req: UpdateWebhookRequest, request: Re
         flow_id=hook.flow_id,
         rate_limit_per_minute=hook.rate_limit_per_minute,
         enabled=hook.enabled,
+        environment=hook.environment,
         created_at=hook.created_at,
         updated_at=hook.updated_at,
         secret_path_hash=hook.secret_path_hash,
@@ -204,6 +216,7 @@ async def rotate_webhook(webhook_id: str, request: Request) -> WebhookResponse:
         flow_id=hook.flow_id,
         rate_limit_per_minute=hook.rate_limit_per_minute,
         enabled=hook.enabled,
+        environment=hook.environment,
         created_at=hook.created_at,
         updated_at=hook.updated_at,
         secret_path_hash=hook.secret_path_hash,
@@ -231,3 +244,22 @@ async def delete_webhook(webhook_id: str, request: Request) -> None:
     deleted = await storage.webhooks.delete(webhook_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Webhook not found")
+
+
+class EnvironmentBindingRequest(BaseModel):
+    environment: Literal["staging", "production"]
+
+
+@router.put("/{webhook_id}/environment", response_model=WebhookResponse)
+async def set_webhook_environment(webhook_id: str, req: EnvironmentBindingRequest, request: Request) -> WebhookResponse:
+    """4.3: bind the webhook to staging or production (admin only, see permissions_table.py; audited before applied)."""
+    storage = request.app.state.storage
+    hook = await storage.webhooks.get(webhook_id) if storage.webhooks else None
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    await audit(request, "webhook.environment", "webhook", webhook_id, details={
+        "flow_id": hook.flow_id, "from": hook.environment, "to": req.environment})
+    hook.environment = req.environment
+    hook.updated_at = utcnow()
+    await storage.webhooks.put(hook)
+    return await get_webhook(webhook_id, request)

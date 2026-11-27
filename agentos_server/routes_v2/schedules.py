@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 import uuid
 import zoneinfo
 
@@ -26,6 +26,8 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
 class CreateScheduleRequest(BaseModel):
+    # 4.3: chosen when the trigger is created (builder); changing it later is admin-only (PUT .../environment)
+    environment: Literal["staging", "production"] = "production"
     name: str = Field(..., min_length=1)
     flow_id: str = Field(..., min_length=1)
     cron_expression: str = Field(..., min_length=1)
@@ -35,6 +37,7 @@ class CreateScheduleRequest(BaseModel):
 
 
 class UpdateScheduleRequest(BaseModel):
+    environment: Optional[str] = None  # 4.3: refused here unless unchanged; admins use PUT .../environment
     name: Optional[str] = None
     flow_id: Optional[str] = None
     cron_expression: Optional[str] = None
@@ -45,6 +48,7 @@ class UpdateScheduleRequest(BaseModel):
 
 
 class ScheduleResponse(BaseModel):
+    environment: str = "production"  # 4.3: the environment whose version it runs
     schedule_id: str
     name: str
     flow_id: str
@@ -94,7 +98,7 @@ async def create_schedule(req: CreateScheduleRequest, request: Request) -> Sched
     schedule_id = f"sched_{uuid.uuid4().hex[:12]}"
     # 3.1: inputs are run data: not audited
     await audit(request, "schedule.create", "schedule", schedule_id, details={
-        "name": req.name[:100], "flow_id": req.flow_id, "cron": req.cron_expression[:100], "timezone": req.timezone,
+        "name": req.name[:100], "flow_id": req.flow_id, "environment": req.environment, "cron": req.cron_expression[:100], "timezone": req.timezone,
     })
     record = ScheduleRecord(
         schedule_id=schedule_id,
@@ -105,6 +109,7 @@ async def create_schedule(req: CreateScheduleRequest, request: Request) -> Sched
         inputs=req.inputs,
         misfire_policy=req.misfire_policy,
         enabled=True,
+        environment=req.environment,
     )
     await storage.schedules.put(record)
 
@@ -117,6 +122,7 @@ async def create_schedule(req: CreateScheduleRequest, request: Request) -> Sched
         inputs=record.inputs,
         misfire_policy=record.misfire_policy,
         enabled=record.enabled,
+        environment=record.environment,
         last_run_at=record.last_run_at,
         next_run_at=record.next_run_at,
         created_at=record.created_at,
@@ -140,6 +146,7 @@ async def list_schedules(request: Request) -> List[ScheduleResponse]:
             inputs=s.inputs,
             misfire_policy=s.misfire_policy,
             enabled=s.enabled,
+            environment=s.environment,
             last_run_at=s.last_run_at,
             next_run_at=s.next_run_at,
             created_at=s.created_at,
@@ -166,6 +173,7 @@ async def get_schedule(schedule_id: str, request: Request) -> ScheduleResponse:
         inputs=sched.inputs,
         misfire_policy=sched.misfire_policy,
         enabled=sched.enabled,
+        environment=sched.environment,
         last_run_at=sched.last_run_at,
         next_run_at=sched.next_run_at,
         created_at=sched.created_at,
@@ -181,6 +189,9 @@ async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, request:
     sched = await storage.schedules.get(schedule_id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    if req.environment is not None and req.environment != sched.environment:
+        raise HTTPException(status_code=403, detail=f"Changing the environment of a schedule needs the admin "
+                                                    f"permission: PUT /api/v2/schedules/{schedule_id}/environment")
 
     cron_to_check = req.cron_expression or sched.cron_expression
     tz_to_check = req.timezone or sched.timezone
@@ -219,6 +230,7 @@ async def update_schedule(schedule_id: str, req: UpdateScheduleRequest, request:
         inputs=sched.inputs,
         misfire_policy=sched.misfire_policy,
         enabled=sched.enabled,
+        environment=sched.environment,
         last_run_at=sched.last_run_at,
         next_run_at=sched.next_run_at,
         created_at=sched.created_at,
@@ -237,3 +249,22 @@ async def delete_schedule(schedule_id: str, request: Request) -> None:
     deleted = await storage.schedules.delete(schedule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Schedule not found")
+
+
+class EnvironmentBindingRequest(BaseModel):
+    environment: Literal["staging", "production"]
+
+
+@router.put("/{schedule_id}/environment", response_model=ScheduleResponse)
+async def set_schedule_environment(schedule_id: str, req: EnvironmentBindingRequest, request: Request) -> ScheduleResponse:
+    """4.3: bind the schedule to staging or production (admin only, see permissions_table.py; audited before applied)."""
+    storage = request.app.state.storage
+    sched = await storage.schedules.get(schedule_id) if storage.schedules else None
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    await audit(request, "schedule.environment", "schedule", schedule_id, details={
+        "flow_id": sched.flow_id, "from": sched.environment, "to": req.environment})
+    sched.environment = req.environment
+    sched.updated_at = utcnow()
+    await storage.schedules.put(sched)
+    return await get_schedule(schedule_id, request)

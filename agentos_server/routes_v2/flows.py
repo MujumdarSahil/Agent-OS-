@@ -10,7 +10,7 @@ import hashlib
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -31,6 +31,14 @@ router = APIRouter(prefix="/flows", tags=["v2-flows"])
 class RunFlowRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     version: Optional[int] = None
+    # 4.3: run the draft, or the version an environment points to now. Neither version nor environment: production
+    # if set, else the latest published version (API compatibility).
+    environment: Optional[Literal["draft", "staging", "production"]] = None
+
+
+class PublishRequest(BaseModel):
+    """4.3: a short change note is required for every publish (stored with the immutable version)."""
+    note: str = Field(..., min_length=1, max_length=500)
 
 
 class ApprovalRequestBody(BaseModel):
@@ -102,7 +110,7 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
     storage = request.app.state.storage
     # response-only / server-set fields are never taken from the client
     flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None,
-                                   "test_gate": None})
+                                   "test_gate": None, "change_note": None, "deployments": None})
     details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
                "content_sha256": _flow_digest(flow)}
     try:
@@ -123,6 +131,10 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
         await audit_best_effort(request.app, "flow.save", "flow", flow.id, outcome="failed", details=details,
                                 actor=actor_of(request), source=source_of(request))
         raise HTTPException(status_code=400, detail=str(err))
+    # 4.3: a flow first saved through 4.3 is a new flow (auto-deploy to production off); flows from before 4.3 were
+    # given their settings by the startup migration
+    from agentos.flows.environments import ensure_new_flow_settings
+    await ensure_new_flow_settings(storage, flow.id, _who(request))
 
 
 @router.get("/{flow_id}", response_model=FlowRecord)
@@ -189,7 +201,7 @@ async def archive_flow(flow_id: str, request: Request) -> FlowRecord:
 
 
 @router.post("/{flow_id}/publish", response_model=FlowRecord, status_code=200)
-async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
+async def publish_flow(flow_id: str, body: PublishRequest, request: Request) -> FlowRecord:
     """
     Requirement 2 & 4: Publish gate with StaticFlowAnalyzer + atomic version allocation.
     Stores content_sha256 and policy_hash with the immutable published version.
@@ -223,6 +235,10 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         record_refused_publish()
         await audit(request, "flow.publish", "flow", flow_id, outcome="refused", details={"reason": "model"})
         raise
+
+    note = body.note.strip()
+    if not note:
+        raise HTTPException(status_code=422, detail="a change note is required (1-500 characters)")
 
     # 2.3: resolve subflow summaries (exact published versions), with cycle and depth checks
     summaries = await _resolve_subflow_summaries(storage, flow_def)
@@ -284,6 +300,7 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
     await audit(request, "flow.publish", "flow", flow_id, details={
         "content_sha256": content_sha256, "policy_hash": policy_hash,
         "expected_version": len(await storage.flows.list_versions(flow_id)) + 1,
+        "note_chars": len(note),
     })
     # Atomically assign version and persist published flow
     published = await storage.flows.publish(
@@ -292,9 +309,34 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         policy_hash=policy_hash,
         analysis=analyzer.summary(),
         published_by=(_who(request) or {}).get("user_id"),
+        change_note=note,
     )
+    # 4.3: publishing creates the version only; then auto-deploy per the flow's settings (staging default on,
+    # production on only for flows from before 4.3). Never a publish failure; each deployment is audited.
+    deployments = await _auto_deploy(request, flow_id, published.version, note)
     view = await _with_publish_view(storage, published)
-    return view.model_copy(update={"test_gate": gate}) if gate is not None else view
+    update: Dict[str, Any] = {"deployments": deployments}
+    if gate is not None:
+        update["test_gate"] = gate
+    return view.model_copy(update=update)
+
+
+async def _auto_deploy(request: Request, flow_id: str, version: Optional[int], note: str) -> Optional[Dict[str, Any]]:
+    from agentos_server.routes_v2.environments import deployment_service
+
+    storage = request.app.state.storage
+    if getattr(storage, "deployments", None) is None or version is None:
+        return None
+    out = await deployment_service(request).after_publish(flow_id, version, actor=_who(request), note=note)
+    for env, res in out.items():
+        if not res.get("deployed") and res.get("reason") == "auto-deploy is off":
+            continue  # nothing was attempted
+        await audit_best_effort(request.app, "flow.promote", "flow", flow_id,
+                                outcome="ok" if res.get("deployed") else "refused",
+                                details={"environment": env, "action": "publish", "to": version,
+                                         "reason": res.get("reason")},
+                                actor=actor_of(request), source=source_of(request))
+    return out
 
 
 async def _test_gate(request: Request, flow_id: str, draft: FlowRecord) -> Optional[Dict[str, Any]]:
@@ -306,9 +348,6 @@ async def _test_gate(request: Request, flow_id: str, draft: FlowRecord) -> Optio
     p = getattr(request.state, "principal", None)
     return await gate_check(store, await test_env(request), flow_id, flow_dict(draft),
                             started_by=(p.username or p.actor) if p is not None else None)
-
-
-MAX_SUBFLOW_DEPTH = 5
 
 
 def _check_node_models(nodes: Dict[str, Any]) -> None:
@@ -332,32 +371,13 @@ def _check_node_models(nodes: Dict[str, Any]) -> None:
 
 
 async def _resolve_subflow_summaries(storage: Any, flow_def: FlowDefinition) -> Dict[Any, Any]:
-    """Load published analysis summaries of referenced subflows; detect cycles and deep nesting."""
-    summaries: Dict[Any, Any] = {}
+    """Subflow summaries (2.3); the logic is shared with the 4.3 promote re-check (agentos.flows.environments)."""
+    from agentos.flows.environments import SubflowError, resolve_subflow_summaries
 
-    async def visit(refs: List[tuple], stack: List[tuple], depth: int) -> None:
-        for key in refs:
-            if key in stack or key[0] == flow_def.id:
-                chain = " -> ".join(f"{k[0]}@v{k[1]}" for k in stack + [key])
-                raise HTTPException(status_code=400, detail=f"Subflow cycle detected: {flow_def.id} -> {chain}")
-            if depth > MAX_SUBFLOW_DEPTH:
-                raise HTTPException(status_code=400, detail=f"Subflow nesting deeper than {MAX_SUBFLOW_DEPTH}")
-            rec = await storage.flows.get_version(key[0], key[1])
-            if rec is None:
-                raise HTTPException(status_code=400, detail=f"Subflow {key[0]!r} v{key[1]} is not published")
-            summaries[key] = rec.analysis  # None for versions published before 2.3 -> treated as unknown
-            child_refs = [
-                (n["config"]["flow_id"], int(n["config"]["version"]))
-                for n in (rec.nodes or {}).values()
-                if isinstance(n, dict) and n.get("type") == "subflow"
-            ]
-            await visit(child_refs, stack + [key], depth + 1)
-
-    top = [
-        (n.config["flow_id"], int(n.config["version"])) for n in flow_def.nodes.values() if n.type == "subflow"
-    ]
-    await visit(top, [], 1)
-    return summaries
+    try:
+        return await resolve_subflow_summaries(storage, flow_def)
+    except SubflowError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 @router.get("/{flow_id}/versions", response_model=List[FlowRecord])
@@ -388,22 +408,33 @@ async def enqueue_run(flow_id: str, body: RunFlowRequest, request: Request) -> D
     storage = request.app.state.storage
     queue = request.app.state.queue
 
-    # Determine version: exact or latest published
-    target_version = body.version
-    if target_version is None:
-        versions = await storage.flows.list_versions(flow_id)
-        if not versions:
-            raise HTTPException(status_code=400, detail=f"Cannot run flow {flow_id!r}: no published versions exist")
-        target_version = versions[-1].version
-    else:
-        ver_record = await storage.flows.get_version(flow_id, target_version)
-        if ver_record is None:
-            raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} version {target_version} not found")
+    # 4.3: what runs: the draft, an environment's version (resolved NOW, at run start), a specific version, or
+    # (neither given) production if set, else the latest published version
+    from agentos.flows.environments import EnvError, resolve_run_target, static_check
+
+    try:
+        target_version, environment = await resolve_run_target(storage, flow_id, body.environment, body.version)
+    except EnvError as err:
+        raise HTTPException(status_code=err.status, detail=str(err))
+    snapshot = None
+    if environment == "draft":
+        draft = await storage.flows.get_draft(flow_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} draft not found")
+        policy = getattr(request.app.state, "security_policy", None) or SecurityPolicy()
+        check = await static_check(storage, policy, draft)
+        if not check["passed"]:
+            raise HTTPException(status_code=400, detail={
+                "error": "Draft run refused: security violations found", "violations": check["violations"]})
+        from agentos.flowtests.runner import flow_dict
+        from agentos.flowtests.runner import snapshot as make_snapshot
+        snapshot = make_snapshot(flow_dict(draft), "draft", None)
 
     run_id = f"run_{uuid.uuid4().hex[:12]}"
     # 3.1: inputs are run data (untrusted payload): never audited, only ids and the version
     await audit(request, "run.start", "run", run_id,
-                details={"flow_id": flow_id, "version": target_version, "trigger": "manual"})
+                details={"flow_id": flow_id, "version": target_version, "environment": environment,
+                         "trigger": "manual"})
     run_record = RunRecord(
         run_id=run_id,
         mission_name=flow_id,
@@ -412,18 +443,21 @@ async def enqueue_run(flow_id: str, body: RunFlowRequest, request: Request) -> D
         status="queued",
         trigger="manual",
         started_by=_who(request),
+        environment=environment,
+        flow_snapshot=snapshot,
     )
     await storage.runs.put(run_record)
     await queue.enqueue(
         run_id=run_id,
         flow_id=flow_id,
-        version=target_version,
+        version=target_version or 0,  # 0: a draft run (the worker runs the run's snapshot)
         inputs=body.inputs,
     )
     return {
         "run_id": run_id,
         "flow_id": flow_id,
         "version": target_version,
+        "environment": environment,
         "status": "queued",
     }
 
@@ -556,31 +590,29 @@ async def approve_flow_run(
         raise HTTPException(status_code=409, detail=TEST_RUN_MESSAGE)
 
     version = run_rec.flow_version
-    if version is None:
+    if version is None and run_rec.environment != "draft":
         versions = await storage.flows.list_versions(flow_id)
         if not versions:
             raise HTTPException(status_code=400, detail="Run has no associated flow version")
         version = versions[-1].version
 
-    flow_rec = await storage.flows.get_version(flow_id, version)
-    if flow_rec is None:
-        raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} v{version} not found")
+    # 4.3: the run's own version (a draft run: its snapshot) and its environment's transports (staging / draft:
+    # simulated sends unless mapped), so an approval never turns a staging send into a production one
+    from agentos.flows.environments import run_flow_and_registry
 
-    flow_def = FlowDefinition(
-        id=flow_rec.id,
-        name=flow_rec.name,
-        entrypoint=flow_rec.entrypoint,
-        nodes=flow_rec.nodes,
-        edges=flow_rec.edges,
-        loops=flow_rec.loops,
-    )
+    flow_def, approve_registry = await run_flow_and_registry(
+        storage, run_rec, flow_id, version, getattr(request.app.state, "transport_registry", None) or {},
+        getattr(request.app.state, "staging_registry", None))
+    if flow_def is None:
+        raise HTTPException(status_code=404, detail=f"Flow {flow_id!r} v{version} not found")
+    flow_rec = await storage.flows.get_version(flow_id, version) if version else None
 
     policy = getattr(request.app.state, "security_policy", None) or SecurityPolicy()
     engine = FlowEngine(
         flow=flow_def,
         storage=storage,
         policy=policy,
-        transport_registry=getattr(request.app.state, "transport_registry", None),
+        transport_registry=approve_registry or None,
         usage=getattr(request.app.state, "usage", None),  # 3.2: the run continues in this request
         sandbox=getattr(request.app.state, "sandbox", None),  # 3.5: code tools after an approval
     )
@@ -607,7 +639,7 @@ async def approve_flow_run(
         # 3.4 separation of duties (admin config, default off): who published this version may not decide its runs
         if getattr(request.app.state, "separation_of_duties", False) and not prior:
             who = _who(request)
-            if who and flow_rec.published_by and flow_rec.published_by == who["user_id"]:
+            if who and flow_rec and flow_rec.published_by and flow_rec.published_by == who["user_id"]:
                 await audit(request, "approval.decide", "run", run_id, outcome="refused", details={
                     "flow_id": flow_id, "node_id": body.node_id, "reason": "separation_of_duties"})
                 raise HTTPException(status_code=403, detail="Separation of duties: you published this flow "

@@ -11,6 +11,7 @@ from agentos_server.routes_v2.agents import router as agents_router
 from agentos_server.routes_v2.attack_test import router as attack_test_router
 from agentos_server.routes_v2.audit import router as audit_router
 from agentos_server.routes_v2.builder import router as builder_router
+from agentos_server.routes_v2.environments import router as environments_router
 from agentos_server.routes_v2.flow_tests import router as flow_tests_router
 from agentos_server.routes_v2.flow_tests import summary_router as flow_tests_summary_router
 from agentos_server.routes_v2.flows import router as flows_router
@@ -35,6 +36,8 @@ router.include_router(builder_router)  # 4.0: POST /flows/generate and /flows/ch
 router.include_router(attack_test_router)  # 4.1: POST /flows/{flow_id}/attack-test (fake sinks, MOCK model only)
 router.include_router(flow_tests_router)  # 4.2: /flows/{flow_id}/tests... (fake sinks and fixtures only)
 router.include_router(flow_tests_summary_router)  # 4.2: GET /flow-tests/summary (flow card pass rates)
+# 4.3: before flows_router so /flows/{id}/versions/summary is not taken by /flows/{id}/versions/{version}
+router.include_router(environments_router)
 router.include_router(flows_router)
 router.include_router(squads_router)
 router.include_router(tools_router)

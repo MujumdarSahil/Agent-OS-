@@ -95,6 +95,20 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/events"): "read",
     ("WS", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/events"): "read",
     ("GET", f"{_V2}/flows/{{flow_id}}/runs/{{run_id}}/usage"): "read",
+    # 4.3: versions, environments, promote / rollback, diffs. Staging: builder; production: admin.
+    ("GET", f"{_V2}/flows/{{flow_id}}/environments"): "read",
+    ("GET", f"{_V2}/flows/{{flow_id}}/environments/history"): "read",
+    ("GET", f"{_V2}/flows/{{flow_id}}/versions/summary"): "read",
+    ("GET", f"{_V2}/flows/{{flow_id}}/diff"): "read",
+    ("POST", f"{_V2}/flows/{{flow_id}}/environments/staging/promote"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/environments/staging/rollback"): "build",
+    ("PUT", f"{_V2}/flows/{{flow_id}}/environments/settings/staging"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/versions/{{version}}/archive"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/environments/production/promote"): "admin",
+    ("POST", f"{_V2}/flows/{{flow_id}}/environments/production/rollback"): "admin",
+    ("PUT", f"{_V2}/flows/{{flow_id}}/environments/settings/production"): "admin",
+    ("GET", f"{_V2}/environments/staging-channels"): "admin",
+    ("PUT", f"{_V2}/environments/staging-channels"): "admin",
     # 4.0 natural-language builder: drafts only (never saved or published here); model calls cost money
     ("POST", f"{_V2}/flows/generate"): "build",
     ("POST", f"{_V2}/flows/check"): "build",
@@ -123,12 +137,14 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", f"{_V2}/schedules/{{schedule_id}}"): "read",
     ("PUT", f"{_V2}/schedules/{{schedule_id}}"): "build",
     ("DELETE", f"{_V2}/schedules/{{schedule_id}}"): "build",
+    ("PUT", f"{_V2}/schedules/{{schedule_id}}/environment"): "admin",  # 4.3
     ("GET", f"{_V2}/webhooks"): "read",
     ("POST", f"{_V2}/webhooks"): "build",
     ("GET", f"{_V2}/webhooks/{{webhook_id}}"): "read",
     ("PUT", f"{_V2}/webhooks/{{webhook_id}}"): "build",
     ("DELETE", f"{_V2}/webhooks/{{webhook_id}}"): "build",
     ("POST", f"{_V2}/webhooks/{{webhook_id}}/rotate"): "build",
+    ("PUT", f"{_V2}/webhooks/{{webhook_id}}/environment"): "admin",  # 4.3
     # usage, alerts
     ("GET", f"{_V2}/usage"): "read",
     ("GET", f"{_V2}/budgets"): "read",
