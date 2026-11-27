@@ -70,8 +70,12 @@ def _status(state_status: Any) -> str:
     return "waiting_for_approval" if v == "waiting" else str(v)
 
 
-async def _approve_steps(engine: FlowEngine, storage: Any, run_id: str, state: Any, case: TestCase) -> Any:
+async def _approve_steps(engine: FlowEngine, storage: Any, run_id: str, state: Any,
+                         case: TestCase) -> tuple[Any, list[str]]:
+    """Apply the case's approval decisions in order. An approval the engine refuses (e.g. the 4.1b look-alike
+    destination check) is a security block, recorded for the ``security: blocked`` expectation."""
     decisions = list(case.approvals)
+    refused: list[str] = []
     for _ in range(MAX_APPROVAL_STEPS):
         if state.status != RunStatus.WAITING or not decisions:
             break
@@ -83,9 +87,13 @@ async def _approve_steps(engine: FlowEngine, storage: Any, run_id: str, state: A
         if idx is None:
             break
         d = decisions.pop(idx)
-        state = await engine.approve(run_id=run_id, node_id=node_id, decision=True if d.approve else "reject",
-                                     actor={"username": "flow-test", "via": "test"})
-    return state
+        try:
+            state = await engine.approve(run_id=run_id, node_id=node_id, decision=True if d.approve else "reject",
+                                         actor={"username": "flow-test", "via": "test"})
+        except ValueError:
+            refused.append(node_id)
+            break
+    return state, refused
 
 
 def pinned_hosts(fd: FlowDefinition) -> list[str]:
@@ -161,11 +169,12 @@ async def run_case(case: TestCase, flow: dict[str, Any], env: TestEnv, model: st
                                 mcp_manager=sinks.mcp, usage=env.usage, sandbox=env.sandbox,
                                 secret_resolver=env.secret_resolver, usage_source="test")
         state = await engine.run(run_id, inputs=case.input, raise_on_error=False, trigger="test")
-        state = await _approve_steps(engine, env.storage, run_id, state, case)
+        state, refused = await _approve_steps(engine, env.storage, run_id, state, case)
         duration = round((time.perf_counter() - started) * 1000, 2)
         events = await env.storage.events.list(run_id)
         obs, latencies, models = observe(events, state, sinks, fd, duration, violations or [],
                                          mock_calls=int(getattr(llm, "_calls", 0) or 0))
+        obs.blocked += refused
         if llm is not None:
             models = [str(getattr(llm, "model", "mock"))]
     except Exception as err:  # the case could not run at all
