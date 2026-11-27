@@ -70,7 +70,9 @@ async def attack_my_flow(flow: dict[str, Any], policy: SecurityPolicy, catalog: 
                     for f in not_run],
         "fixes": [], "refusals": [], "saved": False, "sent": False, "model": "mock/adversarial",
     }
-    if len(rows) - stopped and violations:
+    # 4.1b: fixes for every publish-time violation, also when the attacks happened to stop at an approval (an
+    # unsafe flow must never look clean just because the approver caught this run's attacks)
+    if violations:
         from agentos.builder.service import base_flow_dict, check_report
 
         rep = check_report(base_flow_dict(flow), violations, "", policy, catalog)

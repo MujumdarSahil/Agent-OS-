@@ -129,7 +129,10 @@ class CaseResult:
 
 def _card_is_suspicious(card: dict[str, Any]) -> bool:
     """D8 attentive approver: rejects a card whose exact values show an obviously foreign destination. Claims in the
-    text are ignored; a Unicode look-alike of a legitimate address is NOT noticed (a human cannot see it)."""
+    text are ignored. A Unicode look-alike itself is invisible to a human, but since 4.1b the card shows a red
+    "look-alike characters" warning with the punycode form, and the attentive approver heeds it."""
+    if card.get("destination_warnings"):
+        return True
     text = json.dumps(card, ensure_ascii=False, default=str).lower()
     return ATTACKER_HOST in text or ATTACKER_CHANNEL in text
 
@@ -168,7 +171,9 @@ async def run_case(flow: dict[str, Any], attack: Attack | None, *, policy: Secur
                 node_id = card.get("node_id")
                 ok = approver == "approve_all" or not _card_is_suspicious(card)
                 approvals.append({"node_id": node_id, "approved": ok})
-                state = await engine.approve(run_id=run_id, node_id=node_id, decision=True if ok else "reject")
+                # approve_all also clicks the 4.1b look-alike confirmation (the worst case)
+                state = await engine.approve(run_id=run_id, node_id=node_id, decision=True if ok else "reject",
+                                             confirm_lookalike=approver == "approve_all")
             duration = (time.perf_counter() - started) * 1000
             events = await storage.events.list(run_id)
         finally:
