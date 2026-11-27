@@ -320,10 +320,12 @@ class FlowEngine:
         return transport is not None and not getattr(transport, "retry_safe", True)
 
     async def approve(self, run_id: str, node_id: str, decision: Any,
-                      actor: dict[str, Any] | None = None) -> FlowRunState:
+                      actor: dict[str, Any] | None = None, confirm_lookalike: bool = False) -> FlowRunState:
         """Deliver operator approval decision and resume flow execution.
 
         3.4: ``actor`` ({user_id, username}) is recorded as ``decided_by`` on the approval_decision event.
+        4.1b: a card with ``destination_warnings`` (non-ASCII / look-alike destinations) can only be approved with
+        ``confirm_lookalike=True`` (the second, explicit click); rejecting never needs it.
 
         Requirement 6:
         - Only for runs in waiting at the named approval node.
@@ -354,6 +356,15 @@ class FlowEngine:
             )
 
         shown_args = (state.waiting_details or {}).get("arguments", {})
+        warnings = (state.waiting_details or {}).get("destination_warnings") or []
+        if is_approved and warnings and confirm_lookalike is not True:
+            shown = ", ".join(f"{w.get('ascii_form')}" for w in warnings)
+            raise ValueError(
+                f"Run {run_id!r} node {node_id!r}: destination(s) {shown} have non-ASCII or look-alike characters; "
+                "approving needs the look-alike confirmation (confirm_lookalike)"
+            )
+        lookalike = ({"confirm_lookalike": True, "lookalike_values": [w.get("value") for w in warnings]}
+                     if is_approved and warnings else {})
 
         # Append approval decision event with exact argument values shown to operator
         ev = await self._append_event(
@@ -364,6 +375,7 @@ class FlowEngine:
                 "decision": is_approved,
                 "raw_decision": decision,
                 "arguments": shown_args,
+                **lookalike,
                 **({"decided_by": actor} if actor else {}),
             },
         )
@@ -838,6 +850,57 @@ class FlowEngine:
         # Security blocks and lease loss always stop the run; they are never routed to a handler.
         return not isinstance(err, (SinkRuleViolationError, SSRFBlockedError, FencingTokenError))
 
+    def _destination_warnings(self, state: FlowRunState, approval_node: Any,
+                              arguments: dict[str, Any]) -> list[dict[str, Any]]:
+        """4.1b: every destination of the approved sink (recipient args, http url host) that has non-ASCII or
+        look-alike characters, with its ASCII/punycode form. Approving such a card needs ``confirm_lookalike``."""
+        from agentos.flows.destinations import destination_kind, lookalike_warning, recipient_values
+        from agentos.flows.extraction import RECIPIENT_ARGS
+        from agentos.flows.net_guard import url_host
+
+        approves = approval_node.config.get("approves", {}) or {}
+        sink_id = approves.get("sink_node")
+        sink = self.flow.nodes.get(sink_id) if sink_id else None
+        if sink is None:
+            return []
+        dest_args = set(RECIPIENT_ARGS) | {"url"}
+        values: list[tuple[str, Any]] = [(a, v) for a, v in (sink.pinned_args or {}).items() if a in dest_args]
+        for edge in self.flow.edges:
+            if edge.target != sink_id:
+                continue
+            for arg, fld in edge.arg_mapping.items():
+                if arg not in dest_args:
+                    continue
+                if edge.source == approval_node.id:
+                    values.append((arg, (arguments or {}).get(fld)))
+                elif fld in (state.node_outputs.get(edge.source) or {}):
+                    values.append((arg, state.node_outputs[edge.source][fld]))
+        out: list[dict[str, Any]] = []
+        for arg, value in values:
+            for v in recipient_values(value):
+                w = lookalike_warning(url_host(v) if arg == "url" else v, destination_kind(arg))
+                if w:
+                    out.append({"arg": arg, **w})
+        return out
+
+    async def _lookalike_confirmed(self, run_id: str, sink_id: str, value: Any) -> bool:
+        """4.1b: True when an approval of this sink was decided WITH the look-alike confirmation for this value."""
+        from agentos.flows.destinations import recipient_values
+
+        approvers = {nid for nid, n in self.flow.nodes.items() if n.type == "approval"
+                     and (n.config.get("approves", {}) or {}).get("sink_node") == sink_id}
+        wanted = recipient_values(value)
+        if not approvers or not wanted:
+            return False
+        for e in await self.storage.events.list(run_id, after_seq=0):
+            d = e.data or {}
+            if e.type == "approval_decision" and d.get("node_id") in approvers and d.get("decision") is True \
+                    and d.get("confirm_lookalike") is True:
+                shown = {str(x) for x in (d.get("lookalike_values") or [])}
+                if all(w in shown for w in wanted):
+                    return True
+        return False
+
     def _sink_call_preview(self, state: FlowRunState, approval_node: Any) -> dict[str, Any]:
         """Every argument of the sink an approval node approves, for the approval card (display only).
 
@@ -1146,6 +1209,8 @@ class FlowEngine:
                     # 2.4d-fix: display only. The approved sink's full call (pinned args, args from
                     # other nodes) so the approver sees every argument. Labels and decisions unchanged.
                     "sink_args": self._sink_call_preview(state, node),
+                    # 4.1b: destinations with non-ASCII / look-alike characters (red warning + extra confirmation)
+                    "destination_warnings": self._destination_warnings(state, node, inputs),
                 },
             )
             state.apply_event(wait_ev)
@@ -1187,6 +1252,8 @@ class FlowEngine:
                                 break
 
                 to_val = inputs.get(spec.recipient_arg)
+                confirmed = (spec.side_effect == SideEffectClass.EXTERNAL_SEND and arg_name == spec.recipient_arg
+                             and await self._lookalike_confirmed(state.run_id, node_id, to_val))
                 violations = evaluate_sink_argument_rule(
                     node_id=node_id,
                     spec=spec,
@@ -1200,6 +1267,7 @@ class FlowEngine:
                     policy=self.policy,
                     path=[node_id],
                     approval_gated=ex.is_approval_gated(self.flow, node_id),
+                    lookalike_confirmed=confirmed,
                 )
                 if violations:
                     raise SinkRuleViolationError(violations[0])

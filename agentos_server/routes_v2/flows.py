@@ -36,6 +36,8 @@ class RunFlowRequest(BaseModel):
 class ApprovalRequestBody(BaseModel):
     node_id: str
     decision: Any = True  # bool or "reject"/"approve"
+    # 4.1b: the second, explicit click for a card with look-alike / non-ASCII destinations
+    confirm_lookalike: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -584,11 +586,11 @@ async def approve_flow_run(
         # 3.1: audited before it is applied (503 and no decision if the entry cannot be written)
         await audit(request, "approval.decide", "run", run_id, details={
             "flow_id": flow_id, "node_id": body.node_id, "decision": "approve" if approve else "reject",
-            "already_decided": bool(prior),
+            "already_decided": bool(prior), "confirm_lookalike": body.confirm_lookalike,
         })
         try:
             state = await engine.approve(run_id=run_id, node_id=body.node_id, decision=body.decision,
-                                         actor=_who(request))
+                                         actor=_who(request), confirm_lookalike=body.confirm_lookalike)
         except ValueError as err:
             raise HTTPException(status_code=400, detail=str(err))
         except FencingTokenError:
