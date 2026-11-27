@@ -73,6 +73,8 @@ export interface FlowRecord {
   /** 3.4: computed by the server on read: latest published version, and whether the draft differs from it */
   published_version?: number | null
   unpublished_changes?: boolean | null
+  /** 4.2: response-only result of the "require tests to pass" publish gate */
+  test_gate?: import('./flowTests').TestGateResult | null
 }
 
 /** "published v3" when the latest version matches the draft, "draft" when there are unpublished changes. */

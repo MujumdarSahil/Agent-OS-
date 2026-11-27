@@ -178,6 +178,8 @@ class FlowRecord(BaseModel):
     # the latest published version number and whether the draft differs from it.
     published_version: Optional[int] = None
     unpublished_changes: Optional[bool] = None
+    # 4.2: response-only result of the "require tests to pass" publish gate (warn mode); never stored
+    test_gate: Optional[dict[str, Any]] = None
 
 
 class RunRecord(BaseModel):
@@ -201,6 +203,9 @@ class RunRecord(BaseModel):
     started_by: Optional[Dict[str, Any]] = None
     # 3.6b: OpenTelemetry trace ID (32 hex chars, None when OTEL is disabled or run was uninstrumented)
     trace_id: Optional[str] = None
+    # 4.2: test runs only: the exact flow definition the case ran against ({target, version, content_sha256, flow});
+    # a test run is never resolved later from "latest published"
+    flow_snapshot: Optional[Dict[str, Any]] = None
     created_at: Timestamp = Field(default_factory=utcnow)
     updated_at: Timestamp = Field(default_factory=utcnow)
 

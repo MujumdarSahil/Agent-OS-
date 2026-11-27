@@ -448,8 +448,15 @@ class NotifyService:
                 fired += 1
         return fired
 
+    async def _is_test_run(self, run_id: Any) -> bool:
+        """4.2: test runs never raise alerts or notifications."""
+        if self.storage is None or not run_id:
+            return False
+        run = await self.storage.runs.get(str(run_id))
+        return getattr(run, "trigger", None) == "test"
+
     async def _still_waiting(self, run_id: str, node_id: str) -> bool:
-        if self.storage is None:
+        if self.storage is None or await self._is_test_run(run_id):
             return False
         events = await self.storage.events.list(run_id, after_seq=0)
         last_wait = max((e.seq for e in events if e.type == "node_waiting" and (e.data or {}).get("node_id") == node_id),
@@ -467,7 +474,7 @@ class NotifyService:
         minutes = (await self.rule("approval_waiting")).params.get("minutes", 30)
         n = 0
         for r in await self.storage.runs.list(limit=1000):
-            if str(r.status) != "waiting":
+            if str(r.status) != "waiting" or getattr(r, "trigger", None) == "test":
                 continue
             events = await self.storage.events.list(r.run_id, after_seq=0)
             w = next((e for e in reversed(events) if e.type == "node_waiting"), None)
@@ -493,6 +500,8 @@ class NotifyService:
         return getattr(run, "flow_id", None) if run else None
 
     async def _on_event(self, ev: Any) -> None:
+        if await self._is_test_run(getattr(ev, "run_id", None)):
+            return  # 4.2: test runs (fake sinks) fire no alert and send no notification
         d = ev.data or {}
         kind = security_block_kind(ev)
         if kind is not None:

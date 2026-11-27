@@ -101,7 +101,8 @@ async def _save_draft_audited(request: Request, flow: FlowRecord, created: bool)
     -> apply. Details: counts and the content sha256 only (never node configs or prompts)."""
     storage = request.app.state.storage
     # response-only / server-set fields are never taken from the client
-    flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None})
+    flow = flow.model_copy(update={"published_version": None, "unpublished_changes": None, "published_by": None,
+                                   "test_gate": None})
     details = {"created": created, "nodes": len(flow.nodes or {}), "edges": len(flow.edges or []),
                "content_sha256": _flow_digest(flow)}
     try:
@@ -263,6 +264,16 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
             },
         )
 
+    # 4.2: "require tests to pass" (per flow, default off). Runs after the static check, against the draft, with the
+    # flow's gate model (default MOCK) and fake transports only. block: any failing case (or no case) refuses.
+    gate = await _test_gate(request, flow_id, draft)
+    if gate is not None and not gate["passed"] and gate["mode"] == "block":
+        from agentos.telemetry import record_refused_publish
+        record_refused_publish()
+        await audit(request, "flow.publish", "flow", flow_id, outcome="refused", details={
+            "reason": "tests_failed", "suite_run_id": gate["suite_run_id"], **gate["counts"]})
+        raise HTTPException(status_code=400, detail={"error": "Publish refused: tests failed", "test_gate": gate})
+
     # Compute content_sha256 and policy_hash
     content_bytes = json.dumps(flow_def.model_dump(mode="json"), sort_keys=True).encode("utf-8")
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
@@ -282,7 +293,19 @@ async def publish_flow(flow_id: str, request: Request) -> FlowRecord:
         analysis=analyzer.summary(),
         published_by=(_who(request) or {}).get("user_id"),
     )
-    return await _with_publish_view(storage, published)
+    view = await _with_publish_view(storage, published)
+    return view.model_copy(update={"test_gate": gate}) if gate is not None else view
+
+
+async def _test_gate(request: Request, flow_id: str, draft: FlowRecord) -> Optional[Dict[str, Any]]:
+    from agentos.flowtests import flowtests_store_for, gate_check
+    from agentos.flowtests.runner import flow_dict
+    from agentos_server.routes_v2.flow_tests import test_env
+
+    store = flowtests_store_for(request.app.state.storage)
+    p = getattr(request.state, "principal", None)
+    return await gate_check(store, await test_env(request), flow_id, flow_dict(draft),
+                            started_by=(p.username or p.actor) if p is not None else None)
 
 
 MAX_SUBFLOW_DEPTH = 5
@@ -525,6 +548,12 @@ async def approve_flow_run(
     run_rec = await storage.runs.get(run_id)
     if run_rec is None:
         raise HTTPException(status_code=404, detail=f"Run {run_id!r} not found")
+    from agentos.flowtests.guard import TEST_RUN_MESSAGE, is_test_run
+
+    if is_test_run(run_rec):  # 4.2: never resumed with the app transports (real channels)
+        await audit(request, "approval.decide", "run", run_id, outcome="refused",
+                    details={"flow_id": flow_id, "node_id": body.node_id, "reason": "test_run"})
+        raise HTTPException(status_code=409, detail=TEST_RUN_MESSAGE)
 
     version = run_rec.flow_version
     if version is None:

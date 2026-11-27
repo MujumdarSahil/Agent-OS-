@@ -198,6 +198,7 @@ async def run_subflow(engine: FlowEngine, state: FlowRunState, node: NodeDefinit
         max_subflow_depth=engine.max_subflow_depth, secret_resolver=engine.secret_resolver, clock=engine.clock,
         usage=engine.usage,  # 3.2: same ledger, budgets and run limits
         sandbox=getattr(engine, "sandbox", None),  # 3.5: same sandbox service (the child run has its own workspace)
+        usage_source=getattr(engine, "usage_source", None),  # 4.2: a test run's subflow usage is test usage too
     )
     child_run_id = f"{state.run_id}--{node.id}"
     cstate = await child.run(

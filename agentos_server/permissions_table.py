@@ -100,6 +100,23 @@ PERMISSIONS: dict[tuple[str, str], str] = {
     ("POST", f"{_V2}/flows/check"): "build",
     # 4.1 "Attack my flow": isolated copy, adversarial MOCK model, fake sinks; nothing saved or sent
     ("POST", f"{_V2}/flows/{{flow_id}}/attack-test"): "build",
+    # 4.2 flow test cases: viewers read cases/results; builders create, edit, run, compare and set the gate. The
+    # admin-only options (live tools, include secret values) are checked in the handlers and audited.
+    ("GET", f"{_V2}/flows/{{flow_id}}/tests"): "read",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests/from-run"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests/from-review"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests/security"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests/run"): "build",
+    ("POST", f"{_V2}/flows/{{flow_id}}/tests/compare"): "build",
+    ("GET", f"{_V2}/flows/{{flow_id}}/tests/runs"): "read",
+    ("GET", f"{_V2}/flows/{{flow_id}}/tests/runs/{{suite_run_id}}"): "read",
+    ("GET", f"{_V2}/flows/{{flow_id}}/tests/settings"): "read",
+    ("PUT", f"{_V2}/flows/{{flow_id}}/tests/settings"): "build",
+    ("GET", f"{_V2}/flows/{{flow_id}}/tests/{{case_id}}"): "read",
+    ("PUT", f"{_V2}/flows/{{flow_id}}/tests/{{case_id}}"): "build",
+    ("DELETE", f"{_V2}/flows/{{flow_id}}/tests/{{case_id}}"): "build",
+    ("GET", f"{_V2}/flow-tests/summary"): "read",
     # triggers
     ("GET", f"{_V2}/schedules"): "read",
     ("POST", f"{_V2}/schedules"): "build",

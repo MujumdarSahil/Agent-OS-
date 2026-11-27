@@ -7,7 +7,8 @@ import json
 import yaml
 import glob
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import List, Optional
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -800,6 +801,86 @@ def usage_rebuild(project: Optional[str] = typer.Option(None, help="Project dire
     cost = round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
     console.print(f"[green]OK[/green] ledger rebuilt: {len(rows)} rows, {sum(r['calls'] for r in rows)} calls, "
                   f"{cost} USD (estimate)")
+
+
+# =====================================================================
+# FLOW TESTS (4.2)
+# =====================================================================
+
+
+@app.command("test")
+def flow_test(
+    flow_id: str = typer.Argument(..., help="The flow to test"),
+    version: Optional[int] = typer.Option(None, "--version", help="Test this published version (default: the draft)"),
+    published: bool = typer.Option(False, "--published", help="Test the latest published version"),
+    model: str = typer.Option("mock", "--model", help="mock (default, free), router, or provider/model"),
+    tags: Optional[List[str]] = typer.Option(None, "--tags", help="Only cases with this tag (repeatable)"),
+    junit: Optional[str] = typer.Option(None, "--junit", help="Write a JUnit XML report to this file"),
+    project: Optional[str] = typer.Option(None, help="Project directory (default: same as the server)"),
+):
+    """Run a flow's test cases (4.2). Never a real side effect: fake email/Slack, fixture HTTP/MCP.
+    Exit code 0 only if every case passes; 1 if a case fails or errors; 2 for a setup error."""
+    import asyncio
+
+    from agentos.core.locations import open_app_storage, resolve_project_dir
+
+    project_dir = resolve_project_dir(project)
+
+    async def _run():
+        from agentos.flows.policy import SecurityPolicy
+        from agentos.flows.tool_catalog import ToolCatalog
+        from agentos.flowtests import FlowTestError, TestEnv, execute_suite, flowtests_store_for
+        from agentos.usage import UsageContext, usage_stores_for
+        from agentos.core.admin_config import (
+            load_allow_declassified_for_destructive,
+            load_allowlists,
+            load_http_allowlist,
+            load_internal_domains,
+            load_price_overrides,
+        )
+
+        storage = await open_app_storage(project_dir)
+        try:
+            policy = SecurityPolicy(internal_domains=load_internal_domains(project_dir),
+                                    http_allowlist=load_http_allowlist(project_dir),
+                                    allowlists=load_allowlists(project_dir),
+                                    allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_dir))
+            ledger, settings = usage_stores_for(storage)
+            repo = getattr(storage, "mcp_servers", None)
+            env = TestEnv(storage=storage, policy=policy, catalog=ToolCatalog(await repo.list() if repo else []),
+                          usage=UsageContext(ledger, settings, load_price_overrides(project_dir)))
+            store = flowtests_store_for(storage)
+            if not await store.list_cases(flow_id, tags or None):
+                raise FlowTestError(f"no test cases for flow {flow_id!r}" + (f" with tags {tags}" if tags else ""))
+            target = "version" if version is not None else ("published" if published else "draft")
+            return await execute_suite(store, env, flow_id, target=target, version=version, model=model,
+                                       tags=tags or None, purpose="cli", started_by="cli")
+        finally:
+            await storage.close()
+
+    try:
+        suite = asyncio.run(_run())
+    except ValueError as e:  # FlowTestError, InvalidModelChoice
+        console.print(f"[red]Setup error:[/red] {e}")
+        raise typer.Exit(code=2)
+    for r in suite.results:
+        mark = {"pass": "[green]PASS[/green]", "fail": "[red]FAIL[/red]", "error": "[red]ERROR[/red]"}[r.status]
+        console.print(f"{mark} {r.name}  (run {r.run_id}, {r.duration_ms:.0f} ms, {r.cost_usd} USD)")
+        for f in r.failures:
+            console.print(f"      {f.message}")
+        if r.error:
+            console.print(f"      {r.error}")
+    c = suite.counts
+    reg = suite.regression or {}
+    if reg.get("newly_failing"):
+        console.print(f"[red]Newly failing:[/red] {', '.join(x['name'] for x in reg['newly_failing'])}")
+    console.print(f"{c['pass']}/{c['total']} passed, {c['fail']} failed, {c['error']} errors "
+                  f"(target {suite.target}{' v' + str(suite.version) if suite.version else ''}, model {suite.model})")
+    if junit:
+        from agentos.flowtests.junit import junit_xml
+
+        Path(junit).write_text(junit_xml(suite), encoding="utf-8")
+    raise typer.Exit(code=0 if suite.all_passed else 1)
 
 
 # =====================================================================

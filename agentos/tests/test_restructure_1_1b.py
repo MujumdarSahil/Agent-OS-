@@ -98,6 +98,21 @@ V2_API_ROUTES = sorted([
     ("/api/v2/flows/generate", "POST"),
     ("/api/v2/flows/check", "POST"),
     ("/api/v2/flows/{flow_id}/attack-test", "POST"),  # 4.1 "Attack my flow"
+    ("/api/v2/flows/{flow_id}/tests", "GET"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/from-run", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/from-review", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/security", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/run", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/compare", "POST"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/runs", "GET"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/runs/{suite_run_id}", "GET"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/settings", "GET"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/settings", "PUT"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/{case_id}", "GET"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/{case_id}", "PUT"),  # 4.2 flow tests
+    ("/api/v2/flows/{flow_id}/tests/{case_id}", "DELETE"),  # 4.2 flow tests
+    ("/api/v2/flow-tests/summary", "GET"),  # 4.2 flow tests
     ("/api/v2/flows/{flow_id}/publish", "POST"),
     ("/api/v2/flows/{flow_id}/runs", "GET"),
     ("/api/v2/flows/{flow_id}/runs", "POST"),

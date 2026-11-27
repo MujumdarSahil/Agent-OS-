@@ -96,7 +96,10 @@ class FlowEngine:
         expected_mcp_hashes: dict[str, str] | None = None,
         usage: Any | None = None,
         sandbox: Any | None = None,
+        usage_source: str | None = None,
     ) -> None:
+        # 4.2: "test" for flow test runs: their llm_call records and ledger rows carry source="test"
+        self.usage_source = usage_source
         # 3.2: usage ledger, budgets and run limits (default: built-in run limits, no budgets, no ledger)
         from agentos.usage.guard import UsageContext
 
@@ -194,6 +197,7 @@ class FlowEngine:
             trigger=(existing.trigger if existing and existing.trigger else trigger),
             # 3.4: who started it ({user_id, username}, set by the route that created the run)
             started_by=existing.started_by if existing else None,
+            flow_snapshot=existing.flow_snapshot if existing else None,  # 4.2: test runs
             trace_id=trace_id,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,
@@ -708,6 +712,8 @@ class FlowEngine:
 
         out = dict(record)
         out["day"] = today_utc()
+        if self.usage_source:
+            out["source"] = self.usage_source
         if record.get("status") == "ok":
             price = self.usage.price(record.get("provider"), record.get("model"))
             out["cost_usd"] = cost_usd(price, int(record.get("prompt_tokens") or 0),
@@ -1519,6 +1525,10 @@ class FlowEngine:
     async def _maybe_sample_for_review(self, state: FlowRunState, status: RunStatus) -> None:
         if not getattr(self, "storage", None) or not getattr(self, "flow", None):
             return
+        from agentos.flowtests.guard import is_test_run
+
+        if is_test_run(await self.storage.runs.get(state.run_id)):
+            return  # 4.2: test runs are never sampled for review
         from agentos.review.models import ReviewItem
         from agentos.review.store import review_store_for
 
