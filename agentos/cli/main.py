@@ -884,6 +884,223 @@ def flow_test(
 
 
 # =====================================================================
+# FLOW VERSIONS AND ENVIRONMENTS (4.3)
+# =====================================================================
+
+flows_app = typer.Typer(help="Flow versions, environments (staging / production), promote, rollback and diffs (4.3)")
+app.add_typer(flows_app, name="flows")
+
+CLI_ACTOR = {"user_id": "cli", "username": "cli", "via": "cli"}
+
+
+def _cli_policy(project_dir: str):
+    from agentos.core.admin_config import (
+        load_allow_declassified_for_destructive,
+        load_allowlists,
+        load_http_allowlist,
+        load_internal_domains,
+    )
+    from agentos.flows.policy import SecurityPolicy
+
+    return SecurityPolicy(internal_domains=load_internal_domains(project_dir),
+                          http_allowlist=load_http_allowlist(project_dir),
+                          allowlists=load_allowlists(project_dir),
+                          allow_declassified_for_destructive=load_allow_declassified_for_destructive(project_dir))
+
+
+def _run_env_command(project: Optional[str], fn):
+    """Open the same storage as the server (CLI storage resolution), run ``fn(storage, policy, project_dir)``.
+    Exit codes: 0 ok, 1 refused (a check failed or another deploy won), 2 setup error (not found / bad input)."""
+    import asyncio
+
+    from agentos.core.locations import open_app_storage, resolve_project_dir
+    from agentos.flows.environments import DeploymentRaced, DeploymentRefused, EnvError
+
+    project_dir = resolve_project_dir(project)
+
+    async def _go():
+        storage = await open_app_storage(project_dir)
+        try:
+            return await fn(storage, _cli_policy(project_dir), project_dir)
+        finally:
+            await storage.close()
+
+    try:
+        return asyncio.run(_go())
+    except (DeploymentRefused, DeploymentRaced) as e:
+        console.print(f"[red]Refused:[/red] {e}")
+        for c in e.detail.get("checks") or []:
+            console.print(f"  check {c.get('name')}: {'passed' if c.get('passed') else 'FAILED'}")
+        raise typer.Exit(code=1)
+    except EnvError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=2)
+
+
+def _cli_gate(storage, policy, project_dir: str):
+    async def gate(flow_id: str, version: int, mode: str):
+        from agentos.core.admin_config import load_price_overrides
+        from agentos.flows.environments import tool_catalog
+        from agentos.flowtests import TestEnv, flowtests_store_for
+        from agentos.flowtests.service import version_gate
+        from agentos.usage import UsageContext, usage_stores_for
+
+        ledger, settings = usage_stores_for(storage)
+        env = TestEnv(storage=storage, policy=policy, catalog=await tool_catalog(storage),
+                      usage=UsageContext(ledger, settings, load_price_overrides(project_dir)))
+        return await version_gate(flowtests_store_for(storage), env, flow_id, version, started_by="cli")
+
+    return gate
+
+
+@flows_app.command("versions")
+def flows_versions(
+    flow_id: str = typer.Argument(..., help="The flow"),
+    project: Optional[str] = typer.Option(None, help="Project directory (default: same as the server)"),
+):
+    """List published versions with their change note, publisher and environment badges."""
+    async def fn(storage, policy, project_dir):
+        from agentos.flows.environments import EnvNotFound, environment_version, static_check
+
+        versions = await storage.flows.list_versions(flow_id)
+        if not versions and await storage.flows.get_draft(flow_id) is None:
+            raise EnvNotFound(f"flow {flow_id!r} not found")
+        await environment_version(storage, flow_id, "production")
+        cur = await storage.deployments.current(flow_id)
+        archived = set(await storage.deployments.archived_versions(flow_id))
+        rows = []
+        for v in reversed(versions):
+            sc = await static_check(storage, policy, v)
+            rows.append((v, sorted(e for e, r in cur.items() if r.version == v.version), sc["passed"],
+                         v.version in archived))
+        return rows
+
+    rows = _run_env_command(project, fn)
+    table = Table(title=f"Versions of {flow_id}")
+    for col in ("version", "environments", "security", "published", "by", "note"):
+        table.add_column(col)
+    for v, envs, ok, archived in rows:
+        table.add_row(f"v{v.version}" + (" (archived)" if archived else ""), ", ".join(envs) or "-",
+                      "ok" if ok else "FAILS", str(v.published_at or "")[:19], v.published_by or "-",
+                      (v.change_note or "")[:60])
+    console.print(table)
+
+
+@flows_app.command("diff")
+def flows_diff(
+    flow_id: str = typer.Argument(..., help="The flow"),
+    from_ref: str = typer.Option(..., "--from", help="Version number or 'draft'"),
+    to_ref: str = typer.Option(..., "--to", help="Version number or 'draft'"),
+    as_json: bool = typer.Option(False, "--json", help="Print the full diff as JSON"),
+    project: Optional[str] = typer.Option(None, help="Project directory (default: same as the server)"),
+):
+    """Diff two versions (or the draft and a version); security-relevant changes first."""
+    async def fn(storage, policy, project_dir):
+        from agentos.flows.environments import EnvNotFound, flow_definition, resolve_subflow_summaries, tool_catalog
+        from agentos.flows.version_diff import version_diff
+        from agentos.flowtests.runner import flow_dict
+
+        async def side(ref: str):
+            if ref == "draft":
+                rec = await storage.flows.get_draft(flow_id)
+            else:
+                try:
+                    rec = await storage.flows.get_version(flow_id, int(ref.lstrip("v")))
+                except ValueError:
+                    raise EnvNotFound(f"{ref!r} is not a version number or 'draft'")
+            if rec is None:
+                raise EnvNotFound(f"{flow_id} {ref} not found")
+            return flow_dict(rec)
+
+        async def summaries(flow):
+            try:
+                return await resolve_subflow_summaries(storage, flow_definition(flow))
+            except Exception:
+                return None
+
+        old, new = await side(from_ref), await side(to_ref)
+        return version_diff(old, new, policy, await tool_catalog(storage), await summaries(old), await summaries(new))
+
+    diff = _run_env_command(project, fn)
+    if as_json:
+        console.print_json(json.dumps(diff, default=str))
+        return
+    console.print(f"[bold]Security-relevant changes ({len(diff['security'])})[/bold]")
+    for item in diff["security"]:
+        console.print(f"  [red]{item['kind']}[/red] {item['node']}: {item['detail']}")
+    for key in ("nodes_added", "nodes_removed", "edges_added", "edges_removed"):
+        if diff[key]:
+            console.print(f"{key.replace('_', ' ')}: {', '.join(diff[key])}")
+    for row in diff["nodes_changed_detail"]:
+        console.print(f"node changed {row['id']}: {', '.join(row['fields'])}")
+    if diff["empty"]:
+        console.print("No changes.")
+
+
+def _deploy_command(flow_id: str, environment: str, version: int, action: str, expected: Optional[int],
+                    note: str, project: Optional[str]) -> None:
+    async def fn(storage, policy, project_dir):
+        from agentos.audit import AuditLog, audit_anchor_for, audit_store_for
+        from agentos.flows.environments import DeploymentService, EnvError, _check_summary
+        from agentos.security.vault import MasterKey
+
+        # same audit chain as the server; audited BEFORE the environment changes (no change if it cannot be written)
+        log = AuditLog(audit_store_for(storage), MasterKey.load(create=True).key, anchor=audit_anchor_for(storage))
+        audit_action = "flow.promote" if action == "promote" else "flow.rollback"
+
+        async def before_commit(details):
+            await log.record(audit_action, "flow", flow_id, details={**details, "note_chars": len(note)},
+                             actor="cli", source="cli")
+
+        svc = DeploymentService(storage, policy, test_gate_runner=_cli_gate(storage, policy, project_dir))
+        kwargs = {"actor": CLI_ACTOR, "action": action, "note": note, "before_commit": before_commit}
+        if expected is not None:
+            kwargs["expected_version"] = expected
+        try:
+            return await svc.deploy(flow_id, environment, version, **kwargs)
+        except EnvError as e:
+            try:
+                await log.record(audit_action, "flow", flow_id, outcome="refused", actor="cli", source="cli", details={
+                    "environment": environment, "to": version, "reason": str(e)[:300],
+                    "checks": _check_summary(e.detail.get("checks") or [])})
+            except Exception:
+                pass
+            raise
+
+    res = _run_env_command(project, fn)
+    console.print(f"[green]OK[/green] {environment}: v{res['from']} -> v{res['to']} ({action})")
+    for w in res.get("warnings") or []:
+        console.print(f"[yellow]Warning:[/yellow] {w}")
+
+
+@flows_app.command("promote")
+def flows_promote(
+    flow_id: str = typer.Argument(..., help="The flow"),
+    version: int = typer.Option(..., "--version", help="The published version to deploy"),
+    to: str = typer.Option(..., "--to", help="staging or production"),
+    expected: Optional[int] = typer.Option(None, "--expected", help="Refuse unless the environment is still at this version"),
+    note: str = typer.Option("", "--note", help="Why (max 500 characters)"),
+    project: Optional[str] = typer.Option(None, help="Project directory (default: same as the server)"),
+):
+    """Promote a version to an environment after the checks (static check against the current policy; production:
+    test gate and second-person rule when enabled). Exit 1 if refused."""
+    _deploy_command(flow_id, to, version, "promote", expected, note, project)
+
+
+@flows_app.command("rollback")
+def flows_rollback(
+    flow_id: str = typer.Argument(..., help="The flow"),
+    to_version: int = typer.Option(..., "--to-version", help="An earlier published version"),
+    env: str = typer.Option("production", "--env", help="staging or production"),
+    expected: Optional[int] = typer.Option(None, "--expected", help="Refuse unless the environment is still at this version"),
+    note: str = typer.Option("", "--note", help="Why (max 500 characters)"),
+    project: Optional[str] = typer.Option(None, help="Project directory (default: same as the server)"),
+):
+    """Roll an environment back to an earlier version (re-checked against the current policy). Exit 1 if refused."""
+    _deploy_command(flow_id, env, to_version, "rollback", expected, note, project)
+
+
+# =====================================================================
 # USERS (3.4)
 # =====================================================================
 
