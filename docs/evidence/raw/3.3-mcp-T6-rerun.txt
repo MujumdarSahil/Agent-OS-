@@ -1,0 +1,12 @@
+﻿.                                                                        [100%]
+============================== warnings summary ===============================
+agentos\tests\test_characterization_v1.py:25
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\agentos\tests\test_characterization_v1.py:25: DeprecationWarning: agentos.server is deprecated; import from agentos_server instead.
+    from agentos.server.run_manager import RunManager, RunState
+
+agentos\tests\test_scheduler_2_2.py:13
+  C:\Users\mujum\OneDrive\Desktop\Agent OS\agentos\tests\test_scheduler_2_2.py:13: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1 passed, 892 deselected, 2 warnings in 8.90s

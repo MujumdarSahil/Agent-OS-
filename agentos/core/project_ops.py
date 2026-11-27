@@ -3,7 +3,7 @@ project_ops.py — Shared project file I/O and orchestration logic.
 
 This module is the SINGLE source of truth for reading and writing AgentOS
 project files (agents, tools, crews, missions).  Both agentos/cli/main.py
-and agentos/server/ import from here — there is no duplicated business logic.
+and agentos_server/ import from here — there is no duplicated business logic.
 """
 
 import os
@@ -192,6 +192,16 @@ def write_crew(project_path: str, config: CrewYAMLConfig) -> str:
     return path
 
 
+def delete_crew(project_path: str, name: str) -> bool:
+    """Delete a crew config. Returns True if deleted, False if not found."""
+    path = _crew_path(project_path, name)
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    logger.info(f"Deleted crew config: {path}")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Missions
 # ---------------------------------------------------------------------------
@@ -235,6 +245,16 @@ def write_mission(project_path: str, config: MissionYAMLConfig) -> str:
     return path
 
 
+def delete_mission(project_path: str, name: str) -> bool:
+    """Delete a mission config. Returns True if deleted, False if not found."""
+    path = _mission_path(project_path, name)
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    logger.info(f"Deleted mission config: {path}")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Squad builder — assembles a runnable Squad+Mission from project files
 # ---------------------------------------------------------------------------
@@ -265,11 +285,9 @@ def build_squad_from_project(
     cfg = load_project_config(project_path)
     tags = preferred_tags or cfg.preferred_tags or ["fast"]
 
-    # Load .env if present
-    dotenv_path = os.path.join(project_path, ".env")
-    if os.path.exists(dotenv_path):
-        from dotenv import load_dotenv
-        load_dotenv(dotenv_path)
+    # Load the project's .env if present (the single loader; honours AGENTOS_SKIP_DOTENV)
+    from agentos.core.dotenv_loader import load_env_files
+    load_env_files(project_path, include_repo_root=False)
 
     tool_registry = ToolRegistry()
 

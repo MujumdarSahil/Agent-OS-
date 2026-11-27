@@ -1,0 +1,11 @@
+[WebServer] INFO:     Started server process [4676]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+
+Running 2 tests using 1 worker
+
+  ok 1 [chromium] › e2e\builder.spec.ts:66:1 › use case 01 benign flow: build -> save -> publish OK (6.1s)
+  ok 2 [chromium] › e2e\builder.spec.ts:79:1 › use case 01 exfiltration variant: publish refused, agent node highlighted (2.6s)
+
+  2 passed (38.5s)

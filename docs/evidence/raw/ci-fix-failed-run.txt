@@ -1,0 +1,412 @@
+﻿mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	﻿2026-11-11T10:20:55.4244405Z ##[group]Run URI="$(sh docker/mongo-init.sh)"
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4244739Z [36;1mURI="$(sh docker/mongo-init.sh)"[0m
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4244983Z [36;1mecho "::add-mask::$URI"[0m
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4245231Z [36;1mecho "AGENTOS_MONGO_URI=$URI" >> "$GITHUB_ENV"[0m
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4245564Z [36;1mdocker compose -f docker/compose.mongo.yml up -d --wait[0m
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4265434Z shell: /usr/bin/bash -e {0}
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4265649Z env:
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4265867Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4266244Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4266612Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4266926Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4267248Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4267549Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4267839Z ##[endgroup]
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.4349518Z Created docker/.env.mongo
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:55.7837649Z  mongo Pulling 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8110591Z  7a48b8f0e5c7 Already exists 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8111077Z  493752c97794 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8111365Z  cda377d20aef Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8111594Z  1170af5a3d82 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8111802Z  5332cf0f0742 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8112005Z  0934021729a2 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8112252Z  d1d7ab01ea82 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8112459Z  c65eb1fed990 Pulling fs layer 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8112665Z  5332cf0f0742 Waiting 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8112853Z  d1d7ab01ea82 Waiting 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8113024Z  0934021729a2 Waiting 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.8113208Z  c65eb1fed990 Waiting 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9873813Z  cda377d20aef Downloading [>                                                  ]  15.79kB/1.47MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9881447Z  1170af5a3d82 Downloading [>                                                  ]  15.79kB/934.2kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9928927Z  493752c97794 Downloading [==================================================>]  1.213kB/1.213kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9934368Z  493752c97794 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9936273Z  493752c97794 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9937334Z  493752c97794 Extracting [==================================================>]  1.213kB/1.213kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9956860Z  493752c97794 Extracting [==================================================>]  1.213kB/1.213kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9962637Z  1170af5a3d82 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9963142Z  cda377d20aef Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9963508Z  cda377d20aef Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:56.9963849Z  1170af5a3d82 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1803865Z  5332cf0f0742 Downloading [==================================================>]     116B/116B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1804447Z  5332cf0f0742 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1804760Z  5332cf0f0742 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1931879Z  0934021729a2 Downloading [==================================================>]     262B/262B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1932454Z  0934021729a2 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.1932768Z  0934021729a2 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.2038101Z  d1d7ab01ea82 Downloading [>                                                  ]  528.8kB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.3044379Z  d1d7ab01ea82 Downloading [=======>                                           ]  42.64MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.3561727Z  c65eb1fed990 Downloading [==================================>                ]  3.501kB/5.004kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.3562346Z  c65eb1fed990 Downloading [==================================================>]  5.004kB/5.004kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.3562997Z  c65eb1fed990 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.3563236Z  c65eb1fed990 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.4051207Z  d1d7ab01ea82 Downloading [===============>                                   ]  86.38MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.5052738Z  d1d7ab01ea82 Downloading [======================>                            ]  130.2MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.6063657Z  d1d7ab01ea82 Downloading [==============================>                    ]  171.8MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.7063016Z  d1d7ab01ea82 Downloading [====================================>              ]  208.2MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.8072971Z  d1d7ab01ea82 Downloading [===========================================>       ]  247.7MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.8902329Z  d1d7ab01ea82 Verifying Checksum 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:20:57.8902691Z  d1d7ab01ea82 Download complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.1205916Z  493752c97794 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.1213134Z  cda377d20aef Extracting [=>                                                 ]  32.77kB/1.47MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.1937826Z  cda377d20aef Extracting [==================================================>]   1.47MB/1.47MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.1940248Z  cda377d20aef Extracting [==================================================>]   1.47MB/1.47MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2345326Z  cda377d20aef Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2351164Z  1170af5a3d82 Extracting [=>                                                 ]  32.77kB/934.2kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2489252Z  1170af5a3d82 Extracting [==================================================>]  934.2kB/934.2kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2497030Z  1170af5a3d82 Extracting [==================================================>]  934.2kB/934.2kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2747083Z  1170af5a3d82 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2755781Z  5332cf0f0742 Extracting [==================================================>]     116B/116B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.2761036Z  5332cf0f0742 Extracting [==================================================>]     116B/116B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.3027364Z  5332cf0f0742 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.3036275Z  0934021729a2 Extracting [==================================================>]     262B/262B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.3039666Z  0934021729a2 Extracting [==================================================>]     262B/262B
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.3088295Z  0934021729a2 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.3176280Z  d1d7ab01ea82 Extracting [>                                                  ]  557.1kB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.4455597Z  d1d7ab01ea82 Extracting [=>                                                 ]  10.58MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.5467333Z  d1d7ab01ea82 Extracting [===>                                               ]  21.73MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.6520634Z  d1d7ab01ea82 Extracting [=====>                                             ]  32.87MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.7568105Z  d1d7ab01ea82 Extracting [=======>                                           ]  44.01MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.8572496Z  d1d7ab01ea82 Extracting [=========>                                         ]  54.59MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:05.9637081Z  d1d7ab01ea82 Extracting [===========>                                       ]  64.62MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.0917300Z  d1d7ab01ea82 Extracting [============>                                      ]  68.52MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.1941631Z  d1d7ab01ea82 Extracting [==============>                                    ]  81.89MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.2944990Z  d1d7ab01ea82 Extracting [================>                                  ]  96.37MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.3976433Z  d1d7ab01ea82 Extracting [===================>                               ]    112MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.5318566Z  d1d7ab01ea82 Extracting [=====================>                             ]  123.7MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.6350810Z  d1d7ab01ea82 Extracting [=======================>                           ]  135.9MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.7355456Z  d1d7ab01ea82 Extracting [=========================>                         ]  146.5MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.8357290Z  d1d7ab01ea82 Extracting [===========================>                       ]  157.1MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:06.9693941Z  d1d7ab01ea82 Extracting [=============================>                     ]  165.4MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.0696239Z  d1d7ab01ea82 Extracting [==============================>                    ]  173.2MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.1696033Z  d1d7ab01ea82 Extracting [================================>                  ]  183.8MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.2736955Z  d1d7ab01ea82 Extracting [==================================>                ]  193.3MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.4254286Z  d1d7ab01ea82 Extracting [===================================>               ]  202.8MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.5293170Z  d1d7ab01ea82 Extracting [=====================================>             ]  215.6MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.6298892Z  d1d7ab01ea82 Extracting [=======================================>           ]  227.3MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.7337370Z  d1d7ab01ea82 Extracting [==========================================>        ]  240.1MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.8347952Z  d1d7ab01ea82 Extracting [============================================>      ]  253.5MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:07.9366019Z  d1d7ab01ea82 Extracting [==============================================>    ]  266.3MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:08.0396049Z  d1d7ab01ea82 Extracting [================================================>  ]  276.9MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:08.1449122Z  d1d7ab01ea82 Extracting [=================================================> ]  283.5MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:08.2622276Z  d1d7ab01ea82 Extracting [==================================================>]  284.2MB/284.2MB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7024497Z  d1d7ab01ea82 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7032677Z  c65eb1fed990 Extracting [==================================================>]  5.004kB/5.004kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7037220Z  c65eb1fed990 Extracting [==================================================>]  5.004kB/5.004kB
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7096644Z  c65eb1fed990 Pull complete 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7143641Z  mongo Pulled 
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7209644Z  Network agentos-mongo_default  Creating
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7518351Z  Network agentos-mongo_default  Created
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7567621Z  Volume "agentos-mongo_mongo-config"  Creating
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7578692Z  Volume "agentos-mongo_mongo-config"  Created
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7581664Z  Volume "agentos-mongo_mongo-data"  Creating
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7587906Z  Volume "agentos-mongo_mongo-data"  Created
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7592402Z  Container agentos-mongo  Creating
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7814933Z  Container agentos-mongo  Created
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.7820507Z  Container agentos-mongo  Starting
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.9424576Z  Container agentos-mongo  Started
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:12.9424933Z  Container agentos-mongo  Waiting
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:13.4440287Z container agentos-mongo is unhealthy
+mongo-live	Start MongoDB replica set (rs0, keyfile auth, 127.0.0.1 only)	2026-11-11T10:21:13.4509498Z ##[error]Process completed with exit code 1.
+python-ci	Run Tests with Coverage	﻿2026-11-11T10:21:49.1324079Z ##[group]Run pytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=json
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1325107Z [36;1mpytest agentos/tests agentos_server/tests agentos/packaging/tests --cov=agentos --cov=agentos_server --cov-report=json[0m
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1377655Z shell: /usr/bin/bash -e {0}
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1377933Z env:
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1378220Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1378689Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1379125Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1379519Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1380098Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1380488Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1380837Z   AGENTOS_MOCK_LLM: 1
+python-ci	Run Tests with Coverage	2026-11-11T10:21:49.1381071Z ##[endgroup]
+python-ci	Run Tests with Coverage	2026-11-11T10:21:58.9385150Z /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+python-ci	Run Tests with Coverage	2026-11-11T10:21:58.9388519Z The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+python-ci	Run Tests with Coverage	2026-11-11T10:21:58.9390710Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:21:58.9391100Z   warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2535963Z ============================= test session starts ==============================
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2539201Z platform linux -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2539646Z rootdir: /home/runner/work/Agent-OS-/Agent-OS-
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2540008Z configfile: pyproject.toml
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2540445Z plugins: anyio-4.16.0, platformdirs-4.14.5, asyncio-1.4.1.post1, langsmith-0.14.17, cov-7.1.0
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2541167Z asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2541996Z collected 285 items
+python-ci	Run Tests with Coverage	2026-11-11T10:22:00.2542139Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:05.5358232Z agentos/tests/test_agent.py .......                                      [  2%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.2861017Z agentos/tests/test_characterization_v1.py .............................. [ 12%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.5560852Z .......                                                                  [ 15%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.5862103Z agentos/tests/test_cybersecurity.py ......                               [ 17%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.6426508Z agentos/tests/test_federation.py .......                                 [ 20%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.8754481Z agentos/tests/test_framework_extensibility.py ...............            [ 25%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:06.9261042Z agentos/tests/test_governance_judge.py ................                  [ 30%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:07.9042288Z agentos/tests/test_maturity.py ...................................       [ 43%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:07.9084429Z agentos/tests/test_rag.py ..                                             [ 43%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.6712225Z agentos/tests/test_restructure_1_1b.py .......................FF..       [ 53%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.6893661Z agentos/tests/test_security_agents_e2e.py ..                             [ 54%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.6946741Z agentos/tests/test_security_tools.py ...                                 [ 55%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.8258892Z agentos/tests/test_squad.py ....
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.8427559Z ..                                       [ 57%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:28.9807816Z agentos/tests/test_storage_contract_1_2.py .s.s.s.s...s.s.s.s.s.s....... [ 67%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:29.5371977Z ......s.                                                                 [ 70%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:30.5855183Z agentos/tests/test_transfer_1_3.py ........s.....s...s                   [ 76%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:30.6135956Z agentos/tests/test_umb.py ..........                                     [ 80%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:30.6593597Z agentos/tests/test_vault_1_3.py ...............s                         [ 85%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:31.1800566Z agentos/tests/test_vcr_providers.py sssssss...sssss...sssss..            [ 94%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:31.7244035Z agentos_server/tests/test_api.py .......                                 [ 97%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:31.8588846Z agentos_server/tests/test_providers_api.py ..                            [ 97%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3760173Z agentos/packaging/tests/test_packaging.py ......                         [100%]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3760927Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3761175Z =================================== FAILURES ===================================
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3762095Z ______________________ test_v1_api_route_table_unchanged _______________________
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3762582Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3762959Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_v1_api_route_table_unchan0')
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3763496Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3763717Z     def test_v1_api_route_table_unchanged(tmp_path):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3764271Z         from agentos_server.app import create_app
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3764872Z >       assert _route_table(create_app(str(tmp_path))) == V1_API_ROUTES
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3765461Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3765793Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3765980Z agentos/tests/test_restructure_1_1b.py:144: 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3766516Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3766917Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3767169Z app = <fastapi.applications.FastAPI object at 0x7ff088ff0f50>
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3767574Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3767716Z     def _route_table(app):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3768056Z         table = set()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3768396Z         for route in app.routes:
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3768809Z >           if not route.path.startswith("/api"):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3769255Z                    ^^^^^^^^^^
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3769775Z E           AttributeError: '_IncludedRouter' object has no attribute 'path'
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3770822Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3771052Z agentos/tests/test_restructure_1_1b.py:72: AttributeError
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3771811Z ____________________ test_api_route_table_same_via_old_path ____________________
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3772232Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3772595Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_api_route_table_same_via_0')
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3773113Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3773327Z     def test_api_route_table_same_via_old_path(tmp_path):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3773897Z         from agentos.server.app import create_app as old_create_app
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3774459Z         from agentos_server.app import create_app
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3775172Z >       assert _route_table(old_create_app(str(tmp_path))) == _route_table(create_app(str(tmp_path)))
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3775858Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3776144Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3776309Z agentos/tests/test_restructure_1_1b.py:150: 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3776807Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3777218Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3777470Z app = <fastapi.applications.FastAPI object at 0x7ff084e209d0>
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3777907Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3778034Z     def _route_table(app):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3778348Z         table = set()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3778668Z         for route in app.routes:
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3779070Z >           if not route.path.startswith("/api"):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3779477Z                    ^^^^^^^^^^
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3779960Z E           AttributeError: '_IncludedRouter' object has no attribute 'path'
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3780384Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3780596Z agentos/tests/test_restructure_1_1b.py:72: AttributeError
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3781479Z =============================== warnings summary ===============================
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3782265Z agentos/tests/test_characterization_v1.py:25
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3783397Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:25: DeprecationWarning: agentos.server is deprecated; import from agentos_server instead.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3784636Z     from agentos.server.run_manager import RunManager, RunState
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3785016Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3785247Z agentos/tests/test_agent.py::test_agent_creation
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3785867Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3788083Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Item 'index' on TypedDict class 'ChatCompletionThinkingBlock' is using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3789844Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3790037Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3790221Z agentos/tests/test_agent.py::test_agent_creation
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3790871Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3793082Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Item 'index' on TypedDict class 'ChatCompletionRedactedThinkingBlock' is using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3794871Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3795056Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3795239Z agentos/tests/test_agent.py::test_agent_creation
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3795845Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3797775Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Item 'summary' on TypedDict class 'ChatCompletionReasoningItem' is using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3799510Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3799690Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3799847Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3800324Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3800819Z agentos/tests/test_maturity.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3801238Z agentos/tests/test_squad.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3801831Z agentos_server/tests/test_api.py: 12 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3803063Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/agent/core.py:455: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3804312Z     if self.function_calling_llm and not isinstance(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3804640Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3804789Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3805257Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3805737Z agentos/tests/test_maturity.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3806153Z agentos/tests/test_squad.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3806595Z agentos_server/tests/test_api.py: 12 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3807475Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/agent/core.py:463: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3808328Z     if self.allow_code_execution:
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3808565Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3808707Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3809152Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3809619Z agentos/tests/test_maturity.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3810041Z agentos/tests/test_squad.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3810453Z agentos_server/tests/test_api.py: 12 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3811322Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/agent/core.py:474: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3812611Z     if self.reasoning and self.planning_config is None:
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3812953Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3813104Z agentos/tests/test_agent.py: 6 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3813578Z agentos/tests/test_characterization_v1.py: 10 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3814048Z agentos/tests/test_squad.py: 9 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3814461Z agentos_server/tests/test_api.py: 25 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3815636Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crew.py:661: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3817196Z     if self.function_calling_llm and not isinstance(self.function_calling_llm, LLM):
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3817686Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3817830Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3818303Z agentos/tests/test_characterization_v1.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3818774Z agentos/tests/test_squad.py: 3 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3819196Z agentos_server/tests/test_api.py: 8 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3820465Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/telemetry/telemetry.py:433: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3822012Z     if getattr(agent, "function_calling_llm", None)
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3822309Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3822454Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3822895Z agentos/tests/test_characterization_v1.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3823359Z agentos/tests/test_squad.py: 3 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3823808Z agentos_server/tests/test_api.py: 8 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3824729Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/telemetry/telemetry.py:440: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3825679Z     "allow_code_execution?": getattr(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3825950Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3826134Z agentos/tests/test_agent.py::test_agent_execute
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3826649Z agentos/tests/test_agent.py::test_agent_memory_update
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3827438Z agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3828415Z agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3829142Z agentos/tests/test_squad.py::test_squad_start_mission
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3829685Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3830267Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3830839Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3831444Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3832915Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crews/utils.py:372: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3834231Z     crew.function_calling_llm,
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3834469Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3834615Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3835094Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3835561Z agentos/tests/test_squad.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3835971Z agentos_server/tests/test_api.py: 12 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3837172Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crews/utils.py:87: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3838478Z     if not agent.function_calling_llm:  # type: ignore[attr-defined]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3838858Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3839024Z agentos/tests/test_agent.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3839522Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3840011Z agentos/tests/test_squad.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3840694Z agentos_server/tests/test_api.py: 10 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3842171Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/agent/core.py:1375: DeprecationWarning: function_calling_llm is deprecated and will be removed in a future release.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3843443Z     function_calling_llm=self.function_calling_llm,
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3843779Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3843924Z agentos/tests/test_agent.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3844373Z agentos/tests/test_characterization_v1.py: 4 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3844852Z agentos/tests/test_squad.py: 2 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3845275Z agentos_server/tests/test_api.py: 8 warnings
+python-ci	Run Tests with Coverage	2026-11-11T10:22:35.3846126Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crew.py:1690: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0143063Z     if hasattr(agent, "allow_code_execution") and getattr(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0143593Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0144191Z agentos/tests/test_agent.py::test_agent_execute
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0144808Z agentos/tests/test_agent.py::test_agent_memory_update
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0145614Z agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0146704Z agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0147514Z agentos/tests/test_squad.py::test_squad_start_mission
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0148141Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0148547Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0148915Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0149497Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0150363Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crew.py:1697: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0151193Z     and hasattr(agent, "multimodal")
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0151473Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0151856Z agentos/tests/test_agent.py::test_agent_execute
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0152436Z agentos/tests/test_agent.py::test_agent_memory_update
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0153270Z agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0154272Z agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0155027Z agentos/tests/test_squad.py::test_squad_start_mission
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0155582Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0155975Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0156342Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0156713Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0157294Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/crewai/crew.py:1698: DeprecationWarning: deprecated
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0157865Z     and getattr(agent, "multimodal", False)
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0158072Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0158369Z agentos/tests/test_characterization_v1.py::TestRunManagerCharacterization::test_execute_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0158991Z agentos/tests/test_characterization_v1.py::TestCLICharacterization::test_cli_run_success
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0159460Z agentos/tests/test_squad.py::test_squad_start_mission
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0159825Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0160197Z agentos_server/tests/test_api.py::test_mission_run_and_poll
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0160572Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0160944Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0161299Z agentos_server/tests/test_api.py::test_crash_and_resume
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0162518Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/main.py:250: UserWarning: A function callback cannot be saved in a checkpoint; it is dropped and will not run after a restore. Use a module-level named function instead.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0164122Z     validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0164467Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0164907Z agentos/tests/test_characterization_v1.py::TestProviderFallbackOrderingCharacterization::test_build_router_with_mock_llm
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0165910Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:435: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0166618Z     assert len(router.model_list) == 1
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0166832Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0167246Z agentos/tests/test_characterization_v1.py::TestProviderFallbackOrderingCharacterization::test_build_router_with_mock_llm
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0168439Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:436: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0169212Z     assert router.model_list[0]["model_name"] == "agentos-default"
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0169509Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0169907Z agentos/tests/test_characterization_v1.py::TestProviderFallbackOrderingCharacterization::test_build_router_with_mock_llm
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0170881Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:437: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0172062Z     assert router.model_list[0]["litellm_params"]["model"] == "openai/mock-model"
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0172486Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0173181Z agentos/tests/test_characterization_v1.py::TestProviderFallbackOrderingCharacterization::test_build_router_preferred_tags_ordering
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0174953Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:459: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0176118Z     models = [m["litellm_params"]["model"] for m in router.model_list]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0176404Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0176848Z agentos/tests/test_characterization_v1.py::TestProviderFallbackOrderingCharacterization::test_build_router_preferred_tags_ordering
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0177855Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos/tests/test_characterization_v1.py:464: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0178630Z     models_fast = [m["litellm_params"]["model"] for m in router_fast.model_list]
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0178924Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0179141Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0180441Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Items 'device_code', 'user_code', 'verification_uri' on TypedDict class '_DeviceCode' are using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0181856Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0182005Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0182233Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0183484Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Items 'access_token', 'error' on TypedDict class '_AccessTokenPoll' are using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0184572Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0184705Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0184911Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0186176Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Items 'token', 'expires_at', 'endpoints' on TypedDict class '_CopilotTokenPayload' are using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0187508Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0187646Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0187866Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0189230Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Items 'device_code', 'user_code', 'verification_uri', 'expires_in', 'interval' on TypedDict class '_DeviceCodePayload' are using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0190456Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0190590Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0190795Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0192448Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Items 'access_token', 'error', 'error_description', 'interval' on TypedDict class '_AccessTokenPollPayload' are using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0193675Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0193811Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0194023Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0195171Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Item 'login' on TypedDict class '_GithubUserPayload' is using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0196196Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0196322Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0196529Z agentos/tests/test_maturity.py::test_llm_client_complete_exception_handling
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0197710Z   /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:1463: UserWarning: Item 'api' on TypedDict class '_CopilotEndpointsPayload' is using the `ReadOnly` qualifier. Pydantic will not protect items from any mutation on dictionary instances.
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0198805Z     warnings.warn(
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0198937Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0199149Z agentos_server/tests/test_providers_api.py::test_providers_keys_lifecycle
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0199951Z   /home/runner/work/Agent-OS-/Agent-OS-/agentos_server/routes/providers.py:210: DeprecationWarning: Router.model_list is deprecated; use Router.registry().all()
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0200822Z     sorted_models = sorted(router_instance.model_list, key=lambda m: m["litellm_params"].get("order", 999))
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0201212Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0201441Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0202081Z ================================ tests coverage ================================
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0202530Z _______________ coverage: platform linux, python 3.11.18-final-0 _______________
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0202807Z 
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0202942Z Coverage JSON written to file coverage.json
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0203299Z =========================== short test summary info ============================
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0204018Z FAILED agentos/tests/test_restructure_1_1b.py::test_v1_api_route_table_unchanged - AttributeError: '_IncludedRouter' object has no attribute 'path'
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0204997Z FAILED agentos/tests/test_restructure_1_1b.py::test_api_route_table_same_via_old_path - AttributeError: '_IncludedRouter' object has no attribute 'path'
+python-ci	Run Tests with Coverage	2026-11-11T10:22:36.0205705Z =========== 2 failed, 251 passed, 32 skipped, 273 warnings in 36.39s ===========
+python-ci	Run Tests with Coverage	2026-11-11T10:22:37.7033949Z ##[error]Process completed with exit code 1.
+
+---
+Step 7 (MongoDB logs on failure) from job 130462215797:
+agentos-mongo  | {"t":{"":"2026-11-11T10:21:13.323Z"},"s":"F",  "c":"CONTROL",  "id":12257600,"ctx":"main","msg":"MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB. See https://jira.mongodb.org/browse/SERVER-121912 for more information."}

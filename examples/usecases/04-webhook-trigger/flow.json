@@ -1,0 +1,29 @@
+{
+  "id": "flow_webhook_ingest",
+  "name": "Webhook Ingest and Alert Flow",
+  "entrypoint": "ingress",
+  "nodes": {
+    "ingress": {
+      "id": "ingress",
+      "type": "webhook_trigger",
+      "config": {"path": "/hooks/dispatch"}
+    },
+    "sink": {
+      "id": "sink",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {
+        "to": "ops@internal.local"
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "ingress",
+      "target": "sink",
+      "arg_mapping": {
+        "body": "payload"
+      }
+    }
+  ]
+}

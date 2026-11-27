@@ -5,7 +5,9 @@ from mcp.server.fastmcp import FastMCP
 # Create the FastMCP server instance
 mcp = FastMCP("LocalNotesServer")
 
-NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
+# NOTES_FILE (optional) points the store elsewhere; AgentOS passes it through the server's `env`
+# (use case 08 uses a temp file so nothing is written into the repository).
+NOTES_FILE = os.environ.get("NOTES_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
 
 def _read_notes() -> list:
     if not os.path.exists(NOTES_FILE):

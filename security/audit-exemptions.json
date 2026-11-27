@@ -1,0 +1,34 @@
+[
+  {
+    "id": "PYSEC-2026-311",
+    "package": "chromadb",
+    "reason": "transitive dependency of crewai (chromadb~=1.5.9), no fixed version available; AgentOS does not import chromadb directly; CrewAI memory and knowledge_sources are disabled/forbidden in AgentOS agent nodes. Affects Chroma HTTP server collections endpoint only; does not affect embedded use.",
+    "added": "2026-11-13",
+    "expires": "2027-02-11",
+    "link": "https://github.com/chroma-core/chroma"
+  },
+  {
+    "id": "PYSEC-2026-3814",
+    "package": "chromadb",
+    "reason": "transitive dependency of crewai (chromadb~=1.5.9), no fixed version available; AgentOS does not import chromadb directly; CrewAI memory and knowledge_sources are disabled/forbidden in AgentOS agent nodes. Affects Chroma HTTP server collection update endpoint only; does not affect embedded use.",
+    "added": "2026-11-13",
+    "expires": "2027-02-11",
+    "link": "https://github.com/chroma-core/chroma"
+  },
+  {
+    "id": "PYSEC-2026-3815",
+    "package": "chromadb",
+    "reason": "transitive dependency of crewai (chromadb~=1.5.9), no fixed version available; AgentOS does not import chromadb directly; CrewAI memory and knowledge_sources are disabled/forbidden in AgentOS agent nodes. Affects multi-tenant Chroma server SimpleRBAC provider only; does not affect embedded use.",
+    "added": "2026-11-13",
+    "expires": "2027-02-11",
+    "link": "https://github.com/chroma-core/chroma"
+  },
+  {
+    "id": "PYSEC-2026-3813",
+    "package": "chromadb",
+    "reason": "transitive dependency of crewai (chromadb~=1.5.9), no fixed version available; AgentOS does not import chromadb directly; CrewAI memory and knowledge_sources are disabled/forbidden in AgentOS agent nodes. Affects multi-tenant Chroma server authorization validation only; does not affect embedded use.",
+    "added": "2026-11-13",
+    "expires": "2027-02-11",
+    "link": "https://github.com/chroma-core/chroma"
+  }
+]

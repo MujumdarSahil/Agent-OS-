@@ -1,0 +1,8 @@
+﻿history_trigger: webhook
+settled: {"status":"succeeded","waitedMs":510}
+steps: [{"node":"ticket","status":"succeeded","duration":"19 ms"},{"node":"triage","status":"succeeded","duration":"2.95 s","llm":"groq_gpt_oss_20b · groq/openai/gpt-oss-20b · 467 tokens · groq_gpt_oss_20b: ok (groq/openai/gpt-oss-20b) · 711.6 ms"},{"node":"lookup","status":"succeeded","duration":"741 ms"},{"node":"is_urgent","status":"succeeded","duration":"15 ms"},{"node":"queue_note","status":"succeeded","duration":"35 ms"}]
+approval_card: null
+security_tab_auto_open: false
+blocked_calls: 0
+sinks_before_decision: {"sinks":["sink_intent:queue_note","sink_committed:queue_note"],"attacker":false}
+sinks_final: {"sinks":["sink_intent:queue_note","sink_committed:queue_note"],"attacker":false}

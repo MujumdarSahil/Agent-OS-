@@ -1,0 +1,27 @@
+﻿> agentos sandbox status
+Sandbox: python: wasm; shell: unavailable (needs Docker)
+  docker: the Docker daemon is not running (start Docker Desktop / dockerd) 
+(client 29.6.1, server None)
+  wasm:   ready (wasmtime 50.0.1, build installed)
+> agentos sandbox install-wasm (already installed: verified, kept)
+Downloading 
+https://github.com/vmware-labs/webassembly-language-runtimes/releases/download/
+python%2F3.12.0%2B20231211-040d5a6/python-3.12.0.wasm
+  (26,267,204 bytes, sha256 
+e5dc5a398b07b54ea8fdb503bf68fb583d533f10ec3f930963e02b9505f7a763) into 
+C:\Users\mujum\AppData\Local\Temp\claude\b5919f5e49c70ec0\eff40b60-146c-4e15-ae
+47-bf27e819c229\scratchpad\data
+OK verified and installed: 
+C:\Users\mujum\AppData\Local\Temp\claude\b5919f5e49c70ec0\eff40b60-146c-4e15-ae
+47-bf27e819c229\scratchpad\data\sandbox\wasm\python-3.12.0.wasm
+> guard: AGENTOS_DATA_DIR unset (default ~/.agentos/data) with AGENTOS_FORBID_REAL_HOME=1
+.\venv\Scripts\agentos.exe : Refused: data dir 'C:\\Users\\mujum\\.agentos\\data' is inside the real AgentOS home 
+(~/.agentos); refused because AGENTOS_FORBID_REAL_HOME=1. Point it at a temporary folder (AGENTOS_PROJECT, 
+AGENTOS_VAULT_PATH, AGENTOS_MASTER_KEY_FILE, AGENTOS_API_TOKEN_FILE, AGENTOS_DATA_DIR) or unset 
+AGENTOS_FORBID_REAL_HOME.
+At line:7 char:35
++ ... NTOS_DATA_DIR; .\venv\Scripts\agentos.exe sandbox status 2>&1 | Selec ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Refused: data d...RBID_REAL_HOME.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

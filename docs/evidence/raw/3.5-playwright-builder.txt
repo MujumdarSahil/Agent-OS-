@@ -1,0 +1,364 @@
+﻿node.exe : [WebServer] INFO:     Started server process [24092]
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] INF...process [24092]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+[WebServer] (node:20920) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 36 tests using 1 worker
+
+(node:18448) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium] › e2e\builder-2.4e.spec.ts:78:1 › use case 07 opens top to bottom, readable with the results panel open (before/after) (8.3s)
+  ok  2 [chromium] › e2e\builder-2.4e.spec.ts:105:1 › a small flow keeps the left-to-right layout (3.6s)
+[WebServer] INFO:     127.0.0.1:33384 - "WebSocket 
+/api/v2/flows/page_oncall_demo/runs/run_0c588ea405ea/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:33386 - "WebSocket 
+/api/v2/flows/page_oncall_demo/runs/run_0c588ea405ea/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] 5:24:08 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:24:08 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     connection closed
+  ok  3 [chromium] › e2e\builder-2.4e.spec.ts:112:1 › Overview on real data: waiting approval with the full call, approve from Overview, open the run by link (6.9s)
+[WebServer] INFO:     127.0.0.1:33514 - "WebSocket /api/v2/flows/notify_demo/runs/run_0ddeb87d7086/events?after_seq=0" 
+[accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:24:15 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:24:15 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:33518 - "WebSocket /api/v2/flows/notify_demo/runs/run_0ddeb87d7086/events?after_seq=0" 
+[accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] 5:24:16 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] INFO:     connection closed
+  ok  4 [chromium] › e2e\builder-2.4e.spec.ts:145:1 › README screenshots (MOCK): overview, run inspect, approval, publish refused, security log, models & keys (12.1s)
+  ok  5 [chromium] › e2e\builder-2.5a.spec.ts:20:1 › MCP server: enable shows the command, discover, review and approve, then the agent picker offers it (7.7s)
+[WebServer] 5:24:33 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok  6 [chromium] › e2e\builder-2.5b.spec.ts:41:1 › palette entry and field builder: fixed types, enum chips, pattern dropdown, declassifies badge (4.9s)
+[WebServer] INFO:     127.0.0.1:33817 - "WebSocket 
+/api/v2/flows/qx_triage_e2e/runs/run_c1f3262564d4/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:33819 - "WebSocket 
+/api/v2/flows/qx_triage_e2e/runs/run_c1f3262564d4/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] 5:24:39 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] INFO:     connection closed
+  ok  7 [chromium] › e2e\builder-2.5b.spec.ts:71:1 › run panel: extracted values are "trusted · declassified by extraction", the input stays untrusted plain text (5.6s)
+[WebServer] 5:24:43 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok  8 [chromium] › e2e\builder-2.5b.spec.ts:94:1 › validator: same field builder (legacy names shown as the new type), output labelled declassified by validator (4.0s)
+[WebServer] INFO:     127.0.0.1:33931 - "WebSocket /api/v2/flows/val_run_e2e/runs/run_e669173010f3/events?after_seq=0" 
+[accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:24:48 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:24:48 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:33935 - "WebSocket /api/v2/flows/val_run_e2e/runs/run_e669173010f3/events?after_seq=0" 
+[accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] 5:24:48 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] INFO:     connection closed
+  ok  9 [chromium] › e2e\builder-2.5b.spec.ts:117:1 › validator run: the value is "trusted · declassified by validator", the bypass flow is refused at publish (4.6s)
+  ok 10 [chromium] › e2e\builder-3.1.spec.ts:17:1 › agent tool picker shows only server tools; an agent with calculator is saved (3.7s)
+  ok 11 [chromium] › e2e\builder-3.1.spec.ts:40:1 › audit log page: entries, filter, plain-text drawer, verified badge, Overview footer (5.0s)
+[WebServer] 2026-11-21 17:25:06,984 [WARNING] agentos.llm.router_factory: Ollama is unreachable at OLLAMA_BASE_URL. 
+Ollama providers are omitted from fallback chain.
+[WebServer] 2026-11-21 17:25:07,080 [WARNING] agentos.llm.router_factory: Ollama is unreachable at OLLAMA_BASE_URL. 
+Ollama providers are omitted from fallback chain.
+  ok 12 [chromium] › e2e\builder-3.2.spec.ts:18:1 › budgets editor saves (audited); Spend card and Metrics show the budget (14.6s)
+  ok 13 [chromium] › e2e\builder-run-inspect.spec.ts:48:1 › opening a flow does not mark it dirty and fits all nodes in view (4.5s)
+[WebServer] 5:25:20 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok 14 [chromium] › e2e\builder-run-inspect.spec.ts:66:1 › a flow saved with node positions opens clean (no unsaved changes, Publish enabled) (4.2s)
+  ok 15 [chromium] › e2e\builder-run-inspect.spec.ts:79:1 › Run is disabled with a tooltip until the flow is published (3.4s)
+[WebServer] INFO:     127.0.0.1:34412 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_fabeecec7089/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:34414 - "WebSocket 
+/api/v2/flows/uc05_run_inspect/runs/run_fabeecec7089/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] 5:25:29 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] INFO:     connection closed
+  ok 16 [chromium] › e2e\builder-run-inspect.spec.ts:86:1 › benign run from the Run button: succeeded, output visible, a node input/output visible (5.5s)
+[WebServer] INFO:     127.0.0.1:34476 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_4195c6aa86a3/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:34478 - "WebSocket 
+/api/v2/flows/uc05_inline_approval/runs/run_4195c6aa86a3/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+  ok 17 [chromium] › e2e\builder-run-inspect.spec.ts:127:1 › inline approval in the results panel -> approve -> succeeded (5.1s)
+[WebServer] INFO:     127.0.0.1:34546 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_6efba4bc9894/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:25:39 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:25:39 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:34550 - "WebSocket 
+/api/v2/flows/uc06_ssrf_view/runs/run_6efba4bc9894/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+  ok 18 [chromium] › e2e\builder-run-inspect.spec.ts:143:1 › attack run (SSRF to the cloud metadata address): blocked, shown in the Security tab (4.7s)
+[WebServer] INFO:     127.0.0.1:34612 - "WebSocket 
+/api/v2/flows/fix_pinned_approval/runs/run_e159c22c8647/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:25:43 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:25:43 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     127.0.0.1:34616 - "WebSocket 
+/api/v2/flows/fix_pinned_approval/runs/run_e159c22c8647/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 19 [chromium] › e2e\builder-run-inspect.spec.ts:173:1 › approval card shows the full sink call (pinned to + untrusted body); History says waiting; wait time shown (6.7s)
+  ok 20 [chromium] › e2e\builder-run-inspect.spec.ts:213:3 › 1440x900 › use case 07 fits the visible canvas with the results panel open and closed (6.0s)
+  ok 21 [chromium] › e2e\builder-run-inspect.spec.ts:232:3 › 1440x900 › unsafe use case 07 (recipient from the ticket): publish refused with a readable explanation (4.5s)
+[WebServer] INFO:     127.0.0.1:1749 - "WebSocket 
+/api/v2/flows/uc05_history/runs/run_876b8f1cee044e8aace9e729e8eb20c7/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 22 [chromium] › e2e\builder-run-inspect.spec.ts:251:1 › a webhook-triggered run appears in the run history and opens in the panel (4.6s)
+[WebServer] INFO:     127.0.0.1:1801 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_c50887685f96/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:1803 - "WebSocket 
+/api/v2/flows/uc05_notify_run/runs/run_c50887685f96/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:26:07 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:26:07 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+  ok 23 [chromium] › e2e\builder-run.spec.ts:47:1 › benign run: built with drag-and-drop and the "+" picker -> succeeded, 1 send (6.3s)
+[WebServer] INFO:     127.0.0.1:1867 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_df6b4c492b7f/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:1869 - "WebSocket 
+/api/v2/flows/uc05_approval_ok/runs/run_df6b4c492b7f/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+  ok 24 [chromium] › e2e\builder-run.spec.ts:80:1 › approval: exact sink args shown with untrusted marking -> approve -> succeeded (6.2s)
+[WebServer] INFO:     127.0.0.1:1939 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_17a4394bb1c2/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     127.0.0.1:1943 - "WebSocket 
+/api/v2/flows/uc05_approval_reject/runs/run_17a4394bb1c2/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+  ok 25 [chromium] › e2e\builder-run.spec.ts:111:1 › approval: reject -> failed with 0 sends (4.7s)
+[WebServer] INFO:     127.0.0.1:2011 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_5e8f667b67db/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] 5:26:23 pm [vite] ws proxy error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] 5:26:23 pm [vite] ws proxy socket error:
+[WebServer] Error: write ECONNABORTED
+[WebServer]     at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+[WebServer]     at writeGeneric (node:internal/stream_base_commons:150:3)
+[WebServer]     at Socket._writeGeneric (node:net:1025:11)
+[WebServer]     at Socket._write (node:net:1037:8)
+[WebServer]     at writeOrBuffer (node:internal/streams/writable:570:12)
+[WebServer]     at _write (node:internal/streams/writable:499:10)
+[WebServer]     at Writable.write (node:internal/streams/writable:508:10)
+[WebServer]     at Socket.ondata (node:internal/streams/readable:1012:24)
+[WebServer]     at Socket.emit (node:events:509:28)
+[WebServer]     at addChunk (node:internal/streams/readable:563:12)
+[WebServer] INFO:     127.0.0.1:2015 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_5e8f667b67db/events?after_seq=0" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     connection closed
+[WebServer] INFO:     127.0.0.1:2023 - "WebSocket 
+/api/v2/flows/uc05_approval_reconnect/runs/run_5e8f667b67db/events?after_seq=8" [accepted]
+[WebServer] INFO:     connection open
+[WebServer] INFO:     connection closed
+  ok 26 [chromium] › e2e\builder-run.spec.ts:127:1 › WebSocket reconnect replays missed events with after_seq (no gaps, no duplicates) (5.8s)
+  ok 27 [chromium] › e2e\builder-run.spec.ts:155:1 › MOCK-UI: blocked call shows reason and provenance chain (synthetic stream) (4.4s)
+  ok 28 [chromium] › e2e\builder-ux.spec.ts:20:1 › drop on canvas places the node under the cursor (4.1s)
+  ok 29 [chromium] › e2e\builder-ux.spec.ts:30:1 › automatic ids, palette click, rename validation (4.4s)
+  ok 30 [chromium] › e2e\builder-ux.spec.ts:48:1 › "+" picker adds and connects the next node with an auto-suggested mapping (4.6s)
+  ok 31 [chromium] › e2e\builder-ux.spec.ts:62:1 › condition true/false outputs create branch edges (5.4s)
+[WebServer] 5:26:52 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok 32 [chromium] › e2e\builder-ux.spec.ts:72:1 › undo/redo (keyboard and buttons) and the Delete key (4.7s)
+[WebServer] 5:26:56 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] 5:26:56 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+[WebServer] 5:26:56 pm [vite] (client) [console.error] Updating a style property during rerender (border) when a 
+conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and 
+non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+  ok 33 [chromium] › e2e\builder-ux.spec.ts:93:1 › keyboard connect from the drawer and auto-layout orders nodes left to right (5.2s)
+  ok 34 [chromium] › e2e\builder-ux.spec.ts:114:1 › unsaved-changes warning when leaving the editor (4.0s)
+  ok 35 [chromium] › e2e\builder.spec.ts:90:1 › use case 01 benign flow: build -> save -> publish OK (8.2s)
+  ok 36 [chromium] › e2e\builder.spec.ts:113:1 › use case 01 exfiltration variant: publish refused, agent node highlighted (6.3s)
+
+  36 passed (4.0m)

@@ -1,0 +1,8 @@
+﻿................................                                         [100%]
+============================== warnings summary ===============================
+agentos/tests/test_restructure_1_1b.py::test_old_import_path_is_same_module[]
+  C:\Users\mujum\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py:126: DeprecationWarning: agentos.server is deprecated; import from agentos_server instead.
+    return _bootstrap._gcd_import(name[level:], package, level)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+32 passed, 1 warning in 61.73s (0:01:01)

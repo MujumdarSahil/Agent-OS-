@@ -4,10 +4,12 @@ Mixed Precision Utils - Mixed precision training utilities
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.performance.mixed_precision_utils.MixedPrecisionUtils")
 class MixedPrecisionUtils:
     """
     Mixed Precision Utils - Utilities for mixed precision training.

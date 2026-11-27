@@ -4,10 +4,12 @@ Speculative Decoding Manager - Orchestrates small-draft + large-refine pass
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.speculative_decoding_manager.SpeculativeDecodingManager")
 class SpeculativeDecodingManager:
     """
     Speculative Decoding Manager - Manages speculative decoding workflows.

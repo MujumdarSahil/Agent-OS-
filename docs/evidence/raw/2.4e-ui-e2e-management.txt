@@ -1,0 +1,27 @@
+﻿node.exe : [WebServer] (node:18888) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mujum\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] (no... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 11 tests using 1 worker
+
+(node:13868) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/11] [chromium] › e2e\management.spec.ts:357:3 › AgentOS 2.0 UI Core Resource Management › 1. Auth Gate blocks unauthenticated users and unlocks via token
+[2/11] [chromium] › e2e\management.spec.ts:380:3 › AgentOS 2.0 UI Core Resource Management › 2. Token from URL fragment (#token=...) automatically authenticates
+[3/11] [chromium] › e2e\management.spec.ts:392:3 › AgentOS 2.0 UI Core Resource Management › 3. Agents page (v2) creates and lists agents with NodeSpec tools
+[4/11] [chromium] › e2e\management.spec.ts:413:3 › AgentOS 2.0 UI Core Resource Management › 4. Tools page (v2) displays project vs stored tools
+[5/11] [chromium] › e2e\management.spec.ts:430:3 › AgentOS 2.0 UI Core Resource Management › 5. Squads page (v2) assigns member roles
+[6/11] [chromium] › e2e\management.spec.ts:442:3 › AgentOS 2.0 UI Core Resource Management › 6. External MCP Servers page (v2) enforces dormant security policy
+[7/11] [chromium] › e2e\management.spec.ts:460:3 › AgentOS 2.0 UI Core Resource Management › 7. Providers & Vault page (v2) masks secrets and manages fallback policy
+[8/11] [chromium] › e2e\management.spec.ts:483:3 › AgentOS 2.0 UI Core Resource Management › 8. Sidebar is grouped by purpose; Classic (v1) is collapsed and its pages still open
+[9/11] [chromium] › e2e\management.spec.ts:502:3 › AgentOS 2.0 UI Core Resource Management › 9. Overview: needs-you bar, KPIs with 24 h / 7 d, runs, approval card, attacks, model chain, checklist
+[10/11] [chromium] › e2e\management.spec.ts:556:3 › AgentOS 2.0 UI Core Resource Management › 10. Overview hides the needs-you bar when nothing needs you
+[11/11] [chromium] › e2e\management.spec.ts:566:3 › AgentOS 2.0 UI Core Resource Management › 11. Runs (filters), Approvals, Triggers and Security log list pages
+  11 passed (10.4s)

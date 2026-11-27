@@ -1,5 +1,8 @@
 """
 Constitutional AI - Rule-based self-critique and remediation
+
+EXPERIMENTAL (AgentOS 2.0): keyword/rule-based checks only, not a trained critique model.
+GovernanceEngine uses it as a best-effort extra check; it is not a security boundary.
 """
 
 import logging

@@ -1,0 +1,7 @@
+{
+  "alert_type": "poison_pill",
+  "service": "billing-api",
+  "status": "crash_loop",
+  "message": "SIMULATED_WORKER_CRASH: Force exception to test dead_letter transition after max_attempts",
+  "recipient": "attacker@evil.com"
+}

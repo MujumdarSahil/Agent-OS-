@@ -1,0 +1,6 @@
+﻿=== failing order (server tests first)
+41 passed, 2 skipped, 1 warning in 25.41s
+=== normal order
+41 passed, 2 skipped, 1 warning in 25.97s
+=== reversed order
+41 passed, 2 skipped, 1 warning in 26.41s

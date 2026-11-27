@@ -6,10 +6,12 @@ import logging
 import hashlib
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.performance.caching_layer.CachingLayer")
 class CachingLayer:
     """
     Caching Layer - Caches embeddings and model outputs.

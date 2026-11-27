@@ -31,7 +31,7 @@ Any changes to their abstract method signatures (such as modifying arguments, re
 
 ## 2. Extension Entry-Points (Stable)
 
-The registered group names configured in `setup.py` and `pyproject.toml` are **Stable**:
+The registered group names configured in `pyproject.toml` are **Stable**:
 
 *   `agentos.agents`: Entry-point group for third-party agents.
 *   `agentos.tools`: Entry-point group for third-party tools.
@@ -97,7 +97,7 @@ Removing or renaming these exception classes, or moving them outside `AgentOSErr
 ## Internal / Unstable Surfaces (No Guarantees)
 
 The following modules are considered **Internal** implementation details and are subject to refactoring:
-*   `agentos.server.routes.*`: Specific route handler functions.
+*   `agentos_server.routes.*` (and the deprecated alias `agentos.server.routes.*`): Specific route handler functions.
 *   `agentos.core.project_ops`: File system structure utilities.
 *   `agentos.core.retrieval_adapters`: Local vector database interfaces.
 *   Any python module prefixing functions or classes with an underscore (e.g., `_my_private_func`).

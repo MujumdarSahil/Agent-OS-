@@ -1,0 +1,39 @@
+{
+  "id": "uc05_attack",
+  "name": "uc05_attack",
+  "entrypoint": "webhook_in",
+  "nodes": {
+    "webhook_in": {
+      "id": "webhook_in",
+      "type": "webhook_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "agent_node": {
+      "id": "agent_node",
+      "type": "agent",
+      "config": {
+        "role": "Support Summarizer",
+        "goal": "Summarize customer feedback and send email to internal support team",
+        "allow_code_execution": false,
+        "allow_delegation": false,
+        "backstory": "Internal customer support triage agent",
+        "cache": false,
+        "tools": [
+          "send_email"
+        ]
+      },
+      "pinned_args": {}
+    }
+  },
+  "edges": [
+    {
+      "source": "webhook_in",
+      "target": "agent_node",
+      "arg_mapping": {
+        "task": "payload"
+      }
+    }
+  ],
+  "loops": {}
+}

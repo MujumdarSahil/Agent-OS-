@@ -1,0 +1,19 @@
+README "Getting started" MOCK quick start, verified from a fresh clone (2026-11-17, Windows 11, PowerShell 5.1)
+Host tools: Python 3.11.9, Node.js v24.16.0, Git 2.46.0
+Steps run (in a temp folder outside the repo):
+  git clone https://github.com/MujumdarSahil/Agent-OS-.git agentos ; cd agentos
+  git checkout feature/agentos-2.0-phase2.3-nodes   (README says `git checkout 2.0`; this branch is not merged yet)
+  python -m venv venv ; .\venv\Scripts\python.exe -m pip install --upgrade pip ; .\venv\Scripts\python.exe -m pip install -e .   -> exit 0
+  cd ui ; npm install   -> exit 0
+  env: AGENTOS_MOCK_LLM=1 AGENTOS_INPROCESS_WORKER=1 AGENTOS_INTERNAL_DOMAINS=corp.local AGENTOS_PROJECT=demo
+  backend: .\venv\Scripts\python.exe -m uvicorn agentos_server.app:create_app --factory --host 127.0.0.1 --port 8000
+  ui:      cd ui ; npm run dev
+Result (script output):
+API /api/health answered: True (status=ok, version=0.2.0)
+UI http://localhost:5173/ answered 200: True; contains root div: True
+One-time link printed (value redacted): True
+One-time link port: 5173
+Authenticated /api/v2/node-specs via the UI proxy: HTTP 200, node types: 16
+Unauthenticated /api/v2/node-specs rejected: 401
+Stopped backend and UI; listeners left on 8000/5173: 0
+Not run here: the macOS/Linux variants (Windows host) and Platform mode (Docker Desktop was not running).

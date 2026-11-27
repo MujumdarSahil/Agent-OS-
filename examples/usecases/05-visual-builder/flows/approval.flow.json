@@ -1,0 +1,53 @@
+{
+  "id": "uc05_approval",
+  "name": "uc05_approval",
+  "entrypoint": "hook",
+  "nodes": {
+    "hook": {
+      "id": "hook",
+      "type": "webhook_trigger",
+      "config": {},
+      "pinned_args": {}
+    },
+    "gate": {
+      "id": "gate",
+      "type": "approval",
+      "config": {
+        "prompt": "Review the outgoing email before it is sent",
+        "approves": {
+          "sink_node": "send",
+          "args": [
+            "to",
+            "body"
+          ]
+        }
+      },
+      "pinned_args": {}
+    },
+    "send": {
+      "id": "send",
+      "type": "send_email",
+      "config": {},
+      "pinned_args": {}
+    }
+  },
+  "edges": [
+    {
+      "source": "hook",
+      "target": "gate",
+      "arg_mapping": {
+        "to": "payload",
+        "body": "payload"
+      }
+    },
+    {
+      "source": "gate",
+      "target": "send",
+      "arg_mapping": {
+        "to": "to",
+        "body": "body"
+      }
+    }
+  ],
+  "loops": {}
+}

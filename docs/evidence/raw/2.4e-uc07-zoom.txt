@@ -1,0 +1,3 @@
+viewport 1440x900, results panel open
+left-to-right (before): zoom 0.471
+top-to-bottom (after): zoom 0.722

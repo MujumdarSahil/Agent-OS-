@@ -1,0 +1,5 @@
+{
+  "sender": "customer@example.com",
+  "subject": "Issue with settings page",
+  "body": "Hello, I encountered a minor display bug when trying to update my notification settings. Please fix when possible."
+}

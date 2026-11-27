@@ -4,10 +4,12 @@ Instruction Tuning - Instruction tuning pipelines
 
 import logging
 from typing import Dict, Any
+from agentos.modelhub._unavailable import not_available
 
 logger = logging.getLogger(__name__)
 
 
+@not_available("agentos.modelhub.training.instruction_tuning.InstructionTuning")
 class InstructionTuning:
     """
     Instruction Tuning - Manages instruction tuning workflows.
