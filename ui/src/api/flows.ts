@@ -162,9 +162,11 @@ export const getRun = (flowId: string, runId: string) =>
 export const APPROVAL_RETRIES = 5
 export const APPROVAL_RETRY_MS = 400
 
-export async function decideApproval(flowId: string, runId: string, nodeId: string, approve: boolean) {
+export async function decideApproval(flowId: string, runId: string, nodeId: string, approve: boolean,
+                                     confirmLookalike = false) {
   const url = `/v2/flows/${encodeURIComponent(flowId)}/runs/${encodeURIComponent(runId)}/approve`
-  const body = { node_id: nodeId, decision: approve ? true : 'reject' }
+  // 4.1b: confirm_lookalike is the second, explicit click for a card with look-alike destinations
+  const body = { node_id: nodeId, decision: approve ? true : 'reject', ...(approve && confirmLookalike ? { confirm_lookalike: true } : {}) }
   for (let attempt = 0; ; attempt++) {
     try {
       return (await api.post(url, body)).data

@@ -754,6 +754,27 @@ test.describe('AgentOS 2.0 UI Core Resource Management', () => {
     expect(approvals).toEqual([{ node_id: 'oncall_approval', decision: true }])
   })
 
+  test('4.1b Overview approval card: look-alike destination shows a red warning and needs a second click', async ({ page }) => {
+    const waiting = RUN_EVENTS.r_wait[2] as { data: Record<string, unknown> }
+    waiting.data.destination_warnings = [{ arg: 'to', value: 'oncall@corp.lоcal', ascii_form: 'oncall@corp.xn--lcal-55d',
+      confusable: true, mixed_script: true, reasons: ['mixed scripts in the domain (CYRILLIC, LATIN)'] }]
+    try {
+      await loginUi(page)
+      const card = page.getByTestId('waiting-card').getByTestId('approval-card')
+      const warning = card.getByTestId('lookalike-warning')
+      await expect(warning).toContainText('look-alike characters')
+      await expect(warning).toHaveAttribute('data-confusable', 'true')
+      await expect(warning.getByTestId('lookalike-ascii')).toHaveText('oncall@corp.xn--lcal-55d')
+      await card.getByTestId('approve').click()
+      expect(approvals).toEqual([])  // the first click only asks for the confirmation
+      await card.getByTestId('approve-confirm-lookalike').click()
+      await expect(page.getByTestId('approval-decided')).toContainText('Approved')
+      expect(approvals).toEqual([{ node_id: 'oncall_approval', decision: true, confirm_lookalike: true }])
+    } finally {
+      delete waiting.data.destination_warnings
+    }
+  })
+
   test('10. Overview hides the needs-you bar when nothing needs you', async ({ page }) => {
     emptyOverview = true
     await loginUi(page)

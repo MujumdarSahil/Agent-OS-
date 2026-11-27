@@ -61,6 +61,9 @@ otel = [
     "opentelemetry-exporter-otlp-proto-http==1.45.2",
 ]
 ui-legacy = ["streamlit>=1.40.0"]
+# 4.1b AgentDojo benchmark (benchmarks/agentdojo, scripts/agentdojo_run.py). Benchmark only: never imported by the
+# product (agentos/, agentos_server/). Pinned.
+benchmark = ["agentdojo==0.1.35"]
 dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "flake8>=6.1.0", "vcrpy>=6.0.0", "fakeredis>=2.40.0", "lupa>=2.8", "aiosmtpd==1.4.6"]
 
 # pyproject.toml is the single packaging metadata source (setup.py removed in the 2.0 cleanup;

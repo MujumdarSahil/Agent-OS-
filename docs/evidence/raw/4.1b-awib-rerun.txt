@@ -1,0 +1,9 @@
+﻿
+Using an approximate input token count for model 'mock/adversarial': assuming one token per four characters because a 
+native token count is unavailable.
+Using an approximate input token count for model 'mock/adversarial': assuming one token per four characters because a 
+native token count is unavailable.
+AWIB: 199 cases; baseline ASR 40.7%, AgentOS ASR 0.0%; wrote docs/evidence/4.1-results.json and 
+docs\evidence\4.1-results.md
+
+

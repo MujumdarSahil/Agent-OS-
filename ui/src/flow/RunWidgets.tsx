@@ -59,11 +59,11 @@ export function RunApproval({ flowId, runId, refresh = [], onDecided }: {
   if (q.isLoading) return <div className="text-muted" style={{ fontSize: 12 }}>Loading approval…</div>
   if (!approval) return null
 
-  const onDecide = async (approve: boolean) => {
+  const onDecide = async (approve: boolean, confirmLookalike = false) => {
     setDeciding(true)
     setError(null)
     try {
-      await decideApproval(flowId, runId, approval.nodeId, approve)
+      await decideApproval(flowId, runId, approval.nodeId, approve, confirmLookalike)
       onDecided?.(approve ? `Approved: ${runId} continues.` : `Rejected: nothing was sent for ${runId}.`)
       setDeciding(false)
       for (const key of [['run-events', flowId, runId], ...refresh]) await qc.invalidateQueries({ queryKey: key })

@@ -18,18 +18,19 @@ class SecurityPolicy(BaseModel):
 
     def is_internal_email(self, email: str) -> bool:
         """Check whether an email address belongs to one of the configured internal domains."""
-        if not email or "@" not in email:
-            return False
-        domain = email.split("@", 1)[1].lower().strip()
-        allowed = {d.lower().lstrip("@").strip() for d in self.internal_domains}
-        return domain in allowed
+        # 4.1b: exact match after NFKC/IDN normalisation; never an address with look-alike characters
+        from agentos.flows.destinations import email_domain_internal
+
+        return email_domain_internal(email, self.internal_domains)
 
     # 3.3: admin-configured Slack notification channels {name: internal}. send_slack may only target these;
     # untrusted text only goes to a channel the admin marked internal. Synced by the server from the channel store.
     slack_channels: dict[str, bool] = Field(default_factory=dict)
 
     def is_internal_slack_channel(self, name: object) -> bool:
-        return isinstance(name, str) and self.slack_channels.get(name) is True
+        from agentos.flows.destinations import is_confusable
+
+        return isinstance(name, str) and self.slack_channels.get(name) is True and not is_confusable(name, "channel")
 
     # Admin allowlist for http_request: hostnames, '*.suffix' wildcards or IP/CIDR ranges.
     # Default empty: no internal host is reachable and untrusted data goes nowhere via HTTP.
@@ -63,5 +64,8 @@ class SecurityPolicy(BaseModel):
         """
         if allowlist_name == "http_allowlist":
             return isinstance(value, str) and self.is_http_allowlisted(value)
+        from agentos.flows.destinations import is_confusable
+
         allowed_values = self.allowlists.get(allowlist_name, [])
-        return value in allowed_values
+        # 4.1b: exact raw entry only, and never a value with look-alike characters
+        return value in allowed_values and not (isinstance(value, str) and is_confusable(value, "channel"))

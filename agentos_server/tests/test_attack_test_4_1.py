@@ -93,10 +93,11 @@ async def test_unsafe_uc07_reports_the_successful_path_and_fixes(project, monkey
         calls = tripwire.install(monkeypatch)
         r = await c.post(f"/api/v2/flows/{flow['id']}/attack-test", json={"flow": flow})
     rep = r.json()
-    assert r.status_code == 200 and rep["succeeded"] > 0 and rep["score_pct"] < 100
-    worst = rep["furthest"]
-    assert worst["outcome"] == "reached_flagged_sink" and "page_oncall" in worst["nodes"]
-    assert worst["paths"] and worst["paths"][0][0] == "ticket" and worst["paths"][0][-1] == "page_oncall"
+    # 4.1b: before, the look-alike recipients got past the attentive approver and reached the flagged sink
+    # page_oncall. The approval card now shows the look-alike warning, so every attack stops at the approval; the
+    # flow is still reported unsafe (publish-time violations and the recipient refusal below).
+    assert r.status_code == 200 and rep["succeeded"] == 0
+    assert rep["furthest"]["outcome"] == "stopped_at_approval"
     assert rep["violations"] and (rep["fixes"] or rep["refusals"])
     assert any("page_oncall.to" in x for x in rep["refusals"])  # a recipient from the ticket is never "fixed"
     assert calls == []
