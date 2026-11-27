@@ -101,6 +101,13 @@ class FlowWorker:
         heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, cancel_event))
 
         try:
+            # 4.2: a test run is never run or resumed by a worker (fake transports only, via the test runner)
+            from agentos.flowtests.guard import TEST_RUN_MESSAGE, is_test_run
+
+            if is_test_run(await self.storage.runs.get(job.run_id)):
+                await self.queue.fail(job.job_id, job.lease_id, TEST_RUN_MESSAGE)  # type: ignore[arg-type]
+                return
+
             # 1. Fetch published flow version from storage
             if not self.storage.flows:
                 raise ValueError("Storage does not have a flows repository configured")

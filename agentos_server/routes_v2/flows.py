@@ -548,6 +548,12 @@ async def approve_flow_run(
     run_rec = await storage.runs.get(run_id)
     if run_rec is None:
         raise HTTPException(status_code=404, detail=f"Run {run_id!r} not found")
+    from agentos.flowtests.guard import TEST_RUN_MESSAGE, is_test_run
+
+    if is_test_run(run_rec):  # 4.2: never resumed with the app transports (real channels)
+        await audit(request, "approval.decide", "run", run_id, outcome="refused",
+                    details={"flow_id": flow_id, "node_id": body.node_id, "reason": "test_run"})
+        raise HTTPException(status_code=409, detail=TEST_RUN_MESSAGE)
 
     version = run_rec.flow_version
     if version is None:

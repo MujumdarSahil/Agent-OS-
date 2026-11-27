@@ -73,7 +73,8 @@ async def execute_suite(store: FlowTestStore, env: TestEnv, flow_id: str, *, tar
     started = time.perf_counter()
     violations = static_violations(flow, env)
     for case in cases:  # one at a time (budgets and run limits apply per run)
-        suite.results.append(await run_case(case, flow, env, model, violations=violations))
+        suite.results.append(await run_case(case, flow, env, model, violations=violations, target=target,
+                                            version=version))
     suite.duration_ms = round((time.perf_counter() - started) * 1000, 1)
     suite.counts = counts_of(suite.results)
     suite.regression = regression(await store.previous_run(flow_id, model), suite)

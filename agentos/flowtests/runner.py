@@ -146,11 +146,55 @@ def observe(events: list[Any], state: Any, sinks: TestSinks, fd: FlowDefinition,
     return obs, latencies, sorted(set(models))
 
 
+async def close_test_run(storage: Any, run_id: str) -> bool:
+    """4.2 review fix: when a case ends, a test run that is still waiting / running / queued is closed (status
+    ``cancelled``, event ``run_cancelled`` with reason "test case ended"), so nothing stays waiting for an approver
+    and no other path can resume it. Called AFTER the expectations are evaluated. True if it closed the run."""
+    from agentos.flowtests.guard import TEST_CLOSED_REASON
+
+    rec = await storage.runs.get(run_id)
+    if rec is None or rec.status in ("succeeded", "failed", "cancelled"):
+        return False
+    await storage.events.append(run_id=run_id, type="run_cancelled", data={
+        "reason": TEST_CLOSED_REASON, "test": True, "previous_status": rec.status})
+    rec = await storage.runs.get(run_id) or rec
+    rec.status = "cancelled"
+    rec.error = TEST_CLOSED_REASON
+    rec.resume_at = None
+    await storage.runs.put(rec)
+    return True
+
+
+def snapshot(flow: dict[str, Any], target: str, version: Optional[int]) -> dict[str, Any]:
+    """4.2 review fix: the exact definition a test ran against, stored on the run (never "latest published")."""
+    import hashlib
+
+    body = json.dumps(flow, sort_keys=True, default=str)
+    return {"target": target, "version": version, "content_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            "flow": json.loads(body)}
+
+
 async def run_case(case: TestCase, flow: dict[str, Any], env: TestEnv, model: str = "mock", *,
-                   violations: Optional[list[dict[str, Any]]] = None) -> CaseResult:
+                   violations: Optional[list[dict[str, Any]]] = None, target: str = "draft",
+                   version: Optional[int] = None) -> CaseResult:
+    run_id = f"test_{uuid.uuid4().hex[:12]}"
+    try:
+        return await _run_case(run_id, case, flow, env, model, violations=violations, target=target, version=version)
+    finally:
+        try:
+            await close_test_run(env.storage, run_id)
+        except Exception as err:  # never hide the case result; the run stays a test run (guarded everywhere)
+            import logging
+
+            logging.getLogger(__name__).warning("could not close test run %s: %s", run_id, type(err).__name__)
+
+
+async def _run_case(run_id: str, case: TestCase, flow: dict[str, Any], env: TestEnv, model: str, *,
+                    violations: Optional[list[dict[str, Any]]], target: str, version: Optional[int]) -> CaseResult:
+    from agentos.storage.models import RunRecord
+
     started = time.perf_counter()
     base = {"case_id": case.id, "name": case.name, "tags": list(case.tags)}
-    run_id = f"test_{uuid.uuid4().hex[:12]}"
     try:
         flow_m = with_model(flow, model)
         fd = FlowDefinition(**flow_m)
@@ -168,6 +212,10 @@ async def run_case(case: TestCase, flow: dict[str, Any], env: TestEnv, model: st
         engine = TestFlowEngine(fd, env.storage, policy=policy, transport_registry=sinks.registry(), custom_llm=llm,
                                 mcp_manager=sinks.mcp, usage=env.usage, sandbox=env.sandbox,
                                 secret_resolver=env.secret_resolver, usage_source="test")
+        # the run record exists BEFORE the engine starts: trigger "test" (every guard checks it) + the exact flow
+        await env.storage.runs.put(RunRecord(run_id=run_id, mission_name=fd.id, flow_id=fd.id, flow_version=version,
+                                             status="queued", trigger="test",
+                                             flow_snapshot=snapshot(flow_m, target, version)))
         state = await engine.run(run_id, inputs=case.input, raise_on_error=False, trigger="test")
         state, refused = await _approve_steps(engine, env.storage, run_id, state, case)
         duration = round((time.perf_counter() - started) * 1000, 2)

@@ -165,8 +165,10 @@ def create_app(
             if app.state.storage.flows:
                 runs = await app.state.storage.runs.list(limit=1000)
                 terminal_events = {"run_succeeded", "run_failed", "run_cancelled"}
+                from agentos.flowtests.guard import is_test_run
+
                 for r in runs:
-                    if not r.flow_id:
+                    if not r.flow_id or is_test_run(r):  # 4.2: only the test runner advances test runs
                         continue
                     evs = await app.state.storage.events.list(r.run_id, after_seq=0)
                     ev_types = [e.type for e in evs]

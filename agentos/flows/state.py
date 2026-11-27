@@ -166,6 +166,12 @@ class FlowRunState(BaseModel):
             self.status = RunStatus.FAILED
             self.error = d.get("error")
 
+        elif t == "run_cancelled":  # 4.2: e.g. a test run closed by the test runner ("test case ended")
+            self.waiting_node = None
+            self.waiting_details = None
+            self.status = RunStatus.CANCELLED
+            self.error = d.get("reason") or self.error
+
     @classmethod
     def rebuild_from_events(cls, run_id: str, events: list[EventRecord]) -> FlowRunState:
         """Rebuild entire flow execution state from an append-only event stream."""

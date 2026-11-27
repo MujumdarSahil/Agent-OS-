@@ -499,6 +499,7 @@ export default function ResultsPanel({
   }
 
   const runs = [...(history.data ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
+  const isTestRun = runs.find(r => r.run_id === runId)?.trigger === 'test'
 
   return (
     <div
@@ -634,7 +635,13 @@ export default function ResultsPanel({
           {/* main area: approval + tabs */}
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: right ? 'auto' : undefined }}>
             {error && <div style={{ color: 'var(--accent-red)', padding: '4px 10px' }} data-testid="run-error">{error}</div>}
-            {approval && <ApprovalCard approval={approval} deciding={deciding} onDecide={decide} />}
+            {/* 4.2: a test run's approval is decided only by its test case (the API refuses with 409) */}
+            {approval && isTestRun && (
+              <div className="card text-muted" style={{ margin: 8, padding: 8, fontSize: 12 }} data-testid="test-run-note">
+                This is a test run: only its test case decides approvals; nothing here can resume it.
+              </div>
+            )}
+            {approval && !isTestRun && <ApprovalCard approval={approval} deciding={deciding} onDecide={decide} />}
             {!approval && decision && (
               <div className="card" style={{ margin: 8, padding: 8, fontSize: 12 }} data-testid="approval-decided">
                 Approval <code>{decision.nodeId}</code>: <strong>{decision.approved ? 'approved' : 'rejected'}</strong> by{' '}

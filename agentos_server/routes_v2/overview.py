@@ -160,7 +160,7 @@ async def get_overview(
 
     runs = await storage.runs.list(limit=RUN_SCAN_LIMIT)
     truncated = len(runs) >= RUN_SCAN_LIMIT
-    flow_runs = [r for r in runs if r.flow_id]
+    flow_runs = [r for r in runs if r.flow_id and r.trigger != "test"]  # 4.2: test runs are not work items
 
     counts = {"total": 0, "succeeded": 0, "failed": 0, "waiting": 0, "running": 0}
     attacks_window = 0

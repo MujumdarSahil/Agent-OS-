@@ -9,7 +9,8 @@ import { DecisionNotice, RunApproval, useDecisionNotice } from '../flow/RunWidge
 export default function Approvals() {
   const q = useAllRuns()
   const [decisionNotice, showDecision] = useDecisionNotice()
-  const waiting = (q.data ?? []).filter(r => r.status === 'waiting')
+  // 4.2: test runs (trigger "test") are advanced only by the flow test runner: never shown here
+  const waiting = (q.data ?? []).filter(r => r.status === 'waiting' && r.trigger !== 'test')
   return (
     <div data-testid="approvals-page">
       <div className="page-header" style={{ display: 'flex', alignItems: 'center' }}>

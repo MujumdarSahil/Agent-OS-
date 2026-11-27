@@ -162,8 +162,8 @@ class FlowScheduler:
         for rec in await self.storage.runs.list(limit=1000):
             if rec.status != "waiting" or rec.resume_at is None or rec.resume_at > now_ts:
                 continue
-            if rec.flow_id is None or rec.flow_version is None:
-                continue
+            if rec.flow_id is None or rec.flow_version is None or rec.trigger == "test":
+                continue  # 4.2: only the test runner advances test runs
             rec.resume_at = None  # cleared first so a due timer is enqueued once
             await self.storage.runs.put(rec)
             await self.queue.reenqueue(run_id=rec.run_id, flow_id=rec.flow_id, version=rec.flow_version, inputs={})
