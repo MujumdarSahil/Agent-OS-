@@ -169,6 +169,24 @@ class StaticFlowAnalyzer:
             "mcp_tools": self.tool_catalog.mcp_hashes(mcp_names),
         }
 
+    def untrusted_sink_paths(self) -> list[str]:
+        """4.3 (diff): "source->sink" pairs where data with UNTRUSTED integrity from ``source`` reaches a sink node
+        (external send / write / destructive, or an agent with a send tool). Read-only; same label propagation as
+        verify()."""
+        _, inbound, _ = self._propagate_labels_fixpoint()
+        out: set[str] = set()
+        for node_id, node in self.flow.nodes.items():
+            is_sink = effective_side_effect(node.type, node.config) in (
+                SideEffectClass.EXTERNAL_SEND, SideEffectClass.WRITE, SideEffectClass.DESTRUCTIVE)
+            if node.type == "agent" and any(t in ("send_email", "send_slack") for t in node.config.get("tools") or []):
+                is_sink = True
+            lbl = inbound.get(node_id)
+            if is_sink and lbl is not None and lbl.integrity == "untrusted":
+                for src in sorted(lbl.sources) or ["(input)"]:
+                    if src != node_id:
+                        out.add(f"{src}->{node_id}")
+        return sorted(out)
+
     # ------------------------------------------------------------------ 2.5a agent tools
 
     def _agent_tools(self, node: NodeDefinition) -> tuple[list[ToolEntry], list[ToolLookupError]]:

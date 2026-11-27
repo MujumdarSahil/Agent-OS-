@@ -198,6 +198,7 @@ class FlowEngine:
             # 3.4: who started it ({user_id, username}, set by the route that created the run)
             started_by=existing.started_by if existing else None,
             flow_snapshot=existing.flow_snapshot if existing else None,  # 4.2: test runs
+            environment=existing.environment if existing else None,  # 4.3: staging / production / draft
             trace_id=trace_id,
             current_lease_id=self.lease_id,
             status=RunStatus.RUNNING.value,

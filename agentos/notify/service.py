@@ -639,6 +639,84 @@ class ChannelSlackTransport:
         return {**res, "idempotency_key": idempotency_key}
 
 
+class StagingEmailTransport(ChannelEmailTransport):
+    """4.3: send_email in a STAGING run goes to the email channel the admin mapped for staging (normally a test
+    mailbox; that channel's own recipient rules apply). A missing or disabled channel -> simulated, never the
+    production flow channel."""
+
+    def __init__(self, service: NotifyService, channel_name: str) -> None:
+        super().__init__(service)
+        self.channel_name = channel_name
+
+    async def _ch(self) -> Optional[EmailChannel]:
+        ch = await self.service.channel(self.channel_name)
+        return ch if isinstance(ch, EmailChannel) and ch.enabled else None
+
+    async def avalidate(self, args: dict[str, Any]) -> None:
+        ch = await self._ch()
+        try:
+            validate_email_args(args, ch)
+        except SinkArgumentRejected as err:
+            if ch is not None or self._security_refusal(err):
+                raise
+
+    async def asend(self, idempotency_key: str, **args: Any) -> dict[str, Any]:
+        ch = await self._ch()
+        if ch is None:
+            return {"status": "simulated", "environment_simulated": True, "idempotency_key": idempotency_key,
+                    "reason": f"staging: simulated, the mapped staging email channel {self.channel_name!r} "
+                              "is missing or disabled"}
+        recipients, subject, body = validate_email_args(args, ch)
+        res = await self.service.send_email(ch, recipients, subject, body, idempotency_key)
+        return {**res, "environment": "staging", "idempotency_key": idempotency_key}
+
+
+class StagingSlackTransport(ChannelSlackTransport):
+    """4.3: send_slack in a STAGING run is delivered only to the Slack channels the admin mapped for staging;
+    any other channel is simulated."""
+
+    def __init__(self, service: NotifyService, allowed: set[str], fallback: Any) -> None:
+        super().__init__(service)
+        self.allowed = allowed
+        self.fallback = fallback
+
+    def _mapped(self, args: dict[str, Any]) -> bool:
+        return isinstance(args.get("channel"), str) and args["channel"] in self.allowed
+
+    async def avalidate(self, args: dict[str, Any]) -> None:
+        if self._mapped(args):
+            await super().avalidate(args)
+        else:
+            await self.fallback.avalidate(args)
+
+    async def asend(self, idempotency_key: str, **args: Any) -> dict[str, Any]:
+        if self._mapped(args):
+            res = await super().asend(idempotency_key, **args)
+            return {**res, "environment": "staging"}
+        return await self.fallback.asend(idempotency_key, **args)
+
+
+def staging_registry_factory(service: NotifyService) -> Callable[..., Any]:
+    """4.3 (D4): the transports of a staging / draft run. Draft: always simulated. Staging: simulated unless the
+    admin mapped an email channel and/or Slack channels for staging."""
+
+    async def factory(environment: str, registry: dict[str, Any]) -> dict[str, Any]:
+        from agentos.flows.environments import simulated_registry
+
+        reg = await simulated_registry(environment, registry)
+        repo = getattr(service.storage, "deployments", None)  # follows the storage if Mongo replaces it at startup
+        if environment != "staging" or repo is None:
+            return reg
+        mapping = await repo.get_staging_channels()
+        if mapping.email_channel:
+            reg["send_email"] = StagingEmailTransport(service, mapping.email_channel)
+        if mapping.slack_channels:
+            reg["send_slack"] = StagingSlackTransport(service, set(mapping.slack_channels), reg["send_slack"])
+        return reg
+
+    return factory
+
+
 # --------------------------------------------------------------------------------------------- event observer
 
 class ObservedEvents:
@@ -702,5 +780,6 @@ class NotifyWorker:
         self.service._wake = None
 
 
-__all__ += ["ChannelEmailTransport", "ChannelSlackTransport", "NotifyWorker", "security_block_kind",
+__all__ += ["ChannelEmailTransport", "ChannelSlackTransport", "StagingEmailTransport", "StagingSlackTransport",
+           "staging_registry_factory", "NotifyWorker", "security_block_kind",
             "message_id"]

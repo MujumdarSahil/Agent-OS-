@@ -177,13 +177,15 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
         logger.warning("Webhook UTF-8 / JSON decode error: %s", e)
         return _generic_not_found()
 
-    # Find latest published version of target flow
-    versions = await storage.flows.list_versions(webhook.flow_id)
-    if not versions:
-        logger.warning("Webhook %s target flow %s has no published versions", webhook.webhook_id, webhook.flow_id)
-        return _generic_not_found()
+    # 4.3: the version the webhook's environment points to NOW (resolved once, when the run starts; a later promote
+    # or rollback never changes this run). Webhooks from before 4.3 are bound to production.
+    from agentos.flows.environments import environment_version
 
-    latest_version = max(v.version for v in versions)
+    env_name = getattr(webhook, "environment", None) or "production"
+    latest_version = await environment_version(storage, webhook.flow_id, env_name)
+    if latest_version is None:
+        logger.warning("Webhook %s: flow %s has no version in %s", webhook.webhook_id, webhook.flow_id, env_name)
+        return _generic_not_found()
 
     # -------------------------------------------------------------------------
     # 8. Check-and-Set Nonce Cache (Only Valid & Deliverable Signatures Consume Nonce)
@@ -215,6 +217,7 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
         status="queued",
         inputs=inputs_data,
         trigger="webhook",  # 2.4d: display metadata for run history
+        environment=env_name,  # 4.3
     )
     await storage.runs.put(run_record)
 
@@ -226,6 +229,7 @@ async def handle_webhook(secret_path: str, request: Request) -> Response:
             "flow_id": webhook.flow_id,
             "version": latest_version,
             "trigger": "webhook",
+            "environment": env_name,
             "webhook_id": webhook.webhook_id,
             "security_label": {
                 "integrity": untrusted_label.integrity,

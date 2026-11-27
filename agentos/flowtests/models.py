@@ -175,7 +175,7 @@ class SuiteRun(BaseModel):
     regression: Optional[dict[str, Any]] = None
     comparison_id: Optional[str] = None
     started_by: Optional[str] = None
-    purpose: Literal["manual", "gate", "compare", "cli"] = "manual"
+    purpose: Literal["manual", "gate", "compare", "cli", "promote"] = "manual"  # 4.3: promote gate
 
     @property
     def all_passed(self) -> bool:

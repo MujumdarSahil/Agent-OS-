@@ -39,7 +39,10 @@ class FlowWorker:
         mcp_manager: Any | None = None,
         usage: Any | None = None,
         sandbox: Any | None = None,
+        staging_registry: Any | None = None,
     ) -> None:
+        # 4.3: builds the transports of a staging / draft run (simulated sends unless mapped); None = all simulated
+        self.staging_registry = staging_registry
         self.sandbox = sandbox  # 3.5: sandbox service for the code tools (None: they refuse, fail closed)
         self.usage = usage  # 3.2: ledger, budgets, run limits (shared by every engine of this server)
         self.mcp_manager = mcp_manager  # 2.5a: runs approved MCP tools for agent nodes
@@ -104,38 +107,34 @@ class FlowWorker:
             # 4.2: a test run is never run or resumed by a worker (fake transports only, via the test runner)
             from agentos.flowtests.guard import TEST_RUN_MESSAGE, is_test_run
 
-            if is_test_run(await self.storage.runs.get(job.run_id)):
+            run_rec = await self.storage.runs.get(job.run_id)
+            if is_test_run(run_rec):
                 await self.queue.fail(job.job_id, job.lease_id, TEST_RUN_MESSAGE)  # type: ignore[arg-type]
                 return
 
-            # 1. Fetch published flow version from storage
+            # 1. Fetch the flow version the run was started with (4.3: a draft run uses its snapshot) and the
+            #    transports of its environment (staging / draft: simulated sends unless an admin mapped channels)
             if not self.storage.flows:
                 raise ValueError("Storage does not have a flows repository configured")
+            from agentos.flows.environments import run_flow_and_registry
 
-            flow_record = await self.storage.flows.get_version(job.flow_id, job.version)
-            if flow_record is None:
+            flow_def, registry = await run_flow_and_registry(self.storage, run_rec, job.flow_id, job.version,
+                                                             self.transport_registry, self.staging_registry)
+            if flow_def is None:
                 await self.queue.fail(
                     job.job_id,
                     job.lease_id,  # type: ignore[arg-type]
                     f"Flow {job.flow_id!r} v{job.version} not found in storage",
                 )
                 return
-
-            flow_def = FlowDefinition(
-                id=flow_record.id,
-                name=flow_record.name,
-                entrypoint=flow_record.entrypoint,
-                nodes=flow_record.nodes,
-                edges=flow_record.edges,
-                loops=flow_record.loops,
-            )
+            flow_record = await self.storage.flows.get_version(job.flow_id, job.version) if job.version else None
 
             # 2. Build engine configured with worker's lease_id and fencing validator
             engine = FlowEngine(
                 flow=flow_def,
                 storage=self.storage,
                 policy=self.policy,
-                transport_registry=self.transport_registry,
+                transport_registry=registry,
                 custom_llm=self.custom_llm,
                 track_labels=self.track_labels,
                 lease_id=job.lease_id,
@@ -143,7 +142,7 @@ class FlowWorker:
                 secret_resolver=self.secret_resolver,
                 mcp_manager=self.mcp_manager,
                 # hashes of the MCP tools approved when this version was published (re-checked per run)
-                expected_mcp_hashes=(flow_record.analysis or {}).get("mcp_tools") or {},
+                expected_mcp_hashes=((flow_record.analysis if flow_record else None) or {}).get("mcp_tools") or {},
                 usage=self.usage,
                 sandbox=self.sandbox,
             )

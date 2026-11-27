@@ -281,16 +281,18 @@ class FlowScheduler:
                 idempotency_key = f"cron:{sched.schedule_id}:{int(tick_to_fire)}"
                 run_id = f"run_{uuid.uuid4().hex}"
 
-                # Look up latest published flow version
-                flow_rec = await self.storage.flows.get_draft(sched.flow_id)
-                versions = await self.storage.flows.list_versions(sched.flow_id)
-                if not versions:
-                    logger.warning("Schedule %s references flow %s with no published versions", sched.schedule_id, sched.flow_id)
+                # 4.3: the version the schedule's environment points to at this tick (schedules from before 4.3
+                # are bound to production); an empty environment skips the tick, nothing runs
+                from agentos.flows.environments import environment_version
+
+                env_name = getattr(sched, "environment", None) or "production"
+                latest_version = await environment_version(self.storage, sched.flow_id, env_name)
+                if latest_version is None:
+                    logger.warning("Schedule %s: flow %s has no version in %s", sched.schedule_id, sched.flow_id,
+                                   env_name)
                     sched.last_run_at = now_ts
                     await self.storage.schedules.put(sched)
                     continue
-
-                latest_version = max(v.version for v in versions)
 
                 # Persist RunRecord with idempotency_key first to enforce storage uniqueness
                 run_record = RunRecord(
@@ -302,6 +304,7 @@ class FlowScheduler:
                     inputs=sched.inputs,
                     idempotency_key=idempotency_key,
                     trigger="cron",  # 2.4d: display metadata for run history
+                    environment=env_name,  # 4.3
                 )
 
                 try:

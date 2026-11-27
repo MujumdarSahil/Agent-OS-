@@ -117,3 +117,20 @@ async def gate_check(store: FlowTestStore, env: TestEnv, flow_id: str, flow: dic
     return {"mode": gate.mode, "model": gate.model, "passed": not failed, "suite_run_id": suite.id,
             "counts": suite.counts, "failed": failed[:50],
             "message": "all test cases passed" if not failed else f"{len(failed)} of {len(cases)} test cases failed"}
+
+
+async def version_gate(store: FlowTestStore, env: TestEnv, flow_id: str, version: int,
+                       started_by: Optional[str] = None) -> dict[str, Any]:
+    """4.3: the promote test gate. Runs the flow's cases against that EXACT published version with the gate model
+    (default MOCK, fake transports only). No cases -> not passed."""
+    gate: GateSettings = await store.get_gate(flow_id)
+    cases = await store.list_cases(flow_id)
+    if not cases:
+        return {"passed": False, "suite_run_id": None, "counts": {"total": 0, "pass": 0, "fail": 0, "error": 0},
+                "model": gate.model, "message": "this flow has no test cases"}
+    suite = await execute_suite(store, env, flow_id, target="version", version=version, model=gate.model,
+                                purpose="promote", started_by=started_by)
+    failed = [r.name for r in suite.results if r.status != "pass"]
+    return {"passed": not failed, "suite_run_id": suite.id, "counts": suite.counts, "model": gate.model,
+            "failed": failed[:50],
+            "message": "all test cases passed" if not failed else f"{len(failed)} of {len(cases)} test cases failed"}

@@ -67,6 +67,8 @@ class InProcessFlowWorker:
             usage=getattr(state, "usage", None),
             # 3.5: sandbox for python_exec / shell_exec / file_* (fail closed without a backend)
             sandbox=getattr(state, "sandbox", None),
+            # 4.3: transports of staging / draft runs (simulated unless the admin mapped staging channels)
+            staging_registry=getattr(state, "staging_registry", None),
         )
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="agentos-inprocess-flow-worker")

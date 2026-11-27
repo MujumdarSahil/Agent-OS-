@@ -151,6 +151,15 @@ def create_app(
                     f"AGENTOS_MONGO_URI is set but MongoDB is unreachable at {mongo_uri}: {e}"
                 ) from e
 
+        # 4.3: environments migration (flows from before 4.3: production = latest published version; idempotent)
+        try:
+            from agentos.flows.environments import migrate_all
+            migrated = await migrate_all(app.state.storage)
+            if migrated:
+                logger.info("4.3 environments migration: %d flow(s) set production = latest published", migrated)
+        except Exception as e:
+            logger.warning("4.3 environments migration failed: %s", type(e).__name__)
+
         # Pre-load fallback policy cache into in-memory router cache
         try:
             configs = await app.state.storage.provider_configs.list()
@@ -177,7 +186,8 @@ def create_app(
                     if not is_terminal and not is_waiting:
                         start_ev = next((e for e in evs if e.type == "run_started"), None)
                         inputs = (start_ev.data or {}).get("inputs", {}) if start_ev else r.outputs
-                        ver = r.flow_version or 1
+                        # 4.3: a draft run has no version (it runs its snapshot): job version 0
+                        ver = r.flow_version or (0 if r.environment == "draft" else 1)
                         await app.state.queue.reenqueue(
                             run_id=r.run_id,
                             flow_id=r.flow_id,
@@ -432,6 +442,9 @@ def create_app(
     )
     app.state.transport_registry = {"send_email": ChannelEmailTransport(app.state.notify),
                                     "send_slack": ChannelSlackTransport(app.state.notify)}
+    # 4.3: staging / draft runs: simulated sends unless an admin mapped staging channels
+    from agentos.notify.service import staging_registry_factory
+    app.state.staging_registry = staging_registry_factory(app.state.notify)
 
     # 3.5: sandbox for the code tools (python_exec / shell_exec / file_*). Fail closed without a backend; nothing
     # from this process (env, vault, keys) is passed into a sandbox. Settings follow the storage backend.
