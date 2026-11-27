@@ -378,8 +378,11 @@ export default function ResultsPanel({
   onStatuses,
   onClose,
   dock = 'bottom',
+  onSaveAsTest,
 }: {
   dock?: 'bottom' | 'right'
+  /** 4.2: "Save as test case" (builders); absent for viewers */
+  onSaveAsTest?: (runId: string) => void
   /** bumped on every selection, so re-selecting the same node scrolls and flashes again */
   inspectSeq?: number
   flowId: string
@@ -553,6 +556,12 @@ export default function ResultsPanel({
             <button className="btn btn-ghost btn-sm" data-testid="send-to-review-btn" onClick={() => void handleSendToReview()} disabled={sendingReview || reviewSent}>
               {reviewSent ? 'Sent to review' : sendingReview ? 'Sending…' : 'Send to review'}
             </button>
+            {onSaveAsTest && runId && (
+              <button className="btn btn-ghost btn-sm" data-testid="save-as-test" onClick={() => onSaveAsTest(runId)}
+                      title="Make a test case from this run: input, recorded responses and suggested expectations">
+                Save as test case
+              </button>
+            )}
             {(() => {
               const selectedRun = runs.find(r => r.run_id === runId)
               if (!selectedRun?.trace_id) return null

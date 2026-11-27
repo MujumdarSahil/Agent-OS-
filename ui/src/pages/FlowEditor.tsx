@@ -33,6 +33,9 @@ import ResultsPanel, { RunDialog } from '../flow/RunPanel'
 import FlowSettingsModal from '../flow/FlowSettingsModal'
 import AiEditPanel from '../flow/AiEditPanel'
 import AttackPanel from '../flow/AttackPanel'
+import TestsPanel from '../flow/TestsPanel'
+import { caseFromRun } from '../api/flowTests'
+import type { TestCase, TestGateResult } from '../api/flowTests'
 import type { BuilderFlow } from '../api/builder'
 import {
   ExtractionConfigForm, ValidatorConfigForm, defaultExtractionConfig, defaultValidatorConfig,
@@ -129,6 +132,9 @@ function Editor() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showAiEdit, setShowAiEdit] = useState(false) // 4.0 "Edit with AI"
   const [showAttack, setShowAttack] = useState(false) // 4.1 "Attack my flow"
+  const [showTests, setShowTests] = useState(false) // 4.2 "Tests" tab
+  const [testDraft, setTestDraft] = useState<TestCase | null>(null) // 4.2 "Save as test case" from a run
+  const clearTestDraft = useCallback(() => setTestDraft(null), [])
   const [showPalette, setShowPalette] = useState(isNew)
   const versionsQ = useQuery({ queryKey: ['versions', flowId], queryFn: () => listVersions(flowId), enabled: !isNew, retry: false })
   const hasPublished = (versionsQ.data?.length ?? 0) > 0
@@ -501,6 +507,16 @@ function Editor() {
     URL.revokeObjectURL(url)
   }
 
+  // 4.2: "Save as test case" on a run: a suggested case (input, fixtures, expectations) opened in the Tests editor
+  const saveRunAsTest = async (rid: string) => {
+    try {
+      setTestDraft(await caseFromRun(flowId, rid))
+      setShowTests(true)
+    } catch (err) {
+      setMessage({ kind: 'error', text: `Could not create a test case from this run: ${apiErrorMessage(err)}` })
+    }
+  }
+
   const onPublish = async () => {
     setBusy(true)
     setViolations([])
@@ -508,13 +524,20 @@ function Editor() {
       const pub = await publishFlow(flowId)
       setStatus(pub.status)
       takePubView(pub)
-      setMessage({ kind: 'ok', text: `Published version ${pub.version}.` })
+      const gate = pub.test_gate
+      setMessage(gate && !gate.passed
+        ? { kind: 'error', text: `Published version ${pub.version}, but tests failed (warn mode): ${gate.message}.` }
+        : { kind: 'ok', text: `Published version ${pub.version}.${gate ? ` Tests: ${gate.message}.` : ''}` })
       void versionsQ.refetch() // enables Run
     } catch (err) {
       if (err instanceof PublishRefusedError) {
         setViolations(err.violations)
         setMessage({ kind: 'error', text: `Publish refused: ${err.violations.length} security violation(s).` })
         setPendingFit(true) // the violation table shrinks the canvas: keep the highlighted path in view
+      } else if (testGateOf(err)) {
+        const g = testGateOf(err)!
+        setMessage({ kind: 'error', text: `Publish refused: tests failed (${g.message}${g.failed.length ? `: ${g.failed.join(', ')}` : ''}).` })
+        setShowTests(true)
       } else {
         setMessage({ kind: 'error', text: `Publish failed: ${apiErrorMessage(err)}` })
       }
@@ -577,6 +600,7 @@ function Editor() {
       onInspectNode={inspect}
       onStatuses={onRunStatuses}
       onClose={() => setShowResults(false)}
+      onSaveAsTest={canBuild && !isNew ? saveRunAsTest : undefined}
     />
   )
 
@@ -648,6 +672,16 @@ function Editor() {
             title="Try injection attacks on a copy of this flow (test model, fake senders; nothing is sent or saved)"
           >
             Attack my flow
+          </button>
+          <button
+            className="btn btn-ghost"
+            data-testid="tests-open"
+            aria-pressed={showTests}
+            onClick={() => setShowTests(v => !v)}
+            disabled={isNew}
+            title="Test cases for this flow: run them against a version and a model (fake senders, fixture responses)"
+          >
+            Tests
           </button>
         </div>
         <div className="editor-toolbar-primary" data-testid="editor-primary-actions"
@@ -836,6 +870,22 @@ function Editor() {
             canBuild={canBuild}
             onApply={applyAiProposal}
             onClose={() => setShowAttack(false)}
+          />
+        )}
+        {showTests && (
+          <TestsPanel
+            flowId={flowId}
+            nodeIds={nodes.map(n => n.id)}
+            versions={(versionsQ.data ?? []).map(v => v.version).filter((v): v is number => typeof v === 'number')}
+            canBuild={canBuild}
+            draft={testDraft}
+            onDraftUsed={clearTestDraft}
+            onOpenRun={id => {
+              setRunId(id)
+              setInspectNode(null)
+              setShowResults(true)
+            }}
+            onClose={() => setShowTests(false)}
           />
         )}
         {showResults && panelDock === 'right' && resultsPanel}
@@ -1216,4 +1266,11 @@ function ViolationList({ violations, edges }: { violations: Violation[]; edges: 
       </table>
     </div>
   )
+}
+
+/** 4.2: the gate result of a publish refused because tests failed (block mode), else null. */
+function testGateOf(err: unknown): TestGateResult | null {
+  const d = (err as { response?: { status?: number; data?: { detail?: { error?: string; test_gate?: TestGateResult } } } })
+    ?.response
+  return d?.status === 400 && d.data?.detail?.error === 'Publish refused: tests failed' ? d.data.detail.test_gate ?? null : null
 }

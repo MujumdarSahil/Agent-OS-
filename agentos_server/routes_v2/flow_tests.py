@@ -226,7 +226,9 @@ async def case_from_run(flow_id: str, body: FromRunBody, request: Request) -> Di
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err))
     case.created_by = _who(request)
-    return case.model_dump(mode="json")
+    out = case.model_dump(mode="json")
+    out.pop("id", None)  # a suggestion: it gets an id when the user saves it (POST)
+    return out
 
 
 @router.post("/{flow_id}/tests/from-review")

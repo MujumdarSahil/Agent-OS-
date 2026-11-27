@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage, archiveFlow, flowStatusLabel, listFlows, listVersions } from '../api/flows'
+import { testsSummary } from '../api/flowTests'
 import { getReviewMetrics } from '../api/review'
 import FlowSettingsModal from '../flow/FlowSettingsModal'
 
@@ -11,6 +12,7 @@ export default function Flows() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const flowsQ = useQuery({ queryKey: ['flows'], queryFn: listFlows })
+  const testsQ = useQuery({ queryKey: ['flow-tests-summary'], queryFn: testsSummary, retry: false })
   const [newId, setNewId] = useState('')
   const [newName, setNewName] = useState('')
   const [openVersions, setOpenVersions] = useState<string | null>(null)
@@ -107,6 +109,7 @@ export default function Flows() {
                   name={f.name}
                   status={flowStatusLabel(f)}
                   version={f.published_version ?? f.version}
+                  tests={testsQ.data?.[f.id]}
                   showVersions={openVersions === f.id}
                   onToggleVersions={() => setOpenVersions(v => (v === f.id ? null : f.id))}
                   onArchive={() => archiveMut.mutate(f.id)}
@@ -125,6 +128,7 @@ function FlowRow(props: {
   name: string
   status: string
   version: number | null
+  tests?: { cases: number; last_pass_rate: number | null }
   showVersions: boolean
   onToggleVersions: () => void
   onArchive: () => void
@@ -152,6 +156,16 @@ function FlowRow(props: {
               title={`Reviewed: ${metrics.total_reviewed} (${metrics.good_count} good, ${metrics.bad_count} bad)`}
             >
               {Math.round(metrics.pct_good)}% good ({metrics.total_reviewed})
+            </span>
+          )}
+          {props.tests && props.tests.cases > 0 && (
+            <span
+              className="badge"
+              data-testid={`tests-badge-${props.id}`}
+              style={{ marginLeft: 8 }}
+              title={`${props.tests.cases} test case(s); pass rate of the last test run`}
+            >
+              Tests: {props.tests.last_pass_rate == null ? 'not run' : `${props.tests.last_pass_rate}% pass`}
             </span>
           )}
         </td>
