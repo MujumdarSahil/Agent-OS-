@@ -98,7 +98,7 @@ async def _start_parked(app, c):
     parking = Parking(app.state.queue)
     app.state.queue.release_for_waiting = parking
     assert (await c.post("/api/v2/flows", json=FLOW)).status_code == 201
-    assert (await c.post("/api/v2/flows/race_flow/publish")).status_code == 200
+    assert (await c.post("/api/v2/flows/race_flow/publish", json={"note": "test publish"})).status_code == 200
     r = await c.post("/api/v2/flows/race_flow/runs", json={"inputs": {"text": "please review"}})
     assert r.status_code == 201
     run_id = r.json()["run_id"]

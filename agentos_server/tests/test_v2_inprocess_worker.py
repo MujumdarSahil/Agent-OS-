@@ -96,7 +96,7 @@ async def _wait_status(client: AsyncClient, flow_id: str, run_id: str, want: set
 
 async def _publish_and_run(c: AsyncClient, flow: dict, inputs: dict) -> str:
     assert (await c.post("/api/v2/flows", json=flow)).status_code == 201
-    assert (await c.post(f"/api/v2/flows/{flow['id']}/publish")).status_code == 200
+    assert (await c.post(f"/api/v2/flows/{flow['id']}/publish", json={"note": "test publish"})).status_code == 200
     r = await c.post(f"/api/v2/flows/{flow['id']}/runs", json={"inputs": inputs})
     assert r.status_code == 201
     return r.json()["run_id"]
@@ -145,6 +145,9 @@ async def test_run_history_records_trigger_type(env, monkeypatch):
         async with _client(app) as c:
             manual_id = await _publish_and_run(c, BENIGN, {"text": "hi"})
             assert await _wait_status(c, "notify_flow", manual_id, {"succeeded", "failed"}) == "succeeded"
+            # 4.3: a flow created after 4.3 is deployed to staging on publish; the webhook runs production
+            promoted = await c.post("/api/v2/flows/notify_flow/environments/production/promote", json={"version": 1})
+            assert promoted.status_code == 200, promoted.text
             hook = (await c.post("/api/v2/webhooks", json={"name": "t", "flow_id": "notify_flow"})).json()
             body, ts = json.dumps({"text": "from webhook"}), int(time.time())
             sig = "sha256=" + hmac.new(hook["secret_key"].encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
@@ -200,7 +203,7 @@ def test_websocket_after_seq_replays_only_missing_events(env, monkeypatch):
     headers = {"Authorization": f"Bearer {TOKEN}", "Host": "localhost"}
     with TestClient(app, base_url="http://localhost") as client:
         client.post("/api/v2/flows", json=BENIGN, headers=headers)
-        client.post("/api/v2/flows/notify_flow/publish", headers=headers)
+        client.post("/api/v2/flows/notify_flow/publish", json={"note": "test publish"}, headers=headers)
         run_id = client.post(
             "/api/v2/flows/notify_flow/runs", json={"inputs": {"text": "hi"}}, headers=headers
         ).json()["run_id"]

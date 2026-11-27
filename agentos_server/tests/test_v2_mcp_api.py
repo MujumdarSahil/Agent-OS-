@@ -136,13 +136,13 @@ async def test_agents_and_publish_accept_only_approved_mcp_tools(client):
         "loops": {},
     }
     assert (await client.post("/api/v2/flows", json=flow)).status_code == 201
-    refused = await client.post("/api/v2/flows/uses_mcp/publish")
+    refused = await client.post("/api/v2/flows/uses_mcp/publish", json={"note": "test publish"})
     assert refused.status_code == 400
     assert any("not been reviewed" in v["reason"] for v in refused.json()["detail"]["violations"])
 
     await client.post("/api/v2/mcp-servers/good/tools/read_note/approve",
                       json={"expected_sha256": tools["read_note"]["snapshot"]["sha256"], "side_effect": "read"})
     assert (await client.post("/api/v2/agents", json=agent)).status_code == 200
-    published = await client.post("/api/v2/flows/uses_mcp/publish")
+    published = await client.post("/api/v2/flows/uses_mcp/publish", json={"note": "test publish"})
     assert published.status_code == 200, published.text
     assert published.json()["analysis"]["mcp_tools"] == {"mcp.good.read_note": tools["read_note"]["snapshot"]["sha256"]}

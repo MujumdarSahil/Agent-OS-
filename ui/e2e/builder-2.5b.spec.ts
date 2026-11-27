@@ -18,7 +18,7 @@ async function seed(request: APIRequestContext, flow: Record<string, unknown>, p
   const created = await request.post('/api/v2/flows', { data: flow, headers: AUTH })
   expect(created.status(), await created.text()).toBe(201)
   if (publish) {
-    const published = await request.post(`/api/v2/flows/${flow.id}/publish`, { headers: AUTH })
+    const published = await request.post(`/api/v2/flows/${flow.id}/publish`, { headers: AUTH, data: { note: 'e2e publish' } })
     expect(published.status(), await published.text()).toBe(200)
   }
 }
@@ -144,7 +144,7 @@ test('validator run: the value is "trusted · declassified by validator", the by
     loops: {},
   }
   expect((await request.post('/api/v2/flows', { data: bypass, headers: AUTH })).status()).toBe(201)
-  const pub = await request.post('/api/v2/flows/val_bypass_e2e/publish', { headers: AUTH })
+  const pub = await request.post('/api/v2/flows/val_bypass_e2e/publish', { headers: AUTH, data: { note: 'e2e publish' } })
   expect(pub.status()).not.toBe(200)
   expect(await pub.text()).toContain("validator field_type 'enum' requires 'values'")
 })

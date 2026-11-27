@@ -46,7 +46,7 @@ async def test_approve_lookalike_needs_confirmation(project):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost",
                                headers={"Authorization": f"Bearer {TOKEN}", "Host": "localhost"}) as c:
             assert (await c.post("/api/v2/flows", json=FLOW)).status_code == 201
-            assert (await c.post("/api/v2/flows/gated_to/publish")).status_code == 200
+            assert (await c.post("/api/v2/flows/gated_to/publish", json={"note": "test publish"})).status_code == 200
             rid = (await c.post("/api/v2/flows/gated_to/runs", json={"inputs": {"to": LOOK}})).json()["run_id"]
             for _ in range(200):
                 if (await c.get(f"/api/v2/flows/gated_to/runs/{rid}")).json()["status"] == "waiting":

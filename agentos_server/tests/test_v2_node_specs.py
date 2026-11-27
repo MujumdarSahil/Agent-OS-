@@ -105,10 +105,10 @@ async def test_model_choice_limited_to_enabled_providers(client, monkeypatch):
     assert bad.status_code == 400 and "enabled provider" in bad.text
     set_fallback_policy_cache([{"name": "openai_gpt4o", "enabled": False}])
     try:
-        assert (await client.post("/api/v2/flows/m_ok/publish")).status_code == 400
+        assert (await client.post("/api/v2/flows/m_ok/publish", json={"note": "test publish"})).status_code == 400
     finally:
         set_fallback_policy_cache(None)
-    assert (await client.post("/api/v2/flows/m_ok/publish")).status_code == 200
+    assert (await client.post("/api/v2/flows/m_ok/publish", json={"note": "test publish"})).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -119,23 +119,23 @@ async def test_subflow_cycle_and_unpublished_version_refused(client):
 
     a1 = {"id": "fa", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger")}, "edges": []}
     assert (await client.post("/api/v2/flows", json=a1)).status_code == 201
-    assert (await client.post("/api/v2/flows/fa/publish")).status_code == 200
+    assert (await client.post("/api/v2/flows/fa/publish", json={"note": "test publish"})).status_code == 200
     b1 = {"id": "fb", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger"),
                                                   "s": node("s", "subflow", {"flow_id": "fa", "version": 1})},
           "edges": [{"source": "t", "target": "s"}]}
     assert (await client.post("/api/v2/flows", json=b1)).status_code == 201
-    published_b = await client.post("/api/v2/flows/fb/publish")
+    published_b = await client.post("/api/v2/flows/fb/publish", json={"note": "test publish"})
     assert published_b.status_code == 200 and published_b.json()["analysis"]["subflows"] == [["fa", 1]]
     a2 = {**a1, "nodes": {**a1["nodes"], "s": node("s", "subflow", {"flow_id": "fb", "version": 1})},
           "edges": [{"source": "t", "target": "s"}]}
     assert (await client.put("/api/v2/flows/fa", json=a2)).status_code == 200
-    cyc = await client.post("/api/v2/flows/fa/publish")
+    cyc = await client.post("/api/v2/flows/fa/publish", json={"note": "test publish"})
     assert cyc.status_code == 400 and "cycle" in cyc.text
     missing = {"id": "fc", "entrypoint": "t", "nodes": {"t": node("t", "manual_trigger"),
                                                        "s": node("s", "subflow", {"flow_id": "fa", "version": 9})},
                "edges": [{"source": "t", "target": "s"}]}
     assert (await client.post("/api/v2/flows", json=missing)).status_code == 201
-    assert "not published" in (await client.post("/api/v2/flows/fc/publish")).text
+    assert "not published" in (await client.post("/api/v2/flows/fc/publish", json={"note": "test publish"})).text
 
 
 @pytest.mark.asyncio
@@ -156,7 +156,7 @@ def _uc01(flow_id: str) -> dict:
 async def test_publish_benign_uc01_ok(client):
     flow = _uc01("uc01_benign")
     assert (await client.post("/api/v2/flows", json=flow)).status_code == 201
-    r = await client.post("/api/v2/flows/uc01_benign/publish")
+    r = await client.post("/api/v2/flows/uc01_benign/publish", json={"note": "test publish"})
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "published"
 
@@ -168,7 +168,7 @@ async def test_publish_refusal_violation_format_is_stable(client):
     # untrusted webhook) controls send_email.to.
     attack["nodes"]["agent_node"]["pinned_args"] = {}
     assert (await client.post("/api/v2/flows", json=attack)).status_code == 201
-    r = await client.post("/api/v2/flows/uc01_exfil/publish")
+    r = await client.post("/api/v2/flows/uc01_exfil/publish", json={"note": "test publish"})
     assert r.status_code == 400, r.text
     detail = r.json()["detail"]
     assert detail["error"] == "Publish refused: security violations found"

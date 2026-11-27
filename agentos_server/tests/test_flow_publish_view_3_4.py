@@ -27,7 +27,7 @@ async def test_publish_view_fields(tmp_path, monkeypatch):
         f = (await c.get("/api/v2/flows/pv_flow")).json()
         assert (f["published_version"], f["unpublished_changes"]) == (None, True)  # never published: draft
 
-        pub = (await c.post("/api/v2/flows/pv_flow/publish")).json()
+        pub = (await c.post("/api/v2/flows/pv_flow/publish", json={"note": "test publish"})).json()
         assert (pub["published_version"], pub["unpublished_changes"]) == (1, False)
         f = (await c.get("/api/v2/flows/pv_flow")).json()
         assert (f["published_version"], f["unpublished_changes"]) == (1, False)  # "published v1", not "draft"

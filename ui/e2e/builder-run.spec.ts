@@ -21,7 +21,7 @@ async function seedAndPublish(request: APIRequestContext, file: string, id: stri
   const flow = { ...JSON.parse(fs.readFileSync(path.join(UC05, file), 'utf8')), id, name: id }
   const created = await request.post('/api/v2/flows', { data: flow, headers: AUTH })
   expect(created.status(), await created.text()).toBe(201)
-  const published = await request.post(`/api/v2/flows/${id}/publish`, { headers: AUTH })
+  const published = await request.post(`/api/v2/flows/${id}/publish`, { headers: AUTH, data: { note: 'e2e publish' } })
   expect(published.status(), await published.text()).toBe(200)
 }
 

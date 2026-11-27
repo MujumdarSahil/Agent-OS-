@@ -87,7 +87,7 @@ async def _run_usecase_async() -> bool:
         created = await c.post("/api/v2/flows", json=r["flow"])
         ok &= report(created.status_code == 201 and not await app.state.storage.flows.list_versions(fid),
                      "Create draft: saved as a normal draft, no published version")
-        pub = await c.post(f"/api/v2/flows/{fid}/publish")
+        pub = await c.post(f"/api/v2/flows/{fid}/publish", json={"note": "test publish"})
         ok &= report(pub.status_code == 200, f"owner publishes it normally: {pub.status_code} (Publish check passed)")
 
         # --- attack: injection inside the description ----------------------------------------------------------
@@ -97,14 +97,14 @@ async def _run_usecase_async() -> bool:
                      f"injection: draft fails the check after {r['repair_rounds']} repair rounds "
                      f"({', '.join(v['rule'] for v in r['check']['violations'])})")
         await c.post("/api/v2/flows", json=flow)
-        refused = await c.post("/api/v2/flows/uc13_injected/publish")
+        refused = await c.post("/api/v2/flows/uc13_injected/publish", json={"note": "test publish"})
         ok &= report(refused.status_code == 400, f"injection: saved draft cannot be published ({refused.status_code})")
         fix = r["check"]["fixes"][0] if r["check"]["fixes"] else {}
         ok &= report(fix.get("label") == "Pin this recipient to oncall@corp.local" and fix.get("passes") is True,
                      f"injection: one-click fix offered: {fix.get('label')!r} (passes={fix.get('passes')})")
         if fix:
             await c.put("/api/v2/flows/uc13_injected", json={**fix["flow"], "id": "uc13_injected"})
-        pub = await c.post("/api/v2/flows/uc13_injected/publish")
+        pub = await c.post("/api/v2/flows/uc13_injected/publish", json={"note": "test publish"})
         ok &= report(pub.status_code == 200, f"injection: after the pin fix it publishes ({pub.status_code})")
 
         # --- attack: recipient taken from the incoming message -------------------------------------------------

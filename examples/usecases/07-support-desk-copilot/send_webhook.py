@@ -60,7 +60,8 @@ def setup(base_url: str, with_schedule: bool) -> tuple[str, str]:
     if status == 400:
         status, _ = api(base_url, token, "PUT", f"/flows/{flow['id']}", flow)
     print(f"flow {flow['id']}: saved (HTTP {status})")
-    status, body = api(base_url, token, "POST", f"/flows/{flow['id']}/publish")
+    status, body = api(base_url, token, "POST", f"/flows/{flow['id']}/publish",
+                       {"note": "use case 07 setup"})
     if status != 200:
         raise SystemExit(f"publish refused (HTTP {status}): {body.get('detail')}\n"
                          "Hint: start AgentOS with $env:AGENTOS_INTERNAL_DOMAINS=\"corp.local\".")

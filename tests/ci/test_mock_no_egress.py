@@ -114,7 +114,7 @@ async def test_mock_run_of_uc07_through_server_makes_no_outbound_model_request(e
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost",
                                headers={"Authorization": f"Bearer {TOKEN}", "Host": "localhost"}) as c:
             assert (await c.post("/api/v2/flows", json=flow)).status_code == 201
-            pub = await c.post(f"/api/v2/flows/{flow['id']}/publish")
+            pub = await c.post(f"/api/v2/flows/{flow['id']}/publish", json={"note": "test publish"})
             assert pub.status_code == 200, pub.text
             r = await c.post(f"/api/v2/flows/{flow['id']}/runs", json={"inputs": ticket})
             assert r.status_code == 201, r.text

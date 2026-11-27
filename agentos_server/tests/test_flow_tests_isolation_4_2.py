@@ -112,7 +112,7 @@ async def test_waiting_test_run_cannot_be_approved_or_rejected_and_is_not_on_ove
     app = create_app(str(project))
     async with client(app, await admin(app)) as c:
         assert (await c.post("/api/v2/flows", json=FLOW)).status_code == 201
-        assert (await c.post(f"/api/v2/flows/{FID}/publish")).status_code == 200  # a published version exists
+        assert (await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})).status_code == 200  # a published version exists
         rid = await leftover_waiting_test_run(app.state.storage)
         calls = tripwire.install(monkeypatch)
         for decision in (True, "reject"):

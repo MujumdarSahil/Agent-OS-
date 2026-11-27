@@ -126,7 +126,7 @@ async def _run_usecase_async() -> bool:
         # --- workflow: builder publishes and starts, approver approves --------------------------------------
         bob, bh = await login(app, "bob")
         assert (await bob.post("/api/v2/flows", json=FLOW, headers=bh)).status_code == 201
-        pub = await bob.post("/api/v2/flows/uc11_flow/publish", headers=bh)
+        pub = await bob.post("/api/v2/flows/uc11_flow/publish", json={"note": "test publish"}, headers=bh)
         run1 = await waiting_run(bob, bh, "uc11_flow")
         bob_approve = await bob.post(f"/api/v2/flows/uc11_flow/runs/{run1}/approve",
                                      json={"node_id": "gate", "decision": True}, headers=bh)
@@ -185,7 +185,7 @@ async def _run_usecase_async() -> bool:
         app.state.separation_of_duties = True  # = security.separation_of_duties: true in agentos.config.yaml
         flow3 = {**FLOW, "id": "uc11_sod"}
         await admin.post("/api/v2/flows", json=flow3, headers=ah)
-        await admin.post("/api/v2/flows/uc11_sod/publish", headers=ah)
+        await admin.post("/api/v2/flows/uc11_sod/publish", json={"note": "test publish"}, headers=ah)
         run3 = await waiting_run(admin, ah, "uc11_sod")
         own = await admin.post(f"/api/v2/flows/uc11_sod/runs/{run3}/approve", json={"node_id": "gate", "decision": True},
                                headers=ah)

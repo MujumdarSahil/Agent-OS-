@@ -401,7 +401,7 @@ def test_websocket_with_session_cookie_and_with_pat(project):
 
 async def _waiting_run(app, c: AsyncClient, flow_id: str) -> str:
     assert (await c.post("/api/v2/flows", json={**APPROVAL_FLOW, "id": flow_id})).status_code == 201
-    assert (await c.post(f"/api/v2/flows/{flow_id}/publish")).status_code == 200
+    assert (await c.post(f"/api/v2/flows/{flow_id}/publish", json={"note": "test publish"})).status_code == 200
     r = await c.post(f"/api/v2/flows/{flow_id}/runs", json={"inputs": {"payload": "ops@corp.local"}})
     run_id = r.json()["run_id"]
     for _ in range(200):

@@ -164,7 +164,7 @@ async def test_publish_gate_refusal_with_violations(test_app, auth_headers):
 
         # 2. Publish must be refused (400)
         pub_res = await client.post(
-            "/api/v2/flows/test_pub_refusal/publish",
+            "/api/v2/flows/test_pub_refusal/publish", json={"note": "test publish"},
             headers=auth_headers,
         )
         assert pub_res.status_code == 400
@@ -194,7 +194,7 @@ async def test_deletion_guard_and_archive_endpoints(test_app, auth_headers):
 
         # Publish version 1
         pub_res = await client.post(
-            "/api/v2/flows/flow_del_test/publish",
+            "/api/v2/flows/flow_del_test/publish", json={"note": "test publish"},
             headers=auth_headers,
         )
         assert pub_res.status_code == 200
@@ -220,7 +220,7 @@ async def test_manual_trigger_inputs_untrusted_by_default(test_app, auth_headers
     async with AsyncClient(transport=transport, base_url="http://localhost:8000") as client:
         # Create and publish pinned flow
         await client.post("/api/v2/flows", headers=auth_headers, json=_pinned_sink_flow("flow_trigger_test"))
-        await client.post("/api/v2/flows/flow_trigger_test/publish", headers=auth_headers)
+        await client.post("/api/v2/flows/flow_trigger_test/publish", json={"note": "test publish"}, headers=auth_headers)
 
         # Trigger run
         run_res = await client.post(
@@ -252,7 +252,7 @@ async def test_approval_idempotency_and_rejection(test_app, auth_headers):
     async with AsyncClient(transport=transport, base_url="http://localhost:8000") as client:
         # Create and publish flow with approval gate
         await client.post("/api/v2/flows", headers=auth_headers, json=_approval_flow("flow_appr_api"))
-        await client.post("/api/v2/flows/flow_appr_api/publish", headers=auth_headers)
+        await client.post("/api/v2/flows/flow_appr_api/publish", json={"note": "test publish"}, headers=auth_headers)
 
         # Trigger run
         run_res = await client.post(

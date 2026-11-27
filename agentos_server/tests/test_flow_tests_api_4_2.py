@@ -208,27 +208,27 @@ async def test_publish_gate_block_and_warn(project):
         assert (await c.post("/api/v2/flows", json=FLOW)).status_code == 201
         # block with no cases: fail closed
         assert (await c.put(f"{BASE}/settings", json={"mode": "block"})).json()["mode"] == "block"
-        r = await c.post(f"/api/v2/flows/{FID}/publish")
+        r = await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})
         assert r.status_code == 400 and r.json()["detail"]["test_gate"]["counts"]["total"] == 0
         # block with a failing case: refused, no version
         cid = (await c.post(BASE, json=normal_case("failed"))).json()["id"]
-        r = await c.post(f"/api/v2/flows/{FID}/publish")
+        r = await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})
         assert r.status_code == 400 and r.json()["detail"]["error"] == "Publish refused: tests failed"
         assert r.json()["detail"]["test_gate"]["failed"] == ["normal ticket"]
         assert await app.state.storage.flows.list_versions(FID) == []
         # warn: published with a warning
         await c.put(f"{BASE}/settings", json={"mode": "warn"})
-        r = await c.post(f"/api/v2/flows/{FID}/publish")
+        r = await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})
         assert r.status_code == 200 and r.json()["published_version"] == 1
         assert r.json()["test_gate"]["mode"] == "warn" and r.json()["test_gate"]["passed"] is False
         # block with passing cases: published, gate passed
         await c.put(f"{BASE}/{cid}", json=normal_case("succeeded"))
         await c.put(f"{BASE}/settings", json={"mode": "block"})
-        r = await c.post(f"/api/v2/flows/{FID}/publish")
+        r = await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})
         assert r.status_code == 200 and r.json()["test_gate"]["passed"] is True
         # gate off: no test run, no field
         await c.put(f"{BASE}/settings", json={"mode": "off"})
-        assert (await c.post(f"/api/v2/flows/{FID}/publish")).json()["test_gate"] is None
+        assert (await c.post(f"/api/v2/flows/{FID}/publish", json={"note": "test publish"})).json()["test_gate"] is None
         # the saved draft never stores the response-only field
         assert (await app.state.storage.flows.get_draft(FID)).test_gate is None
     refused = [e for e in await actions(app, "flow.publish") if e["outcome"] == "refused"]
@@ -242,6 +242,6 @@ async def test_static_check_still_runs_first(project):
     async with client(app, await user_token(app, "bob", "builder")) as c:
         assert (await c.post("/api/v2/flows", json=UNSAFE)).status_code == 201
         await c.put(f"/api/v2/flows/{UNSAFE['id']}/tests/settings", json={"mode": "block"})
-        r = await c.post(f"/api/v2/flows/{UNSAFE['id']}/publish")
+        r = await c.post(f"/api/v2/flows/{UNSAFE['id']}/publish", json={"note": "test publish"})
         assert r.status_code == 400 and r.json()["detail"]["error"] == "Publish refused: security violations found"
         assert (await c.get(f"/api/v2/flows/{UNSAFE['id']}/tests/runs")).json() == []  # gate never ran

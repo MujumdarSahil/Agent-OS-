@@ -84,12 +84,12 @@ async def test_flow_lifecycle_and_run_start_are_audited(project):
         assert (await c.put("/api/v2/flows/notify", json=NOTIFY)).status_code == 200
         bad = {**NOTIFY, "id": "broken", "entrypoint": "nope"}
         assert (await c.post("/api/v2/flows", json=bad)).status_code == 400
-        assert (await c.post("/api/v2/flows/notify/publish")).status_code == 200
+        assert (await c.post("/api/v2/flows/notify/publish", json={"note": "test publish"})).status_code == 200
         r = await c.post("/api/v2/flows/notify/runs", json={"inputs": {"text": PAYLOAD}})
         assert r.status_code == 201
         run_id = r.json()["run_id"]
         assert (await c.post("/api/v2/flows", json=UNSAFE)).status_code == 201
-        refused = await c.post("/api/v2/flows/unsafe/publish")
+        refused = await c.post("/api/v2/flows/unsafe/publish", json={"note": "test publish"})
         assert refused.status_code == 400
         assert (await c.delete("/api/v2/flows/notify")).status_code == 409  # published: refused
         assert (await c.post("/api/v2/flows/notify/archive")).status_code == 200
@@ -124,7 +124,7 @@ async def test_approval_decisions_are_audited(project, monkeypatch):
         app.state.transport_registry = {"send_email": mt}
         async with client(app) as c:
             assert (await c.post("/api/v2/flows", json=APPROVAL)).status_code == 201
-            assert (await c.post("/api/v2/flows/gated/publish")).status_code == 200
+            assert (await c.post("/api/v2/flows/gated/publish", json={"note": "test publish"})).status_code == 200
             ids = []
             for _ in range(2):
                 ids.append((await c.post("/api/v2/flows/gated/runs", json={"inputs": {"text": PAYLOAD}})).json()["run_id"])
@@ -204,7 +204,7 @@ async def test_fail_closed_503_when_the_audit_store_is_not_writable(project):
         store.dir.mkdir()
         store.path.mkdir()  # audit.jsonl is now a directory: every append fails
         store._loaded = False
-        r = await c.post("/api/v2/flows/notify/publish")
+        r = await c.post("/api/v2/flows/notify/publish", json={"note": "test publish"})
         assert r.status_code == 503 and r.json()["detail"] == "Audit log unavailable: the action was not applied"
         assert (await c.get("/api/v2/flows/notify/versions")).json() == []  # not published
         r2 = await c.post("/api/v2/vault/keys", json={"name": "OPENAI_API_KEY", "secret": CANARY_SECRET})
@@ -261,7 +261,7 @@ async def test_audit_api_list_filter_verify_export(project):
     async with client(app) as c:
         for i in range(5):
             assert (await c.post("/api/v2/flows", json={**NOTIFY, "id": f"f{i}"})).status_code == 201
-        assert (await c.post("/api/v2/flows/f0/publish")).status_code == 200
+        assert (await c.post("/api/v2/flows/f0/publish", json={"note": "test publish"})).status_code == 200
         page1 = (await c.get("/api/v2/audit", params={"action": "flow.save", "limit": 2})).json()
         assert [e["target"]["id"] for e in page1["entries"]] == ["f4", "f3"]
         page2 = (await c.get("/api/v2/audit", params={"action": "flow", "limit": 2,
@@ -272,10 +272,11 @@ async def test_audit_api_list_filter_verify_export(project):
         by_target = (await c.get("/api/v2/audit", params={"target_type": "flow", "target_id": "f2"})).json()
         assert {e["target"]["id"] for e in by_target["entries"]} == {"f2"}
         verify = (await c.get("/api/v2/audit/verify")).json()
-        assert verify["status"] == "ok" and verify["entries_checked"] == 6
+        # 4.3: publishing also auto-deploys to staging, audited as flow.promote (5 saves + publish + promote)
+        assert verify["status"] == "ok" and verify["entries_checked"] == 7
         export = await c.get("/api/v2/audit/export")
         lines = [json.loads(x) for x in export.text.splitlines()]
-        assert [e["seq"] for e in lines] == list(range(1, 7)) and export.headers["content-type"].startswith(
+        assert [e["seq"] for e in lines] == list(range(1, 8)) and export.headers["content-type"].startswith(
             "application/x-ndjson")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost",
                            headers={"Host": "localhost"}) as anon:

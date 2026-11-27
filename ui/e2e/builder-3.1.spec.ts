@@ -57,9 +57,9 @@ test('audit log page: entries, filter, plain-text drawer, verified badge, Overvi
     edges: [{ source: 'trig', target: 'send', arg_mapping: { to: 'payload', body: 'payload' } }],
   }
   expect((await request.post('/api/v2/flows', { data: ok, headers: AUTH })).status()).toBe(201)
-  expect((await request.post('/api/v2/flows/audit_ok_e2e/publish', { headers: AUTH })).status()).toBe(200)
+  expect((await request.post('/api/v2/flows/audit_ok_e2e/publish', { headers: AUTH, data: { note: 'e2e publish' } })).status()).toBe(200)
   expect((await request.post('/api/v2/flows', { data: unsafe, headers: AUTH })).status()).toBe(201)
-  expect((await request.post('/api/v2/flows/audit_refused_e2e/publish', { headers: AUTH })).status()).toBe(400)
+  expect((await request.post('/api/v2/flows/audit_refused_e2e/publish', { headers: AUTH, data: { note: 'e2e publish' } })).status()).toBe(400)
 
   await page.goto('/audit')
   await expect(page.getByTestId('audit-chain-badge')).toHaveAttribute('data-status', 'ok')

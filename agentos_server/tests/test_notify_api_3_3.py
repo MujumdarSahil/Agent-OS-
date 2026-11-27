@@ -121,7 +121,7 @@ async def test_channels_rules_alerts_api(tmp_path, monkeypatch, stand, caplog):
 
             # publish refused -> attack_blocked alert, delivered to Slack by the worker
             assert (await c.post("/api/v2/flows", json=_unsafe_flow("unsafe_flow"))).status_code == 201
-            assert (await c.post("/api/v2/flows/unsafe_flow/publish")).status_code == 400
+            assert (await c.post("/api/v2/flows/unsafe_flow/publish", json={"note": "test publish"})).status_code == 400
             await app.state.notify.process_due()
             alerts = (await c.get("/api/v2/alerts")).json()
             [a] = [x for x in alerts["alerts"] if x["rule"] == "attack_blocked"]
