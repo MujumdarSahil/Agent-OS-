@@ -14,12 +14,12 @@ class MongoUsageLedger:
 
     async def add(self, incs: list[dict[str, Any]]) -> None:
         for inc in incs:
-            k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"])
+            k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"], inc.get("source"))
             await self._c.update_one(
                 {"_id": k},
                 {"$inc": {c: inc.get(c, 0) for c in COUNTERS},
                  "$setOnInsert": {"day": inc["day"], "flow_id": inc["flow_id"], "provider": inc["provider"],
-                                  "model": inc["model"]}},
+                                  "model": inc["model"], **({"source": inc["source"]} if inc.get("source") else {})}},
                 upsert=True,
             )
 
@@ -37,7 +37,7 @@ class MongoUsageLedger:
     async def replace(self, rows: list[dict[str, Any]]) -> None:
         await self._c.delete_many({})
         if rows:
-            await self._c.insert_many([{"_id": row_key(r["day"], r["flow_id"], r["provider"], r["model"]), **r}
+            await self._c.insert_many([{"_id": row_key(r["day"], r["flow_id"], r["provider"], r["model"], r.get("source")), **r}
                                        for r in rows])
 
 

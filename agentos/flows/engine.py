@@ -96,7 +96,10 @@ class FlowEngine:
         expected_mcp_hashes: dict[str, str] | None = None,
         usage: Any | None = None,
         sandbox: Any | None = None,
+        usage_source: str | None = None,
     ) -> None:
+        # 4.2: "test" for flow test runs: their llm_call records and ledger rows carry source="test"
+        self.usage_source = usage_source
         # 3.2: usage ledger, budgets and run limits (default: built-in run limits, no budgets, no ledger)
         from agentos.usage.guard import UsageContext
 
@@ -708,6 +711,8 @@ class FlowEngine:
 
         out = dict(record)
         out["day"] = today_utc()
+        if self.usage_source:
+            out["source"] = self.usage_source
         if record.get("status") == "ok":
             price = self.usage.price(record.get("provider"), record.get("model"))
             out["cost_usd"] = cost_usd(price, int(record.get("prompt_tokens") or 0),

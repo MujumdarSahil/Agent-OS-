@@ -28,23 +28,27 @@ def today_utc() -> str:
     return _dt.datetime.now(_dt.timezone.utc).date().isoformat()
 
 
-def row_key(day: str, flow_id: str, provider: str, model: str) -> str:
-    return "|".join((day, flow_id or "-", provider or "-", model or "-"))
+def row_key(day: str, flow_id: str, provider: str, model: str, source: Optional[str] = None) -> str:
+    """4.2: usage of test runs carries ``source="test"`` and gets its own rows (``...|test``); normal run rows keep
+    their 3.2 keys. Budgets add up every row, so test usage counts against them."""
+    key = "|".join((day, flow_id or "-", provider or "-", model or "-"))
+    return f"{key}|{source}" if source else key
 
 
-def _blank(day: str, flow_id: str, provider: str, model: str) -> dict[str, Any]:
+def _blank(day: str, flow_id: str, provider: str, model: str, source: Optional[str] = None) -> dict[str, Any]:
     return {"day": day, "flow_id": flow_id or "-", "provider": provider or "-", "model": model or "-",
-            **{c: 0 for c in COUNTERS}}
+            **({"source": source} if source else {}), **{c: 0 for c in COUNTERS}}
 
 
 def increments(record: dict[str, Any], flow_id: str, day: str) -> list[dict[str, Any]]:
     """Ledger increments for one llm_call record (one row per provider/model touched)."""
     rows: dict[str, dict[str, Any]] = {}
+    source = record.get("source") or None
 
     def row(provider: Optional[str], model: Optional[str]) -> dict[str, Any]:
-        k = row_key(day, flow_id, provider or "-", model or "-")
+        k = row_key(day, flow_id, provider or "-", model or "-", source)
         if k not in rows:
-            rows[k] = _blank(day, flow_id, provider or "-", model or "-")
+            rows[k] = _blank(day, flow_id, provider or "-", model or "-", source)
         return rows[k]
 
     real_failures = [a for a in (record.get("attempts") or []) if a.get("error_class") not in NOT_A_CALL]
@@ -108,8 +112,9 @@ class FileUsageLedger:
         async with self._lock:
             rows = self._load()
             for inc in incs:
-                k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"])
-                cur = rows.setdefault(k, _blank(inc["day"], inc["flow_id"], inc["provider"], inc["model"]))
+                k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"], inc.get("source"))
+                cur = rows.setdefault(k, _blank(inc["day"], inc["flow_id"], inc["provider"], inc["model"],
+                                                inc.get("source")))
                 _merge(cur, inc)
             self._save(rows)
 
@@ -119,7 +124,7 @@ class FileUsageLedger:
 
     async def replace(self, rows: list[dict[str, Any]]) -> None:
         async with self._lock:
-            self._save({row_key(r["day"], r["flow_id"], r["provider"], r["model"]): r for r in rows})
+            self._save({row_key(r["day"], r["flow_id"], r["provider"], r["model"], r.get("source")): r for r in rows})
 
 
 # ---------------------------------------------------------------------------- settings (limits + budgets)
@@ -206,7 +211,8 @@ async def rebuild_rows(storage: Any, limit_runs: int = 100_000) -> list[dict[str
             # every llm_call event since 3.2 records its UTC day; older events (none had cost) count as today
             day = (e.data or {}).get("day") or today_utc()
             for inc in increments(e.data or {}, run.flow_id or "-", day):
-                k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"])
-                cur = totals.setdefault(k, _blank(inc["day"], inc["flow_id"], inc["provider"], inc["model"]))
+                k = row_key(inc["day"], inc["flow_id"], inc["provider"], inc["model"], inc.get("source"))
+                cur = totals.setdefault(k, _blank(inc["day"], inc["flow_id"], inc["provider"], inc["model"],
+                                                  inc.get("source")))
                 _merge(cur, inc)
     return list(totals.values())
