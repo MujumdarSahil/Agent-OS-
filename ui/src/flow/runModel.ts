@@ -30,7 +30,17 @@ export interface PendingApproval {
   args: ApprovalArg[]
   /** 2.4d-fix: every argument the sink will receive (pinned, via the approval, from other nodes). */
   sinkArgs?: SinkArg[]
+  /** 4.1b: destinations with non-ASCII or look-alike characters; approving needs a second, explicit click. */
+  destinationWarnings: DestinationWarning[]
   waitingSeq: number
+}
+
+export interface DestinationWarning {
+  arg: string
+  value: string
+  ascii_form: string
+  confusable: boolean
+  reasons: string[]
 }
 
 export interface SinkArg extends ApprovalArg {
@@ -141,6 +151,7 @@ export function pendingApproval(events: RunEvent[]): PendingApproval | undefined
         sinkNode: approves.sink_node,
         args: names.map(n => ({ name: n, value: args[n], label: labels[n] })),
         sinkArgs,
+        destinationWarnings: (e.data.destination_warnings as DestinationWarning[] | undefined) ?? [],
         waitingSeq: e.seq,
       }
     } else if (e.type === 'approval_decision' && pending && e.data.node_id === pending.nodeId) {

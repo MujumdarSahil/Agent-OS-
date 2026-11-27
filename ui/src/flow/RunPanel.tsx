@@ -13,7 +13,7 @@ import {
   blockedCalls, eventSummary, finalOutput, formatMs, lastDecision, mergeEvents, missingSeqs, nodeIO, nodeStatuses,
   pendingApproval,
   runStatusFromEvents, runTiming, stepTimeline, triggerOf,
-  type BlockedCall, type LabelInfo, type PendingApproval, type RunEvent,
+  type BlockedCall, type DestinationWarning, type LabelInfo, type PendingApproval, type RunEvent,
 } from './runModel'
 import type { NodeRunStatus } from './flowGraph'
 import { declassificationText, declassifiedBy, visibleSources } from './ExtractionConfig'
@@ -94,10 +94,12 @@ export function ApprovalCard({
 }: {
   approval: PendingApproval
   deciding: boolean
-  onDecide: (approve: boolean) => void
+  onDecide: (approve: boolean, confirmLookalike?: boolean) => void
   title?: React.ReactNode
 }) {
   const canApprove = useAuth().can('approve') // 3.4: display only; the server refuses other roles
+  const warnings = approval.destinationWarnings ?? []
+  const [confirming, setConfirming] = useState(false)
   return (
     <div className="card" style={{ margin: 8, padding: 10, borderColor: 'var(--accent-amber)' }} data-testid="approval-card">
       <div className="font-semibold">{title ?? <>Approval required: {approval.nodeId}</>}</div>
@@ -131,10 +133,36 @@ export function ApprovalCard({
           ))}
         </tbody>
       </table>
+      {warnings.length > 0 && <LookalikeWarnings warnings={warnings} />}
       <div className="flex gap-2 mt-2" title={canApprove ? undefined : needs('approve')}>
-        <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding || !canApprove} onClick={() => onDecide(true)}>Approve these values</button>
+        {warnings.length > 0 && confirming ? (
+          <button className="btn btn-danger btn-sm" data-testid="approve-confirm-lookalike" disabled={deciding || !canApprove}
+                  onClick={() => onDecide(true, true)}>
+            Yes, send to this exact address ({warnings.map(w => w.ascii_form).join(', ')})
+          </button>
+        ) : (
+          <button className="btn btn-primary btn-sm" data-testid="approve" disabled={deciding || !canApprove}
+                  onClick={() => (warnings.length > 0 ? setConfirming(true) : onDecide(true))}>Approve these values</button>
+        )}
         <button className="btn btn-danger btn-sm" data-testid="reject" disabled={deciding || !canApprove} onClick={() => onDecide(false)}>Reject</button>
       </div>
+    </div>
+  )
+}
+
+/** 4.1b: red warning for destinations with non-ASCII or look-alike characters, with the punycode/escaped form. */
+export function LookalikeWarnings({ warnings }: { warnings: DestinationWarning[] }) {
+  return (
+    <div data-testid="lookalike-warnings" className="mt-2" style={{ border: '1px solid var(--accent-red)', borderRadius: 6, padding: 8, background: 'rgba(239,68,68,0.10)' }}>
+      {warnings.map((w, i) => (
+        <div key={`${w.arg}-${i}`} data-testid="lookalike-warning" data-confusable={w.confusable ? 'true' : 'false'} style={{ fontSize: 12 }}>
+          <span className="badge" style={{ background: 'var(--accent-red)', color: '#fff' }}>look-alike characters</span>{' '}
+          <code>{w.arg}</code>: <span className="font-mono">{w.value}</span> is really{' '}
+          <strong className="font-mono" data-testid="lookalike-ascii">{w.ascii_form}</strong>
+          <div className="text-muted">{w.confusable ? 'Looks like another address. ' : 'Non-English characters. '}{w.reasons.join('; ')}</div>
+        </div>
+      ))}
+      <div style={{ fontSize: 12, marginTop: 4 }}>Approving needs a second click that confirms this exact address.</div>
     </div>
   )
 }
@@ -421,12 +449,12 @@ export default function ResultsPanel({
     if (blockedCount > 0) setTab('security')
   }, [blockedCount])
 
-  const decide = async (approve: boolean) => {
+  const decide = async (approve: boolean, confirmLookalike = false) => {
     if (!runId || !approval) return
     setDeciding(true)
     setError(null)
     try {
-      await decideApproval(flowId, runId, approval.nodeId, approve)
+      await decideApproval(flowId, runId, approval.nodeId, approve, confirmLookalike)
     } catch (e) {
       setError(`Decision failed: ${apiErrorMessage(e)}`)
     } finally {
