@@ -215,13 +215,18 @@ Scope notes from the original plan:
   - a naive baseline executor that lives inside `benchmarks/` (no product switch).
 
   Results: ASR baseline 40.7% vs AgentOS 2.5%; benign utility 100% for both; 0 static-check false refusals; 4/4
-  unsafe flows refused at publish. The 5 AgentOS successes are Unicode look-alike recipients chosen by the incoming
-  message and passed by a human approver, a documented gap.
+  unsafe flows refused at publish. The 5 AgentOS successes were Unicode look-alike recipients chosen by the incoming
+  message and passed by a human approver; fixed in 4.1b (rerun: 0.0% attentive approver, 6.0% approve-all).
 
   `POST /api/v2/flows/{flow_id}/attack-test` (builder/admin, audited with counts only) and the editor panel run the
   fitting attacks on an isolated copy. `scripts/awib_live.py` (real models, not in CI). Design, results and gaps:
   `docs/evidence/4.1.md`, `docs/evidence/4.1-results.md`.
-- Security benchmark integration: **AgentDojo** evaluation harness.
+- **4.1b Look-alike recipients + AgentDojo**: one shared destination check (`agentos/flows/destinations.py`: NFKC,
+  IDN punycode, mixed script, confusables) for every recipient/host/allowlist decision; approval cards flag look-alikes
+  and need an extra confirmation (use case 14). AgentDojo adapter (`benchmarks/agentdojo`, optional `benchmark` extra):
+  AgentDojo's tools behind the real AgentOS tool proxy; CI smoke with the ground-truth replay; full LIVE runs via
+  `scripts/agentdojo_run.py` (not in CI). Evidence: `docs/evidence/4.1b.md`.
+- Security benchmark integration: **AgentDojo** evaluation harness (adapter in 4.1b; LIVE numbers pending).
 - In-house AgentOS workflow-injection benchmark measuring:
   - Attack Success Rate (ASR) across standard and adaptive attacks.
   - Task utility on benign multi-agent workflows.
