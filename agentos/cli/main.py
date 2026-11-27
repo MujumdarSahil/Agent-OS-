@@ -831,7 +831,7 @@ def flow_test(
         from agentos.flows.tool_catalog import ToolCatalog
         from agentos.flowtests import FlowTestError, TestEnv, execute_suite, flowtests_store_for
         from agentos.usage import UsageContext, usage_stores_for
-        from agentos_server.app import (
+        from agentos.core.admin_config import (
             load_allow_declassified_for_destructive,
             load_allowlists,
             load_http_allowlist,

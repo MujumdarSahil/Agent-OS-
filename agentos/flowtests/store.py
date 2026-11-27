@@ -35,7 +35,8 @@ class FlowTestStore:
         return TestCase.model_validate(d) if d else None
 
     async def put_case(self, case: TestCase) -> TestCase:
-        case = case.model_copy(update={"updated_at": time.time()})
+        # re-validate: model_copy(update=...) does not validate (e.g. expectations given as plain dicts)
+        case = TestCase.model_validate({**case.model_dump(mode="python", warnings=False), "updated_at": time.time()})
         await self.cases.put(case.model_dump(mode="json"))
         return case
 
