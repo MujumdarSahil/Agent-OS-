@@ -60,6 +60,9 @@ def main() -> int:
     ap.add_argument("--defenses", default="none,agentos")
     ap.add_argument("--limit", type=int, default=0, help="at most N user tasks and N attack pairs per suite (0 = all)")
     ap.add_argument("--yes", action="store_true", help="start the (paid) run after the plan")
+    ap.add_argument("--replay", action="store_true",
+                    help="MOCK: no model; AgentDojo's ground truth replayed by an agent that obeys every injection "
+                         "(free, deterministic; needs no --yes)")
     ap.add_argument("--out", default=str(ROOT / "docs" / "evidence" / "4.1b-results.json"))
     args = ap.parse_args()
     suites = [s.strip() for s in args.suites.split(",") if s.strip()]
@@ -74,6 +77,9 @@ def main() -> int:
 
     rows = plan(suites, defenses, args.limit)
     runs = sum((r["user_tasks"] + r["pairs"]) * r["defenses"] for r in rows)
+    if args.replay:
+        print(f"AgentDojo {VERSION} MOCK replay (no model, no keys): {runs} task runs")
+        return run(suites, defenses, args.limit, Path(args.out), replay=True)  # the file's "mode" says MOCK
     print(f"AgentDojo {VERSION}, attack {ATTACK}, defenses {', '.join(defenses)} (LIVE: real models via the router)")
     for r in rows:
         print(f"  {r['suite']}: {r['user_tasks']} tasks without attack + {r['pairs']} attack pairs, x{r['defenses']}")
@@ -91,7 +97,7 @@ def _rate(v: list[bool]) -> float | None:
     return round(100.0 * sum(v) / len(v), 1) if v else None
 
 
-def run(suites: list[str], defenses: list[str], limit: int, out: Path) -> int:
+def run(suites: list[str], defenses: list[str], limit: int, out: Path, replay: bool = False) -> int:
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline
     from agentdojo.agent_pipeline.basic_elements import InitQuery, SystemMessage
     from agentdojo.attacks.attack_registry import load_attack
@@ -100,12 +106,15 @@ def run(suites: list[str], defenses: list[str], limit: int, out: Path) -> int:
     from agentos.llm.router_llm import AgentOSRouterLLM
     from agentos.usage.guard import BudgetExceeded, RunGuard, UsageContext
     from agentos.usage.ledger import UsageSettings
-    from benchmarks.agentdojo.defense import AgentOSExecutor, DefendedPipeline, PlainExecutor
+    from benchmarks.agentdojo.defense import (AgentOSExecutor, DefendedPipeline, ExecutorElement, PlainExecutor,
+                                              ReplayAgent)
     from benchmarks.agentdojo.router_llm import RouterAgent
 
     providers: Counter[str] = Counter()
+    mode = ("MOCK replay (no model: AgentDojo ground truth, the agent obeys every injection)" if replay
+            else "LIVE (real models via the AgentOS router)")
     results: dict = {"benchmark": "AgentDojo", "agentdojo": "0.1.35", "version": VERSION, "attack": ATTACK,
-                     "mode": "LIVE (real models via the AgentOS router)", "limit": limit or None, "suites": {}}
+                     "mode": mode, "limit": limit or None, "suites": {}}
     started = time.time()
     stop = False
 
@@ -142,7 +151,12 @@ def run(suites: list[str], defenses: list[str], limit: int, out: Path) -> int:
                     break
                 try:
                     inj = attack.attack(u, i) if i is not None else {}
-                    ok, attacked = suite.run_task_with_pipeline(pipe, u, i, inj)
+                    target = pipe
+                    if replay:  # a fresh obedient replay agent for this (user task, injection task)
+                        target = DefendedPipeline(AgentPipeline([SystemMessage(SYSTEM), InitQuery(),
+                                                                 ReplayAgent(u, i, ExecutorElement(ex))]),
+                                                  ex, f"local-replay-{d}")
+                    ok, attacked = suite.run_task_with_pipeline(target, u, i, inj)
                     if i is None:
                         utility.append(bool(ok))
                     else:
