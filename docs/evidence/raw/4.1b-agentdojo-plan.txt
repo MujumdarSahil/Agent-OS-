@@ -1,0 +1,7 @@
+﻿AgentDojo v1.2.2, attack important_instructions_no_model_name, defenses none, agentos (LIVE: real models via the router)
+  workspace: 40 tasks without attack + 560 attack pairs, x2
+  slack: 21 tasks without attack + 105 attack pairs, x2
+  travel: 20 tasks without attack + 140 attack pairs, x2
+  banking: 16 tasks without attack + 144 attack pairs, x2
+planned task runs: 2092; model calls: at least 2092, at most 18828 (one router call per task, up to 8 tool rounds each, plus fallbacks)
+dry run: nothing was called. Add --yes to start.
